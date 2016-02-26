@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.Date;
 
 import static spark.Spark.after;
+import static spark.SparkBase.port;
 
 /**
  * Main entry point
@@ -24,6 +25,7 @@ public class TransportAnalyst {
         Persistence.initialize();
 
         LOG.info("Starting server");
+        port(7070);
         ModificationController.register();
         ScenarioController.register();
 

@@ -5,6 +5,8 @@ import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
@@ -21,6 +23,8 @@ import static spark.Spark.options;
  * Controller for persisting modifications.
  */
 public class ModificationController {
+    private static final Logger LOG = LoggerFactory.getLogger(ModificationController.class);
+
     public static Modification getModification (Request req, Response res) {
         String id = req.params("id");
         return Persistence.modifications.get(id);
@@ -31,6 +35,7 @@ public class ModificationController {
         try {
             mod = JsonUtilities.objectMapper.readValue(req.body(), Modification.class);
         } catch (IOException e) {
+            LOG.info("Error parsing modification JSON from client", e);
             halt(400, "Bad modification");
         }
 

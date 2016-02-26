@@ -48,7 +48,10 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         // TODO returning old value is needed to truly implement map interface, but may be slowing down puts
         V ret = get(key);
 
-        wrappedCollection.updateById(value.id, value);
+        if (ret != null)
+            wrappedCollection.updateById(value.id, value);
+        else
+            wrappedCollection.insert(value);
 
         return ret;
     }

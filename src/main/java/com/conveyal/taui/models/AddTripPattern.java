@@ -1,9 +1,13 @@
 package com.conveyal.taui.models;
 
-import com.mongodb.client.model.geojson.LineString;
-
 import java.util.List;
+
+import com.conveyal.geojson.GeometryDeserializer;
+import com.conveyal.geojson.GeometrySerializer;
 import com.conveyal.r5.analyst.scenario.AddTripPattern.PatternTimetable;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.vividsolutions.jts.geom.LineString;
 
 /**
  * Add a trip pattern.
@@ -21,6 +25,8 @@ public class AddTripPattern extends Modification {
 
     /** Represents a segment, i.e. the path between control points */
     private static class Segment {
+        @JsonDeserialize(using= GeometryDeserializer.class)
+        @JsonSerialize(using= GeometrySerializer.class)
         public LineString geometry;
         public List<Stop> stops;
     }
