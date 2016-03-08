@@ -13,7 +13,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(name = "remove-trips", value = RemoveTrips.class),
         @JsonSubTypes.Type(name = "remove-stops", value = RemoveStops.class),
         @JsonSubTypes.Type(name = "adjust-speed", value = AdjustSpeed.class),
-        @JsonSubTypes.Type(name = "adjust-dwell-time", value = AdjustDwellTime.class)
+        @JsonSubTypes.Type(name = "adjust-dwell-time", value = AdjustDwellTime.class),
+        @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class)
 })
 public abstract class Modification extends Model {
     /** the type of this modification, see JsonSubTypes annotation above */
