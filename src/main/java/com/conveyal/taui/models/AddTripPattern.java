@@ -25,6 +25,9 @@ public class AddTripPattern extends Modification {
     public boolean[] stops;
     public boolean[] controlPoints;
 
+    /** stop IDs that particular points have been snapped to. will be mostly null, as most stops are generally not snapped */
+    public String[] stopIds;
+
     public boolean bidirectional;
 
     public List<Timetable> timetables;
