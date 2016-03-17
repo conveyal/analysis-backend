@@ -69,7 +69,9 @@ public class BundleController {
                 file.delete();
             }
 
-            bundle.feeds.add(new Bundle.FeedSummary(feed));
+            Bundle.FeedSummary fs = new Bundle.FeedSummary(feed);
+            fs.fileName = file.getName();
+            bundle.feeds.add(fs);
 
             ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
         }

@@ -6,6 +6,7 @@ import com.conveyal.gtfs.model.FeedInfo;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLError;
@@ -16,7 +17,9 @@ import graphql.schema.GraphQLSchema;
 import spark.Request;
 import spark.Response;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.feedType;
@@ -30,8 +33,9 @@ import static spark.Spark.get;
  * GraphQL interface to scenario editing tools. For now it just wraps the GTFS API graphql response with a bundle object.
  */
 public class GraphQLController {
-    public static Object handleQuery (Request req, Response res) {
-        ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"));
+    public static Object handleQuery (Request req, Response res) throws IOException {
+        Map<String, Object> variables = JsonUtil.objectMapper.readValue(req.queryParams("variables"), new TypeReference<Map<String, Object>>() { });
+        ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"), null, null, variables);
         List<GraphQLError> errs = er.getErrors();
         if (!errs.isEmpty()) {
             res.status(400);
