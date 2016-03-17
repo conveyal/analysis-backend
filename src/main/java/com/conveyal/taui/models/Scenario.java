@@ -9,7 +9,7 @@ import java.util.List;
 public class Scenario extends Model {
     public String name;
     public List<String> modifications;
-    public String graphId;
+    public String bundleId;
     public double lat;
     public double lon;
 }

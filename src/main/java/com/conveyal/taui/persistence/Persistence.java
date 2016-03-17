@@ -1,5 +1,6 @@
 package com.conveyal.taui.persistence;
 
+import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.models.Scenario;
@@ -28,6 +29,7 @@ public class Persistence {
 
     public static Map<String, Modification> modifications;
     public static Map<String, Scenario> scenarios;
+    public static Map<String, Bundle> bundles;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
@@ -37,6 +39,7 @@ public class Persistence {
 
         modifications = getTable("modifications", Modification.class);
         scenarios = getTable("scenarios", Scenario.class);
+        bundles = getTable("bundles", Bundle.class);
     }
 
     /** connect to a table using MongoJack */
