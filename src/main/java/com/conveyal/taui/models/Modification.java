@@ -19,4 +19,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 public abstract class Modification extends Model {
     /** the type of this modification, see JsonSubTypes annotation above */
     public abstract String getType ();
+
+    /** is this modification shown on the map in the UI at the moment? */
+    public boolean showOnMap = true;
+
+    /** is this modification expanded in the UI at the moment? */
+    public boolean expanded = true;
 }
