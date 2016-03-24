@@ -18,15 +18,14 @@ import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.feedType;
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stringArg;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.*;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLObjectType.newObject;
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.string;
 import static spark.Spark.get;
 
 /**
@@ -62,8 +61,8 @@ public class GraphQLController {
             .name("bundleQuery")
             .field(newFieldDefinition()
                     .name("bundle")
-                    .type(bundleType)
-                    .argument(stringArg("bundle_id"))
+                    .type(new GraphQLList(bundleType))
+                    .argument(multiStringArg("bundle_id"))
                     .dataFetcher(GraphQLController::fetchBundle)
                     .build()
             )
@@ -71,9 +70,10 @@ public class GraphQLController {
 
     public static GraphQLSchema schema = GraphQLSchema.newSchema().query(bundleQuery).build();
 
-    private static Bundle fetchBundle(DataFetchingEnvironment environment) {
-        String id = environment.getArgument("bundle_id");
-        return Persistence.bundles.get(id);
+    private static List<Bundle> fetchBundle(DataFetchingEnvironment environment) {
+        List<String> id = environment.getArgument("bundle_id");
+        if (id != null) return Persistence.bundles.values().stream().filter(b -> id.contains(b.id)).collect(Collectors.toList());
+        else return new ArrayList<>(Persistence.bundles.values());
     }
 
     private static List<FeedInfo> fetchFeeds(DataFetchingEnvironment environment) {
