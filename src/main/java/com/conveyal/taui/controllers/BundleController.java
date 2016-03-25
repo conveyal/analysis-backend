@@ -43,10 +43,27 @@ public class BundleController {
 
         List<File> localFiles = new ArrayList<>();
 
-        int i = 0;
+        Set<String> usedFileNames = new HashSet<>();
+
         for (FileItem fi : files.get("files")) {
-            // TODO don't assume everything is ZIP
-            String fname = String.format(Locale.US, "%s_%s.zip", bundleId, i++);
+            // create a unique, safe file name
+            String baseName = fi.getName().replace(".zip", "").replaceAll("[^a-zA-Z0-9]", "-");
+            String fname = baseName;
+
+            int i = 0;
+            while (usedFileNames.contains(fname)) {
+                fname = String.format(Locale.US, "%s_%s", fname, i++);
+
+                if (i > 100) {
+                    fname = UUID.randomUUID().toString();
+                    break;
+                }
+            }
+
+            usedFileNames.add(fname);
+
+            fname += ".zip";
+
             File file = new File(directory, fname);
             fi.write(file);
             localFiles.add(file);
@@ -100,8 +117,6 @@ public class BundleController {
         get("/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
         post("/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
     }
-
-
 
     private static FileItemFactory fileItemFactory = new DiskFileItemFactory();
 }
