@@ -5,6 +5,8 @@ import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.taui.TransportAnalyst;
 import com.conveyal.taui.persistence.Persistence;
+import gnu.trove.list.TDoubleList;
+import gnu.trove.list.array.TDoubleArrayList;
 
 import java.io.File;
 import java.time.LocalDate;
@@ -24,6 +26,9 @@ public class Bundle extends Model {
     public double south;
     public double east;
     public double west;
+
+    public double centerLat;
+    public double centerLon;
 
     public LocalDate serviceStart;
     public LocalDate serviceEnd;

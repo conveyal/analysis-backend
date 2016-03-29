@@ -33,6 +33,8 @@ import static spark.Spark.get;
  */
 public class GraphQLController {
     public static Object handleQuery (Request req, Response res) throws IOException {
+        res.type("application/json");
+
         Map<String, Object> variables = JsonUtil.objectMapper.readValue(req.queryParams("variables"), new TypeReference<Map<String, Object>>() { });
         ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"), null, null, variables);
         List<GraphQLError> errs = er.getErrors();
@@ -49,6 +51,8 @@ public class GraphQLController {
             .name("bundle")
             .field(string("id"))
             .field(string("name"))
+            .field(doublee("centerLat"))
+            .field(doublee("centerLon"))
             .field(newFieldDefinition()
                     .name("feeds")
                     .type(new GraphQLList(feedType))

@@ -3,10 +3,13 @@ package com.conveyal.taui.controllers;
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
+import com.conveyal.gtfs.model.Stop;
 import com.conveyal.taui.TransportAnalyst;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import gnu.trove.list.TDoubleList;
+import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
@@ -77,6 +80,9 @@ public class BundleController {
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
         // TODO process asynchronously
+        TDoubleList lats = new TDoubleArrayList();
+        TDoubleList lons = new TDoubleArrayList();
+
         for (File file : localFiles) {
             GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
 
@@ -91,7 +97,25 @@ public class BundleController {
             bundle.feeds.add(fs);
 
             ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
+
+            // calculate median
+            // technically we should not use stops that have no stop times, but
+            // that requires parsing a much larger table. We're using a median so we're
+            // pretty robust to stops near null island, etc.
+            for (Stop stop : feed.stops.values()) {
+                lats.add(stop.stop_lat);
+                lons.add(stop.stop_lon);
+            }
         }
+
+        // find the median stop location
+        // use a median because it is robust to outliers
+        lats.sort();
+        lons.sort();
+        // not a true median as we don't handle the case when there is an even number of stops
+        // and we are supposed to average the two middle value, but close enough
+        bundle.centerLat = lats.get(lats.size() / 2);
+        bundle.centerLon = lons.get(lons.size() / 2);
 
         Persistence.bundles.put(bundleId, bundle);
 
