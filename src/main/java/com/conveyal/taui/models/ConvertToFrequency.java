@@ -25,9 +25,7 @@ public class ConvertToFrequency extends Modification {
 
     public static class FrequencyEntry {
         /** Days of the week on which this service is active, 0 is Monday */
-        @JsonDeserialize(using = BitSetDeserializer.class)
-        @JsonSerialize(using = BitSetSerializer.class)
-        public BitSet days;
+        public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
         /** start time (seconds since GTFS midnight) */
         public int startTime;
