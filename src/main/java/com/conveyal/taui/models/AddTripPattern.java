@@ -37,10 +37,8 @@ public class AddTripPattern extends Modification {
     }
 
     public static class Timetable {
-        /** Days of the week on which this service is active, 0 is Monday */
-        @JsonDeserialize(using = BitSetDeserializer.class)
-        @JsonSerialize(using = BitSetSerializer.class)
-        public BitSet days;
+        /** Days of the week on which this service is active */
+        public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
         /** Speed, kilometers per hour */
         public int speed;
@@ -50,9 +48,6 @@ public class AddTripPattern extends Modification {
 
         /** dwell times in seconds */
         public int[] dwellTimes;
-
-        /** is this a frequency entry? */
-        public boolean frequency;
 
         /** start time (seconds since GTFS midnight) */
         public int startTime;
