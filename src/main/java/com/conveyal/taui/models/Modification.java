@@ -2,6 +2,7 @@ package com.conveyal.taui.models;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Created by matthewc on 2/9/16.
@@ -14,7 +15,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(name = "remove-stops", value = RemoveStops.class),
         @JsonSubTypes.Type(name = "adjust-speed", value = AdjustSpeed.class),
         @JsonSubTypes.Type(name = "adjust-dwell-time", value = AdjustDwellTime.class),
-        @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class)
+        @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class),
+        @JsonSubTypes.Type(name = "add-stops", value = AddStops.class)
 })
 public abstract class Modification extends Model {
     /** the type of this modification, see JsonSubTypes annotation above */
