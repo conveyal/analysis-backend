@@ -12,11 +12,11 @@ public class AdjustSpeed extends Modification {
 
     public String[] trips;
 
-    /** are we scaling existing speeds (true) or replacing them with a brand new speed (false) */
-    public boolean scale;
+    /** array of [from stop, to stop] specifying single hops this should be applied to */
+    public String[][] hops;
 
-    /** the factor by which to scale, OR the new speed, depending on the value of above */
-    public double value;
+    /** the factor by which to scale speed. 1 means no change, 2 means faster. */
+    public double scale;
 
     @Override
     public String getType() {
