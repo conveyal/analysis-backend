@@ -27,6 +27,12 @@ public class AddStops extends Modification {
     public boolean[] controlPoints;
     public String[] stopIds;
 
+    /** speed of the adjusted segment, km/h */
+    public double speed;
+
+    /** dwell time at adjusted stops, seconds */
+    public int dwell;
+
     @Override
     public String getType() {
         return "add-stops";
