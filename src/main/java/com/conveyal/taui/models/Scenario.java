@@ -9,6 +9,10 @@ import java.util.List;
 public class Scenario extends Model {
     public String name;
     public List<String> modifications;
+
+    /** the names of the variants of this scenario */
+    public String[] variants;
+
     public String bundleId;
     public double lat;
     public double lon;
