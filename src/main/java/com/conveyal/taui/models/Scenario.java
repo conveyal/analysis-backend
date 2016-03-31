@@ -13,6 +13,9 @@ public class Scenario extends Model {
     /** the names of the variants of this scenario */
     public String[] variants;
 
+    /** The group this scenario is associated with */
+    public String group;
+
     public String bundleId;
     public double lat;
     public double lon;

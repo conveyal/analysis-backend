@@ -22,6 +22,7 @@ import spark.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static spark.Spark.get;
 import static spark.Spark.halt;
@@ -79,6 +80,8 @@ public class BundleController {
         bundle.name = files.get("name").get(0).getString("UTF-8");
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
+        bundle.group = (String) req.attribute("group");
+
         // TODO process asynchronously
         TDoubleList lats = new TDoubleArrayList();
         TDoubleList lons = new TDoubleArrayList();
@@ -123,14 +126,20 @@ public class BundleController {
     }
 
     public static Object getBundles (Request req, Response res) {
+        String group = (String) req.attribute("group");
+
         if (req.params("id") != null) {
             String id = req.params("id");
 
-            if (Persistence.bundles.containsKey(id)) return Persistence.bundles.get(id);
-            else halt(404);
+            Bundle bundle = Persistence.bundles.get(id);
+
+            if (bundle == null || !group.equals(bundle.group)) halt(404);
+            else return bundle;
         }
         else {
-            return Persistence.bundles.values();
+            return Persistence.bundles.values().stream()
+                    .filter(b -> group.equals(b.group))
+                    .collect(Collectors.toList());
         }
 
         return null;

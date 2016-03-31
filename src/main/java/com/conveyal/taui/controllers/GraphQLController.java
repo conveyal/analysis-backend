@@ -1,7 +1,6 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.gtfs.api.ApiMain;
-import com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema;
 import com.conveyal.gtfs.model.FeedInfo;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
@@ -35,14 +34,18 @@ public class GraphQLController {
     public static Object handleQuery (Request req, Response res) throws IOException {
         res.type("application/json");
 
-        Map<String, Object> variables = JsonUtil.objectMapper.readValue(req.queryParams("variables"), new TypeReference<Map<String, Object>>() { });
-        ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"), null, null, variables);
+        Map<String, Object> variables = JsonUtil.objectMapper.readValue(req.queryParams("variables"), new TypeReference<Map<String, Object>>() {
+        });
+
+        QueryContext context = new QueryContext();
+        context.group = (String) req.attribute("group");
+
+        ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"), null, context, variables);
         List<GraphQLError> errs = er.getErrors();
         if (!errs.isEmpty()) {
             res.status(400);
             return errs;
-        }
-        else {
+        } else {
             return er.getData();
         }
     }
@@ -76,8 +79,16 @@ public class GraphQLController {
 
     private static List<Bundle> fetchBundle(DataFetchingEnvironment environment) {
         List<String> id = environment.getArgument("bundle_id");
-        if (id != null) return Persistence.bundles.values().stream().filter(b -> id.contains(b.id)).collect(Collectors.toList());
-        else return new ArrayList<>(Persistence.bundles.values());
+        QueryContext context = (QueryContext) environment.getContext();
+        if (id != null) return Persistence.bundles.values().stream()
+                .filter(b -> context.group.equals(b.group))
+                .filter(b -> id.contains(b.id))
+                .collect(Collectors.toList());
+
+        else return new ArrayList<>(Persistence.bundles.values().stream()
+                .filter(b -> context.group.equals(b.group))
+                .collect(Collectors.toList())
+        );
     }
 
     private static List<FeedInfo> fetchFeeds(DataFetchingEnvironment environment) {
@@ -104,5 +115,10 @@ public class GraphQLController {
 
     public static void register () {
         get("/graphql", GraphQLController::handleQuery, JsonUtil.objectMapper::writeValueAsString);
+    }
+
+    /** Context for a graphql query. Currently contains auth info */
+    public static class QueryContext {
+        public String group;
     }
 }

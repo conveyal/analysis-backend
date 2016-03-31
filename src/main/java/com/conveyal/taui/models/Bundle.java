@@ -22,6 +22,8 @@ public class Bundle extends Model {
 
     public String name;
 
+    public String group;
+
     public double north;
     public double south;
     public double east;

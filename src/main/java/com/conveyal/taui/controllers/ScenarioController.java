@@ -20,11 +20,19 @@ import static spark.Spark.*;
 public class ScenarioController {
     public static Scenario getScenario (Request req, Response res) {
         String id = req.params("id");
-        return Persistence.scenarios.get(id);
+        String group = (String) req.attribute("group");
+        Scenario scenario = Persistence.scenarios.get(id);
+
+        if (scenario == null || !group.equals(scenario.group)) halt(404);
+
+        return scenario;
     }
 
     public static Collection<Scenario> getAllScenarios (Request req, Response res) {
-        return Persistence.scenarios.values();
+        String group = (String) req.attribute("group");
+        return Persistence.scenarios.values().stream()
+                .filter(s -> group.equals(s.group))
+                .collect(Collectors.toList());
     }
 
     public static Scenario createOrUpdate (Request req, Response res) {
@@ -35,6 +43,14 @@ public class ScenarioController {
             halt(400, "Bad modification");
         }
 
+        scenario.group = (String) req.attribute("group");
+
+        Scenario existing = Persistence.scenarios.get(scenario.id);
+
+        if (existing != null && !scenario.group.equals(existing.group)) {
+            halt(403);
+        }
+
         Persistence.scenarios.put(scenario.id, scenario);
 
         return scenario;
@@ -43,6 +59,12 @@ public class ScenarioController {
     public static Collection<Modification> modifications (Request req, Response res) {
         String id = req.params("id");
         Scenario scenario = Persistence.scenarios.get(id);
+
+        if (scenario == null) halt(404);
+
+        // 404 don't give any information as to whether it exists or not
+        if (!req.attribute("group").equals(scenario.group)) halt(404);
+
         return scenario.modifications.stream().map(Persistence.modifications::get).collect(Collectors.toList());
     }
 
