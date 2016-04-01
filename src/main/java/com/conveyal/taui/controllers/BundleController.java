@@ -186,9 +186,9 @@ public class BundleController {
     }
 
     public static void register () {
-        get("/bundle/:id", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
-        get("/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
-        post("/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/bundle/:id", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
     }
 
     private static FileItemFactory fileItemFactory = new DiskFileItemFactory();

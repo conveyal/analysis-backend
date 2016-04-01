@@ -45,11 +45,11 @@ public class ModificationController {
     }
 
     public static void register () {
-        get("/modification/:id", ModificationController::getModification, JsonUtil.objectMapper::writeValueAsString);
-        post("/modification", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/modification/:id", ModificationController::getModification, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/modification", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         // option to get any configured cors headers
-        options("/modification", (q, s) -> "");
-        put("/modification/:id", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
-        options("/modification/:id", (q, s) -> "");
+        options("/api/modification", (q, s) -> "");
+        put("/api/modification/:id", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        options("/api/modification/:id", (q, s) -> "");
     }
 }

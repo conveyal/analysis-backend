@@ -114,7 +114,7 @@ public class GraphQLController {
     }
 
     public static void register () {
-        get("/graphql", GraphQLController::handleQuery, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/graphql", GraphQLController::handleQuery, JsonUtil.objectMapper::writeValueAsString);
     }
 
     /** Context for a graphql query. Currently contains auth info */

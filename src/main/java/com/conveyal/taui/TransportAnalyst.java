@@ -23,6 +23,7 @@ import static spark.Spark.after;
 import static spark.Spark.before;
 import static spark.Spark.halt;
 import static spark.SparkBase.port;
+import static spark.SparkBase.staticFileLocation;
 
 /**
  * Main entry point
@@ -44,8 +45,8 @@ public class TransportAnalyst {
         config.load(in);
         in.close();
 
-        byte[] auth0Secret = new Base64(true).decode(config.getProperty("auth0Secret"));
-        String auth0ClientId = config.getProperty("auth0ClientId");
+        byte[] auth0Secret = new Base64(true).decode(AnalystConfig.auth0Secret);
+        String auth0ClientId = AnalystConfig.auth0ClientId;
         verifier = new JWTVerifier(auth0Secret, auth0ClientId);
 
         LOG.info("Connecting to database");
@@ -56,6 +57,10 @@ public class TransportAnalyst {
 
         LOG.info("Starting server");
         port(7070);
+
+        // serve up index.html which pulls client code from S3
+        staticFileLocation("/public");
+
         ModificationController.register();
         ScenarioController.register();
         GraphQLController.register();
@@ -64,7 +69,7 @@ public class TransportAnalyst {
         Bundle.load();
 
         // check if a user is authenticated
-        before((req, res) -> {
+        before("/api/*", (req, res) -> {
             String auth = req.headers("Authorization");
 
             // authorization required
