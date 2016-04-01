@@ -9,6 +9,7 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
+import com.mongodb.MongoURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.mongojack.JacksonDBCollection;
@@ -36,12 +37,8 @@ public class Persistence {
         LOG.info("Connecting to MongoDB");
         // allow configurable db connection params
 
-        String mongoUrl = System.getenv("MONGO_URL");
-        // this is the name of the environment variable created by heroku
-        if (mongoUrl == null) mongoUrl = System.getenv("MONGOLAB_URI");
-
-        if (mongoUrl != null) {
-            mongo = new Mongo(mongoUrl);
+        if (AnalystConfig.databaseUri != null) {
+            mongo = new Mongo(new MongoURI(AnalystConfig.databaseUri));
             LOG.info("Connecting to remote MongoDB instance");
         }
         else {
