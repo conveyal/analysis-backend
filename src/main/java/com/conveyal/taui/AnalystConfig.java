@@ -30,6 +30,7 @@ public class AnalystConfig {
     public static final String databaseUri = getEnv("MONGOLAB_URI", null);
     public static final String auth0ClientId = getEnv("AUTH0_CLIENT_ID", null);
     public static final String auth0Secret = getEnv("AUTH0_SECRET", null);
+    public static final int port = Integer.parseInt(getEnv("PORT", "7070"));
 
     public static String getEnv (String key, String defaultValue) {
         String val = System.getenv(key);

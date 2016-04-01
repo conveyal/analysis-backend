@@ -31,19 +31,10 @@ import static spark.SparkBase.staticFileLocation;
 public class TransportAnalyst {
     private static final Logger LOG = LoggerFactory.getLogger(TransportAnalyst.class);
 
-    public static Properties config;
-
     private static JWTVerifier verifier;
 
     public static void main (String... args) throws Exception {
         LOG.info("Starting TAUI server at {}", LocalDateTime.now());
-
-        LOG.info("Reading configuration");
-        config = new Properties();
-        // TODO don't hardwire
-        FileInputStream in = new FileInputStream(new File("application.conf"));
-        config.load(in);
-        in.close();
 
         byte[] auth0Secret = new Base64(true).decode(AnalystConfig.auth0Secret);
         String auth0ClientId = AnalystConfig.auth0ClientId;
@@ -56,7 +47,7 @@ public class TransportAnalyst {
         ApiMain.feedSources = new HashMap<>();
 
         LOG.info("Starting server");
-        port(7070);
+        port(AnalystConfig.port);
 
         // serve up index.html which pulls client code from S3
         staticFileLocation("/public");
