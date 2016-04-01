@@ -1,13 +1,19 @@
 package com.conveyal.taui.controllers;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.Stop;
+import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.TransportAnalyst;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.commons.fileupload.FileItem;
@@ -19,10 +25,17 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static spark.Spark.get;
 import static spark.Spark.halt;
@@ -34,6 +47,8 @@ import static spark.Spark.post;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
+    private static final AmazonS3 s3 = new AmazonS3Client();
+
     public static Bundle create (Request req, Response res) throws Exception {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         Map<String, List<FileItem>> files = sfu.parseParameterMap(req.raw());
@@ -41,11 +56,21 @@ public class BundleController {
         String bundleId = UUID.randomUUID().toString().replace("-", "");
 
         // create a directory for the bundle
-        File directory = new File(TransportAnalyst.config.getProperty("dataDirectory", "data"));
-        directory = new File(directory, bundleId);
-        directory.mkdirs();
+        File bundleFile = File.createTempFile(bundleId, ".zip");
+
+        PipedInputStream pis = new PipedInputStream();
+        PipedOutputStream pos = new PipedOutputStream(pis);
+        ObjectMetadata om = new ObjectMetadata();
+        om.setContentType("application/zip");
+
+        new Thread(() -> {
+            s3.putObject(AnalystConfig.bundleBucket, bundleId + ".zip", pis, om);
+        }).start();
+
+        ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(pos));
 
         List<File> localFiles = new ArrayList<>();
+        File directory = Files.createTempDir();
 
         Set<String> usedFileNames = new HashSet<>();
 
@@ -68,16 +93,29 @@ public class BundleController {
 
             fname += ".zip";
 
-            File file = new File(directory, fname);
-            fi.write(file);
-            localFiles.add(file);
+            ZipEntry ze = new ZipEntry(fname);
+
+            zos.putNextEntry(ze);
+            InputStream is = fi.getInputStream();
+            ByteStreams.copy(is, zos);
+            is.close();
+
+            File localFile = new File(directory, fname);
+            fi.write(localFile);
+            localFiles.add(localFile);
+
+            zos.closeEntry();
         }
+
+        // make sure it hit s3
+        zos.flush();
+        zos.close();
 
         // create the bundle
         Bundle bundle = new Bundle();
         bundle.feeds = new ArrayList<>();
         bundle.id = bundleId;
-        bundle.name = files.get("name").get(0).getString("UTF-8");
+        bundle.name = files.get("Name").get(0).getString("UTF-8");
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
         bundle.group = (String) req.attribute("group");
@@ -121,6 +159,8 @@ public class BundleController {
         bundle.centerLon = lons.get(lons.size() / 2);
 
         Persistence.bundles.put(bundleId, bundle);
+
+        directory.delete();
 
         return bundle;
     }

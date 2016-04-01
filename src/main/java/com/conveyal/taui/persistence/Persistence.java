@@ -1,5 +1,6 @@
 package com.conveyal.taui.persistence;
 
+import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
@@ -34,8 +35,21 @@ public class Persistence {
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
         // allow configurable db connection params
-        mongo = new Mongo();
-        db = mongo.getDB("scenario-editor");
+
+        String mongoUrl = System.getenv("MONGO_URL");
+        // this is the name of the environment variable created by heroku
+        if (mongoUrl == null) mongoUrl = System.getenv("MONGOLAB_URI");
+
+        if (mongoUrl != null) {
+            mongo = new Mongo(mongoUrl);
+            LOG.info("Connecting to remote MongoDB instance");
+        }
+        else {
+            LOG.info("Connecting to local MongoDB instance");
+            mongo = new Mongo();
+        }
+
+        db = mongo.getDB(AnalystConfig.databaseName);
 
         modifications = getTable("modifications", Modification.class);
         scenarios = getTable("scenarios", Scenario.class);
