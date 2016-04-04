@@ -113,54 +113,66 @@ public class BundleController {
 
         // create the bundle
         Bundle bundle = new Bundle();
-        bundle.feeds = new ArrayList<>();
         bundle.id = bundleId;
         bundle.name = files.get("Name").get(0).getString("UTF-8");
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
         bundle.group = (String) req.attribute("group");
 
-        // TODO process asynchronously
-        TDoubleList lats = new TDoubleArrayList();
-        TDoubleList lons = new TDoubleArrayList();
-
-        for (File file : localFiles) {
-            GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
-
-            if (feed.agency.isEmpty()) {
-                // TODO really should log original input file name
-                LOG.warn("File {} is not a GTFS file", file);
-                file.delete();
-            }
-
-            Bundle.FeedSummary fs = new Bundle.FeedSummary(feed);
-            fs.fileName = file.getName();
-            bundle.feeds.add(fs);
-
-            ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
-
-            // calculate median
-            // technically we should not use stops that have no stop times, but
-            // that requires parsing a much larger table. We're using a median so we're
-            // pretty robust to stops near null island, etc.
-            for (Stop stop : feed.stops.values()) {
-                lats.add(stop.stop_lat);
-                lons.add(stop.stop_lon);
-            }
-        }
-
-        // find the median stop location
-        // use a median because it is robust to outliers
-        lats.sort();
-        lons.sort();
-        // not a true median as we don't handle the case when there is an even number of stops
-        // and we are supposed to average the two middle value, but close enough
-        bundle.centerLat = lats.get(lats.size() / 2);
-        bundle.centerLon = lons.get(lons.size() / 2);
+        bundle.status = Bundle.Status.PROCESSING_GTFS;
 
         Persistence.bundles.put(bundleId, bundle);
 
-        directory.delete();
+        // make a protective copy to avoid potential issues with modify objects that are in the process
+        // of being saved to mongodb
+        final Bundle finalBundle = bundle.clone();
+
+        // process async
+        new Thread(() -> {
+            TDoubleList lats = new TDoubleArrayList();
+            TDoubleList lons = new TDoubleArrayList();
+
+            finalBundle.feeds = new ArrayList<>();
+
+            for (File file : localFiles) {
+                GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
+
+                if (feed.agency.isEmpty()) {
+                    // TODO really should log original input file name
+                    LOG.warn("File {} is not a GTFS file", file);
+                    file.delete();
+                }
+
+                Bundle.FeedSummary fs = new Bundle.FeedSummary(feed);
+                fs.fileName = file.getName();
+                finalBundle.feeds.add(fs);
+
+                ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
+
+                // calculate median
+                // technically we should not use stops that have no stop times, but
+                // that requires parsing a much larger table. We're using a median so we're
+                // pretty robust to stops near null island, etc.
+                for (Stop stop : feed.stops.values()) {
+                    lats.add(stop.stop_lat);
+                    lons.add(stop.stop_lon);
+                }
+            }
+
+            // find the median stop location
+            // use a median because it is robust to outliers
+            lats.sort();
+            lons.sort();
+            // not a true median as we don't handle the case when there is an even number of stops
+            // and we are supposed to average the two middle value, but close enough
+            finalBundle.centerLat = lats.get(lats.size() / 2);
+            finalBundle.centerLon = lons.get(lons.size() / 2);
+            finalBundle.status = Bundle.Status.DONE;
+
+            Persistence.bundles.put(bundleId, finalBundle);
+
+            directory.delete();
+        }).start();
 
         return bundle;
     }

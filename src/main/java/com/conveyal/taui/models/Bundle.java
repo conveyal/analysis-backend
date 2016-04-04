@@ -34,7 +34,7 @@ import java.util.zip.ZipInputStream;
  *
  * All of the data is stored in S3, however some information is cached here.
  */
-public class Bundle extends Model {
+public class Bundle extends Model implements Cloneable {
     public String projectId;
 
     public String name;
@@ -53,6 +53,7 @@ public class Bundle extends Model {
     public LocalDate serviceEnd;
 
     public List<FeedSummary> feeds;
+    public Status status;
 
     /** load all bundles into the GTFS API */
     public static void load() throws IOException {
@@ -94,6 +95,14 @@ public class Bundle extends Model {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public Bundle clone () {
+        try {
+            return (Bundle) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static class FeedSummary {
