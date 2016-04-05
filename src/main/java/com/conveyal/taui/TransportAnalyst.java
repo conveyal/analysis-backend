@@ -12,18 +12,14 @@ import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
-import static spark.Spark.after;
 import static spark.Spark.before;
 import static spark.Spark.halt;
-import static spark.SparkBase.port;
-import static spark.SparkBase.staticFileLocation;
+import static spark.Spark.port;
+import static spark.Spark.staticFileLocation;
 
 /**
  * Main entry point
