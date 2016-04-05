@@ -14,6 +14,7 @@ import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
+import com.mongodb.util.JSON;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.commons.fileupload.FileItem;
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.post;
@@ -177,6 +179,23 @@ public class BundleController {
         return bundle;
     }
 
+    public static Bundle deleteBundle (Request req, Response res) {
+        Bundle bundle = Persistence.bundles.get(req.params("id"));
+        if (bundle == null || !req.attribute("group").equals(bundle.group)) {
+            halt(404);
+        }
+
+        Persistence.bundles.remove(bundle.id);
+
+        // free memory
+        ApiMain.feedSources.remove(bundle.id);
+
+        // remove from s3
+        s3.deleteObject(AnalystConfig.bundleBucket, bundle.id + ".zip");
+
+        return bundle;
+    }
+
     public static Object getBundles (Request req, Response res) {
         String group = (String) req.attribute("group");
 
@@ -201,6 +220,7 @@ public class BundleController {
         get("/api/bundle/:id", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
         get("/api/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
         post("/api/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/bundle/:id", BundleController::deleteBundle, JsonUtil.objectMapper::writeValueAsString);
     }
 
     private static FileItemFactory fileItemFactory = new DiskFileItemFactory();

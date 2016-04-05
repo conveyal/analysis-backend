@@ -1,5 +1,6 @@
 package com.conveyal.taui.persistence;
 
+import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Model;
 import org.bson.types.ObjectId;
 import org.mongojack.DBQuery;
@@ -57,8 +58,11 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public V remove(Object key) {
-        if (key instanceof String)
-            return wrappedCollection.findOneById((String) key);
+        if (key instanceof String) {
+            V v = wrappedCollection.findOneById((String) key);
+            wrappedCollection.removeById((String) key);
+            return v;
+        }
         else return null;
     }
 
