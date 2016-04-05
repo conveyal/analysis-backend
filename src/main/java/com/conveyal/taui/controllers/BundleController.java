@@ -55,19 +55,13 @@ public class BundleController {
 
         String bundleId = UUID.randomUUID().toString().replace("-", "");
 
-        // create a directory for the bundle
+        // cache bundle on disk to avoid OOME
         File bundleFile = File.createTempFile(bundleId, ".zip");
 
-        PipedInputStream pis = new PipedInputStream();
-        PipedOutputStream pos = new PipedOutputStream(pis);
         ObjectMetadata om = new ObjectMetadata();
         om.setContentType("application/zip");
 
-        new Thread(() -> {
-            s3.putObject(AnalystConfig.bundleBucket, bundleId + ".zip", pis, om);
-        }).start();
-
-        ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(pos));
+        ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(bundleFile)));
 
         List<File> localFiles = new ArrayList<>();
         File directory = Files.createTempDir();
@@ -107,9 +101,15 @@ public class BundleController {
             zos.closeEntry();
         }
 
-        // make sure it hit s3
         zos.flush();
         zos.close();
+
+        // upload to s3. OK to do this synchronously as this runs in production on AWS
+        // (or on heroku, which runs on AWS), so throughput to S3 is very high.
+        s3.putObject(AnalystConfig.bundleBucket, bundleId + ".zip", bundleFile);
+
+        // don't run out of disk space
+        bundleFile.delete();
 
         // create the bundle
         Bundle bundle = new Bundle();

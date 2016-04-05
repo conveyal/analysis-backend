@@ -10,6 +10,7 @@ import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLError;
 import graphql.schema.DataFetchingEnvironment;
+import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLList;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.*;
+import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLObjectType.newObject;
 import static spark.Spark.get;
@@ -50,10 +52,24 @@ public class GraphQLController {
         }
     }
 
+    static GraphQLEnumType bundleStatus = newEnum()
+            .name("status")
+            .value("PROCESSING_GTFS", Bundle.Status.PROCESSING_GTFS)
+            .value("PROCESSING_OSM", Bundle.Status.PROCESSING_OSM)
+            .value("ERROR", Bundle.Status.ERROR)
+            .value("DONE", Bundle.Status.DONE)
+            .build();
+
     static GraphQLObjectType bundleType = newObject()
             .name("bundle")
             .field(string("id"))
             .field(string("name"))
+            .field(newFieldDefinition()
+                    .name("status")
+                    .type(bundleStatus)
+                    .dataFetcher((env) -> ((Bundle) env.getSource()).status)
+                    .build()
+            )
             .field(doublee("centerLat"))
             .field(doublee("centerLon"))
             .field(newFieldDefinition()
