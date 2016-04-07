@@ -59,6 +59,8 @@ public class Bundle extends Model implements Cloneable {
     public static void load() throws IOException {
         AmazonS3 s3 = new AmazonS3Client();
         Persistence.bundles.values().parallelStream().forEach(b -> {
+            if (b.feeds == null) return;
+
             try {
                 File directory = Files.createTempDir();
                 File bundleSource = File.createTempFile(b.id, ".zip");
