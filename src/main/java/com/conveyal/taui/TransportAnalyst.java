@@ -56,7 +56,9 @@ public class TransportAnalyst {
         Bundle.load();
 
         // check if a user is authenticated
-        before("/api/*", (req, res) -> {
+        before((req, res) -> {
+            if ("/".equals(req.pathInfo())) return; // don't need to be authenticated to view main page
+
             String auth = req.headers("Authorization");
 
             // authorization required
