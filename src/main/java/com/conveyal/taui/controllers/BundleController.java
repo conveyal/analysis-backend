@@ -197,7 +197,7 @@ public class BundleController {
     }
 
     public static Object getBundles (Request req, Response res) {
-        String group = (String) req.attribute("group");
+        String group = req.attribute("group");
 
         if (req.params("id") != null) {
             String id = req.params("id");
