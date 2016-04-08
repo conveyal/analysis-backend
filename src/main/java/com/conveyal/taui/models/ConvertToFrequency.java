@@ -27,6 +27,9 @@ public class ConvertToFrequency extends Modification {
         /** Days of the week on which this service is active, 0 is Monday */
         public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
+        /** allow naming entries for organizational purposes */
+        public String name;
+
         /** start time (seconds since GTFS midnight) */
         public int startTime;
 

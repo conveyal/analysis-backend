@@ -40,6 +40,9 @@ public class AddTripPattern extends Modification {
         /** Days of the week on which this service is active */
         public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
+        /** allow naming timetables so it's easier to see what's going on */
+        public String name;
+
         /** Speed, kilometers per hour */
         public int speed;
 
