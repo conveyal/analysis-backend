@@ -44,6 +44,11 @@ public class TransportAnalyst {
 
         LOG.info("Starting server");
 
+        port(AnalystConfig.port);
+
+        // serve up index.html which pulls client code from S3
+        staticFileLocation("/public");
+
         // check if a user is authenticated
         before((req, res) -> {
             if ("/".equals(req.pathInfo())) return; // don't need to be authenticated to view main page
@@ -84,11 +89,6 @@ public class TransportAnalyst {
 
             req.attribute("group", group);
         });
-
-        port(AnalystConfig.port);
-
-        // serve up index.html which pulls client code from S3
-        staticFileLocation("/public");
 
         ModificationController.register();
         ScenarioController.register();
