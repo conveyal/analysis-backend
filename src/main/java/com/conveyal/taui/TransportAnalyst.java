@@ -43,17 +43,6 @@ public class TransportAnalyst {
         ApiMain.feedSources = new HashMap<>();
 
         LOG.info("Starting server");
-        port(AnalystConfig.port);
-
-        // serve up index.html which pulls client code from S3
-        staticFileLocation("/public");
-
-        ModificationController.register();
-        ScenarioController.register();
-        GraphQLController.register();
-        BundleController.register();
-
-        Bundle.load();
 
         // check if a user is authenticated
         before((req, res) -> {
@@ -95,5 +84,17 @@ public class TransportAnalyst {
 
             req.attribute("group", group);
         });
+
+        port(AnalystConfig.port);
+
+        // serve up index.html which pulls client code from S3
+        staticFileLocation("/public");
+
+        ModificationController.register();
+        ScenarioController.register();
+        GraphQLController.register();
+        BundleController.register();
+
+        Bundle.load();
     }
 }
