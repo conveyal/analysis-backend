@@ -9,6 +9,7 @@ import com.conveyal.r5.model.json_serialization.BitSetDeserializer;
 import com.conveyal.r5.model.json_serialization.BitSetSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 
 /**
@@ -17,16 +18,7 @@ import com.vividsolutions.jts.geom.LineString;
 public class AddTripPattern extends Modification {
     public String name;
 
-    @JsonDeserialize(using= GeometryDeserializer.class)
-    @JsonSerialize(using= GeometrySerializer.class)
-    public LineString geometry;
-    // in theory these would be more efficient as bitsets but they'd get turned into
-    // boolean[] when sent to mongo
-    public boolean[] stops;
-    public boolean[] controlPoints;
-
-    /** stop IDs that particular points have been snapped to. will be mostly null, as most stops are generally not snapped */
-    public String[] stopIds;
+    public List<Segment> segments;
 
     public boolean bidirectional;
 
@@ -34,6 +26,32 @@ public class AddTripPattern extends Modification {
 
     public String getType() {
         return "add-trip-pattern";
+    }
+
+    /** represents a single segment of an added trip pattern (between two user-specified points) */
+    public static class Segment {
+        /** Is there a stop at the start of this segment */
+        public boolean stopAtStart;
+
+        /** Is there a stop at the end of this segment */
+        public boolean stopAtEnd;
+
+        /** If this segment starts at an existing stop, what is its feed-scoped stop ID? */
+        public String fromStopId;
+
+        /** If this segment ends at an existing stop, what is its feed-scoped stop ID? */
+        public String toStopId;
+
+        /**
+         * Geometry of this segment
+         * Generally speaking, this will be a LineString, but the first segment may be a Point
+         * iff there are no more segments. This is used when someone first starts drawing a line and
+         * they have only drawn one stop so far. Of course a transit line with only one stop would
+         * not be particularly useful.
+         */
+        @JsonDeserialize(using= GeometryDeserializer.class)
+        @JsonSerialize(using= GeometrySerializer.class)
+        public Geometry geometry;
     }
 
     public static class Timetable {
