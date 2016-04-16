@@ -42,6 +42,9 @@ public class AddTripPattern extends Modification {
         /** If this segment ends at an existing stop, what is its feed-scoped stop ID? */
         public String toStopId;
 
+        /** spacing between stops in this segment, meters */
+        public int spacing;
+
         /**
          * Geometry of this segment
          * Generally speaking, this will be a LineString, but the first segment may be a Point
