@@ -66,13 +66,7 @@ public class AddTripPattern extends Modification {
 
         /** Speed, kilometers per hour */
         public int speed;
-
-        /** hop times in seconds */
-        public int[] hopTimes;
-
-        /** dwell times in seconds */
-        public int[] dwellTimes;
-
+        
         /** start time (seconds since GTFS midnight) */
         public int startTime;
 

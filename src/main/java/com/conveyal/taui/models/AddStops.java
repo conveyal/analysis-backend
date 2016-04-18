@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vividsolutions.jts.geom.LineString;
 
+import java.util.List;
+
 /**
  * Created by matthewc on 3/28/16.
  */
@@ -19,13 +21,7 @@ public class AddStops extends Modification {
     public String fromStop;
     public String toStop;
 
-    @JsonSerialize(using = GeometrySerializer.class)
-    @JsonDeserialize(using = GeometryDeserializer.class)
-    public LineString geometry;
-
-    public boolean[] stops;
-    public boolean[] controlPoints;
-    public String[] stopIds;
+    public List<AddTripPattern.Segment> segments;
 
     /** speed of the adjusted segment, km/h */
     public double speed;
