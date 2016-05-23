@@ -95,6 +95,9 @@ public class TransportAnalyst {
         GraphQLController.register();
         BundleController.register();
 
+        // TODO load before server startup
         Bundle.load();
+
+        LOG.info("Transport Analyst is ready");
     }
 }
