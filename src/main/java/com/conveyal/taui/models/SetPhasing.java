@@ -1,7 +1,5 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.r5.analyst.scenario.SetTripPhasing;
-
 /**
  * Created by matthewc on 2/12/16.
  */
