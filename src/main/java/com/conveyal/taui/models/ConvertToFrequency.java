@@ -16,6 +16,9 @@ public class ConvertToFrequency extends Modification {
     public String feed;
     public String[] routes;
 
+    /** Should trips on this route that start outside the days/times specified by frequency entries be retained? */
+    public boolean retainTripsOutsideFrequencyEntries = false;
+
     public FrequencyEntry[] entries;
 
     @Override
@@ -38,6 +41,9 @@ public class ConvertToFrequency extends Modification {
 
         /** headway for frequency-based patterns */
         public int headwaySecs;
+
+        /** start times of this trip (seconds since midnight), when non-null scheduled trips will be created */
+        public int[] startTimes;
 
         /** trip from which to copy travel times */
         public String sourceTrip;
