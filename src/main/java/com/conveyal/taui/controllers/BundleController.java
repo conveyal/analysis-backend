@@ -123,7 +123,8 @@ public class BundleController {
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
 
-        Persistence.bundles.put(bundleId, bundle);
+        // don't save bundle to database here, because we may block save bel
+        //Persistence.bundles.put(bundleId, bundle);
 
         // make a protective copy to avoid potential issues with modify objects that are in the process
         // of being saved to mongodb
@@ -136,19 +137,28 @@ public class BundleController {
 
             finalBundle.feeds = new ArrayList<>();
 
-            for (File file : localFiles) {
-                GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
+            Map<String, String> fileNames = new HashMap<>();
+            Map<String, GTFSFeed> feeds = localFiles.stream()
+                    .map(file -> {
+                        GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
+                        fileNames.put(feed.feedId, file.getName());
+                        return feed;
+                    })
+                    .collect(Collectors.toMap(f -> f.feedId, f -> f));
 
-                if (feed.agency.isEmpty()) {
-                    // TODO really should log original input file name
-                    LOG.warn("File {} is not a GTFS file", file);
-                    file.delete();
-                }
+            // Make sure it doesn't already contain the feed ID
+            if (feeds.keySet().stream().anyMatch(feedId -> ApiMain.feedSources.containsKey(feedId))) {
+                LOG.info("Attempt to upload feeds with duplicate IDs");
+                return; // don't make duplicate feeds, #3.
+                // TODO report error to client
+            }
 
+            for (GTFSFeed feed : feeds.values()) {
                 Bundle.FeedSummary fs = new Bundle.FeedSummary(feed);
-                fs.fileName = file.getName();
+                fs.fileName = fileNames.get(feed.feedId);
                 finalBundle.feeds.add(fs);
 
+                // we've already checked for conflicts
                 ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
 
                 // calculate median
