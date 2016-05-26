@@ -9,6 +9,9 @@ import java.util.List;
 public class Scenario extends Model {
     public String name;
 
+    /** Names of the variants of this scenario */
+    public String[] variants;
+
     /** The group this scenario is associated with */
     public String group;
 
