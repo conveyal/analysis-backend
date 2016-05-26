@@ -43,6 +43,11 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         else return null;
     }
 
+    /** Get all objects where property == value */
+    public Collection<V> getByProperty (String property, Object value) {
+        return wrappedCollection.find().is(property, value).toArray();
+    }
+
     public V put(String key, V value) {
         if (!key.equals(value.id)) throw new IllegalArgumentException("Model ID and key must match!");
 

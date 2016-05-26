@@ -37,4 +37,7 @@ public abstract class Modification extends Model {
     @JsonSerialize(using = BitSetSerializer.class)
     @JsonDeserialize(using = BitSetDeserializer.class)
     public BitSet variants = new BitSet();
+
+    /** What scenario is this modification a part of? */
+    public String scenario;
 }

@@ -29,9 +29,9 @@ public class Persistence {
     private static Mongo mongo;
     private static DB db;
 
-    public static Map<String, Modification> modifications;
-    public static Map<String, Scenario> scenarios;
-    public static Map<String, Bundle> bundles;
+    public static MongoMap<Modification> modifications;
+    public static MongoMap<Scenario> scenarios;
+    public static MongoMap<Bundle> bundles;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
@@ -54,7 +54,7 @@ public class Persistence {
     }
 
     /** connect to a table using MongoJack */
-    private static <V extends Model> Map<String, V> getTable (String name, Class clazz) {
+    private static <V extends Model> MongoMap<V> getTable (String name, Class clazz) {
         DBCollection collection = db.getCollection(name);
         JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class);
         return new MongoMap<>(coll);

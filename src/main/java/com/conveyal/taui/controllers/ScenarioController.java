@@ -65,7 +65,7 @@ public class ScenarioController {
         // 404 don't give any information as to whether it exists or not
         if (!req.attribute("group").equals(scenario.group)) halt(404);
 
-        return scenario.modifications.stream().map(Persistence.modifications::get).collect(Collectors.toList());
+        return Persistence.modifications.getByProperty("scenario", id);
     }
 
     public static void register () {
