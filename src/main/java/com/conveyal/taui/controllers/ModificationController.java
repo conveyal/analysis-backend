@@ -14,6 +14,7 @@ import spark.Response;
 import java.io.IOException;
 import java.util.Collection;
 
+import static spark.Spark.delete;
 import static spark.Spark.halt;
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -52,6 +53,17 @@ public class ModificationController {
         return mod;
     }
 
+    public static Modification deleteModification (Request req, Response res) {
+        Modification m = Persistence.modifications.get(req.params("id"));
+        if (m == null) halt(404);
+
+        Scenario s = Persistence.scenarios.get(m.scenario);
+
+        if (s == null || !req.attribute("group").equals(s.group)) halt(404);
+
+        return Persistence.modifications.remove(m.id);
+    }
+
     public static void register () {
         get("/api/modification/:id", ModificationController::getModification, JsonUtil.objectMapper::writeValueAsString);
         post("/api/modification", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
@@ -59,5 +71,6 @@ public class ModificationController {
         options("/api/modification", (q, s) -> "");
         put("/api/modification/:id", ModificationController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         options("/api/modification/:id", (q, s) -> "");
+        delete("/api/modification/:id", ModificationController::deleteModification, JsonUtil.objectMapper::writeValueAsString);
     }
 }
