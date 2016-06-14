@@ -1,6 +1,8 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
+import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
@@ -107,12 +109,13 @@ public class GraphQLController {
         );
     }
 
-    private static List<FeedInfo> fetchFeeds(DataFetchingEnvironment environment) {
+    private static List<WrappedGTFSEntity<FeedInfo>> fetchFeeds(DataFetchingEnvironment environment) {
         Bundle bundle = (Bundle) environment.getSource();
 
         return bundle.feeds.stream()
-                .map(summary -> ApiMain.feedSources.get(summary.feedId))
-                .map(fs -> {
+                .map(summary -> {
+                    FeedSource fs = ApiMain.getFeedSource(summary.id);
+
                     FeedInfo ret;
                     if (fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
                     else {
@@ -124,7 +127,7 @@ public class GraphQLController {
                         ret.feed_id = fs.feed.feedId;
                     }
 
-                    return ret;
+                    return new WrappedGTFSEntity<>(summary.id, ret);
                 })
                 .collect(Collectors.toList());
     }

@@ -63,8 +63,6 @@ public class BundleController {
         ObjectMetadata om = new ObjectMetadata();
         om.setContentType("application/zip");
 
-        ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(bundleFile)));
-
         List<File> localFiles = new ArrayList<>();
         File directory = Files.createTempDir();
 
@@ -89,22 +87,10 @@ public class BundleController {
 
             fname += ".zip";
 
-            ZipEntry ze = new ZipEntry(fname);
-
-            zos.putNextEntry(ze);
-            InputStream is = fi.getInputStream();
-            ByteStreams.copy(is, zos);
-            is.close();
-
             File localFile = new File(directory, fname);
             fi.write(localFile);
             localFiles.add(localFile);
-
-            zos.closeEntry();
         }
-
-        zos.flush();
-        zos.close();
 
         // upload to s3. OK to do this synchronously as this runs in production on AWS
         // (or on heroku, which runs on AWS), so throughput to S3 is very high.
@@ -123,8 +109,7 @@ public class BundleController {
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
 
-        // don't save bundle to database here, because we may block save bel
-        //Persistence.bundles.put(bundleId, bundle);
+        Persistence.bundles.put(bundleId, bundle);
 
         // make a protective copy to avoid potential issues with modify objects that are in the process
         // of being saved to mongodb
@@ -137,38 +122,34 @@ public class BundleController {
 
             finalBundle.feeds = new ArrayList<>();
 
-            Map<String, String> fileNames = new HashMap<>();
-            Map<String, GTFSFeed> feeds = localFiles.stream()
+            Map<String, FeedSource> feeds = localFiles.stream()
                     .map(file -> {
-                        GTFSFeed feed = GTFSFeed.fromFile(file.getAbsolutePath());
-                        fileNames.put(feed.feedId, file.getName());
-                        return feed;
+                        try {
+                            return ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundleId), file);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
                     })
-                    .collect(Collectors.toMap(f -> f.feedId, f -> f));
+                    .collect(Collectors.toMap(f -> f.id, f -> f));
 
-            // Make sure it doesn't already contain the feed ID
-            if (feeds.keySet().stream().anyMatch(feedId -> ApiMain.feedSources.containsKey(feedId))) {
-                LOG.info("Attempt to upload feeds with duplicate IDs");
-                return; // don't make duplicate feeds, #3.
-                // TODO report error to client
-            }
+            Set<String> seenFeedIds = new HashSet<>();
 
-            for (GTFSFeed feed : feeds.values()) {
-                Bundle.FeedSummary fs = new Bundle.FeedSummary(feed);
-                fs.fileName = fileNames.get(feed.feedId);
-                finalBundle.feeds.add(fs);
-
-                // we've already checked for conflicts
-                ApiMain.feedSources.put(feed.feedId, new FeedSource(feed));
-
-                // calculate median
-                // technically we should not use stops that have no stop times, but
-                // that requires parsing a much larger table. We're using a median so we're
-                // pretty robust to stops near null island, etc.
-                for (Stop stop : feed.stops.values()) {
-                    lats.add(stop.stop_lat);
-                    lons.add(stop.stop_lon);
+            for (FeedSource fs : feeds.values()) {
+                if (seenFeedIds.contains(fs.feed.feedId)) {
+                    finalBundle.status = Bundle.Status.ERROR;
+                    finalBundle.errorCode = "duplicate-feed-id";
+                    Persistence.bundles.put(bundleId, finalBundle);
+                    return;
                 }
+
+                seenFeedIds.add(fs.feed.feedId);
+
+                finalBundle.feeds.add(new Bundle.FeedSummary(fs.feed, finalBundle));
+
+                fs.feed.stops.values().forEach(s -> {
+                    lats.add(s.stop_lat);
+                    lons.add(s.stop_lon);
+                });
             }
 
             // find the median stop location
@@ -198,7 +179,7 @@ public class BundleController {
         Persistence.bundles.remove(bundle.id);
 
         // free memory
-        ApiMain.feedSources.remove(bundle.id);
+        ApiMain.feedSources.invalidate(bundle.id);
 
         // remove from s3
         s3.deleteObject(AnalystConfig.bundleBucket, bundle.id + ".zip");

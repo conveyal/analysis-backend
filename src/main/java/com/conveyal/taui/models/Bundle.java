@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
@@ -54,50 +55,7 @@ public class Bundle extends Model implements Cloneable {
 
     public List<FeedSummary> feeds;
     public Status status;
-
-    /** load all bundles into the GTFS API */
-    public static void load() throws IOException {
-        AmazonS3 s3 = new AmazonS3Client();
-        Persistence.bundles.values().parallelStream().forEach(b -> {
-            if (b.feeds == null) return;
-
-            try {
-                File directory = Files.createTempDir();
-                File bundleSource = File.createTempFile(b.id, ".zip");
-
-                // transfer from S3
-                s3.getObject(new GetObjectRequest(AnalystConfig.bundleBucket, b.id + ".zip"), bundleSource);
-
-                // extract the bundle
-                ZipFile bundle = new ZipFile(bundleSource);
-
-                b.feeds.forEach(fs -> {
-                    // extract
-                    ZipEntry ze = bundle.getEntry(fs.fileName);
-                    File file = new File(directory, fs.fileName);
-
-                    try {
-                        InputStream in = bundle.getInputStream(ze);
-                        OutputStream out = new BufferedOutputStream(new FileOutputStream(file));
-
-                        ByteStreams.copy(in, out);
-                        in.close();
-                        out.close();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    ApiMain.feedSources.put(fs.feedId, new FeedSource(file.getAbsolutePath()));
-
-                    file.delete(); // we're done with it now, everything interesting is in memory
-                });
-
-                bundleSource.delete();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
+    public String errorCode;
 
     public Bundle clone () {
         try {
@@ -107,21 +65,35 @@ public class Bundle extends Model implements Cloneable {
         }
     }
 
-    public static class FeedSummary {
+    public static class FeedSummary implements Cloneable {
         public String feedId;
         public String name;
         public String originalFileName;
         public String fileName;
+        public String id;
         public LocalDate serviceStart;
         public LocalDate serviceEnd;
 
-        public FeedSummary(GTFSFeed feed) {
+        public FeedSummary(GTFSFeed feed, Bundle bundle) {
             feedId = feed.feedId;
+            id = String.format("%s_%s", feed.feedId, bundle.id);
             name = feed.agency.values().iterator().next().agency_name;
         }
 
         /** restore default constructor for use in deserialization */
         public FeedSummary () { /* do nothing */ }
+
+        public FeedSummary clone () {
+            try {
+                return (FeedSummary) super.clone();
+            } catch (CloneNotSupportedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public String toString () {
+        return "Bundle " + name + " (" + id + ")";
     }
 
     public enum Status {

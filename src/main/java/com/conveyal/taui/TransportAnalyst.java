@@ -12,6 +12,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,8 +40,10 @@ public class TransportAnalyst {
         LOG.info("Connecting to database");
         Persistence.initialize();
 
-        // TODO hack
-        ApiMain.feedSources = new HashMap<>();
+        LOG.info("Initializing GTFS cache");
+        File cacheDir = new File(AnalystConfig.localCache);
+        cacheDir.mkdirs();
+        ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
 
         LOG.info("Starting server");
 
@@ -94,9 +97,6 @@ public class TransportAnalyst {
         ScenarioController.register();
         GraphQLController.register();
         BundleController.register();
-
-        // TODO load before server startup
-        Bundle.load();
 
         LOG.info("Transport Analyst is ready");
     }
