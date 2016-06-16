@@ -73,11 +73,13 @@ public class Bundle extends Model implements Cloneable {
         public String id;
         public LocalDate serviceStart;
         public LocalDate serviceEnd;
+        public long checksum;
 
         public FeedSummary(GTFSFeed feed, Bundle bundle) {
             feedId = feed.feedId;
             id = String.format("%s_%s", feed.feedId, bundle.id);
             name = feed.agency.values().iterator().next().agency_name;
+            checksum = feed.checksum;
         }
 
         /** restore default constructor for use in deserialization */

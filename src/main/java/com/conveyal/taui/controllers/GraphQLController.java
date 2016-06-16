@@ -1,6 +1,9 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.gtfs.api.graphql.RouteFetcher;
+import com.conveyal.gtfs.api.graphql.StopFetcher;
+import com.conveyal.gtfs.api.graphql.WrappedFeedInfo;
 import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
@@ -25,10 +28,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.*;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.multiStringArg;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.string;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.routeType;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stopType;
+import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.doublee;
+
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLObjectType.newObject;
+import static graphql.Scalars.GraphQLLong;
 import static spark.Spark.get;
 
 /**
@@ -53,6 +62,36 @@ public class GraphQLController {
             return er.getData();
         }
     }
+
+    /** Special feed type that also includes checksum */
+    public static GraphQLObjectType feedType = newObject()
+            .name("feed")
+            .field(string("feed_id"))
+            .field(string("feed_publisher_name"))
+            .field(string("feed_publisher_url"))
+            .field(string("feed_lang"))
+            .field(string("feed_version"))
+            // We have a custom wrapped GTFS Entity type for FeedInfo that includes feed checksum
+            .field(newFieldDefinition()
+                    .name("checksum")
+                    .type(GraphQLLong)
+                    .dataFetcher(env -> ((WrappedFeedInfo) env.getSource()).checksum)
+                    .build()
+            )
+            .field(newFieldDefinition()
+                    .name("routes")
+                    .type(new GraphQLList(routeType))
+                    .argument(multiStringArg("route_id"))
+                    .dataFetcher(RouteFetcher::forFeed)
+                    .build()
+            )
+            .field(newFieldDefinition()
+                    .name("stops")
+                    .type(new GraphQLList(stopType))
+                    .dataFetcher(StopFetcher::fromFeed)
+                    .build()
+            )
+            .build();
 
     static GraphQLEnumType bundleStatus = newEnum()
             .name("status")
@@ -127,7 +166,7 @@ public class GraphQLController {
                         ret.feed_id = fs.feed.feedId;
                     }
 
-                    return new WrappedGTFSEntity<>(summary.id, ret);
+                    return new WrappedFeedInfo(summary.id, ret, summary.checksum);
                 })
                 .collect(Collectors.toList());
     }
