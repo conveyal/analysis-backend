@@ -3,7 +3,6 @@ package com.conveyal.taui.controllers;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.graphql.RouteFetcher;
 import com.conveyal.gtfs.api.graphql.StopFetcher;
-import com.conveyal.gtfs.api.graphql.WrappedFeedInfo;
 import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
