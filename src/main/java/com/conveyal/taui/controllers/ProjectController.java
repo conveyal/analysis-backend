@@ -54,6 +54,8 @@ public class ProjectController {
             halt(401, "Attempt to overwrite existing project belonging to other user");
         }
 
+        Persistence.projects.put(project.id, project);
+
         return project;
     }
 
