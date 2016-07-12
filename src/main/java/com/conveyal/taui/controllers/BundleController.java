@@ -92,10 +92,6 @@ public class BundleController {
             localFiles.add(localFile);
         }
 
-        // upload to s3. OK to do this synchronously as this runs in production on AWS
-        // (or on heroku, which runs on AWS), so throughput to S3 is very high.
-        s3.putObject(AnalystConfig.bundleBucket, bundleId + ".zip", bundleFile);
-
         // don't run out of disk space
         bundleFile.delete();
 
