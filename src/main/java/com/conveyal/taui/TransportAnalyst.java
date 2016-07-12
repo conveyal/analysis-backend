@@ -6,7 +6,6 @@ import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ScenarioController;
-import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
@@ -14,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 import static spark.Spark.before;
@@ -28,14 +26,11 @@ import static spark.Spark.staticFileLocation;
 public class TransportAnalyst {
     private static final Logger LOG = LoggerFactory.getLogger(TransportAnalyst.class);
 
-    private static JWTVerifier verifier;
-
     public static void main (String... args) throws Exception {
         LOG.info("Starting TAUI server at {}", LocalDateTime.now());
 
         byte[] auth0Secret = new Base64(true).decode(AnalystConfig.auth0Secret);
         String auth0ClientId = AnalystConfig.auth0ClientId;
-        verifier = new JWTVerifier(auth0Secret, auth0ClientId);
 
         LOG.info("Connecting to database");
         Persistence.initialize();
@@ -46,7 +41,6 @@ public class TransportAnalyst {
         ApiMain.initialize(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, AnalystConfig.localCache);
 
         LOG.info("Starting server");
-
         port(AnalystConfig.port);
 
         // serve up index.html which pulls client code from S3
