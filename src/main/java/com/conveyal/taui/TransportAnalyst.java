@@ -43,7 +43,7 @@ public class TransportAnalyst {
         LOG.info("Initializing GTFS cache");
         File cacheDir = new File(AnalystConfig.localCache);
         cacheDir.mkdirs();
-        ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
+        ApiMain.initialize(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, AnalystConfig.localCache);
 
         LOG.info("Starting server");
 
@@ -56,41 +56,46 @@ public class TransportAnalyst {
         before((req, res) -> {
             if ("/".equals(req.pathInfo())) return; // don't need to be authenticated to view main page
 
-            String auth = req.headers("Authorization");
+            if (!AnalystConfig.offline) {
+                String auth = req.headers("Authorization");
 
-            // authorization required
-            if (auth == null || auth.isEmpty()) halt(401);
+                // authorization required
+                if (auth == null || auth.isEmpty()) halt(401);
 
-            // make sure it's properly formed
-            String[] authComponents = auth.split(" ");
+                // make sure it's properly formed
+                String[] authComponents = auth.split(" ");
 
-            if (authComponents.length != 2 || !"bearer".equals(authComponents[0].toLowerCase())) halt(400);
+                if (authComponents.length != 2 || !"bearer".equals(authComponents[0].toLowerCase())) halt(400);
 
-            // validate the JWT
-            JWTVerifier verifier = new JWTVerifier(auth0Secret, auth0ClientId);
+                // validate the JWT
+                JWTVerifier verifier = new JWTVerifier(auth0Secret, auth0ClientId);
 
-            Map<String, Object> jwt = null;
-            try {
-                jwt = verifier.verify(authComponents[1]);
-            } catch (Exception e) {
-                LOG.info("Login failed", e);
-                halt(403);
+                Map<String, Object> jwt = null;
+                try {
+                    jwt = verifier.verify(authComponents[1]);
+                } catch (Exception e) {
+                    LOG.info("Login failed", e);
+                    halt(403);
+                }
+
+                if (!jwt.containsKey("analyst")) {
+                    halt(403);
+                }
+
+                String group = null;
+                try {
+                    group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
+                } catch (Exception e) {
+                    halt(403);
+                }
+
+                if (group == null) halt(403);
+
+                req.attribute("group", group);
+            } else {
+                // hardwire group name if we're working offline
+                req.attribute("group", "OFFLINE");
             }
-
-            if (!jwt.containsKey("analyst")) {
-                halt(403);
-            }
-
-            String group = null;
-            try {
-                group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
-            } catch (Exception e) {
-                halt(403);
-            }
-
-            if (group == null) halt(403);
-
-            req.attribute("group", group);
         });
 
         ModificationController.register();
