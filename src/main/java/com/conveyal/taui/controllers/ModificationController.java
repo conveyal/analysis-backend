@@ -37,7 +37,7 @@ public class ModificationController {
         try {
             mod = JsonUtilities.objectMapper.readValue(req.body(), Modification.class);
 
-            if (mod.scenario == null) halt(404);
+            if (mod.scenario == null) halt(400, "Scenario does not exist.");
             Scenario scenario = Persistence.scenarios.get(mod.scenario);
 
             if (scenario == null || !req.attribute("group").equals(scenario.group)) halt(404);
