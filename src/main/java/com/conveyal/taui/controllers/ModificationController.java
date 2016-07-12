@@ -36,13 +36,6 @@ public class ModificationController {
         Modification mod = null;
         try {
             mod = JsonUtilities.objectMapper.readValue(req.body(), Modification.class);
-
-            if (mod.scenario == null) halt(400, "Scenario does not exist.");
-            Scenario scenario = Persistence.scenarios.get(mod.scenario);
-
-            if (scenario == null || !req.attribute("group").equals(scenario.group)) halt(404);
-
-
         } catch (IOException e) {
             LOG.info("Error parsing modification JSON from client", e);
             halt(400, "Bad modification");
@@ -58,8 +51,6 @@ public class ModificationController {
         if (m == null) halt(404);
 
         Scenario s = Persistence.scenarios.get(m.scenario);
-
-        if (s == null || !req.attribute("group").equals(s.group)) halt(404);
 
         return Persistence.modifications.remove(m.id);
     }

@@ -5,6 +5,7 @@ import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
+import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.ScenarioController;
 import com.conveyal.taui.persistence.Persistence;
 import org.apache.commons.codec.binary.Base64;
@@ -92,6 +93,7 @@ public class TransportAnalyst {
             }
         });
 
+        ProjectController.register();
         ModificationController.register();
         ScenarioController.register();
         GraphQLController.register();
