@@ -64,8 +64,8 @@ public class ScenarioController {
     public static void register () {
         get("/api/scenario/:id", ScenarioController::getScenario, JsonUtil.objectMapper::writeValueAsString);
         get("/api/scenario/:id/modifications", ScenarioController::modifications, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/scenario/", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
-        options("/api/scenario/", (q, s) -> "");
+        post("/api/scenario", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        options("/api/scenario", (q, s) -> "");
         put("/api/scenario/:id", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         options("/api/scenario/:id", (q, s) -> "");
     }
