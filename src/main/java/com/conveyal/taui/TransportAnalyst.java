@@ -7,15 +7,19 @@ import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ScenarioController;
 import com.conveyal.taui.persistence.Persistence;
+import com.google.common.io.CharStreams;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.Map;
 
 import static spark.Spark.before;
+import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.port;
 import static spark.Spark.staticFileLocation;
@@ -44,11 +48,11 @@ public class TransportAnalyst {
         port(AnalystConfig.port);
 
         // serve up index.html which pulls client code from S3
-        staticFileLocation("/public");
+
 
         // check if a user is authenticated
         before((req, res) -> {
-            if ("/".equals(req.pathInfo())) return; // don't need to be authenticated to view main page
+            if (!req.pathInfo().startsWith("/api")) return; // don't need to be authenticated to view main page
 
             if (!AnalystConfig.offline) {
                 String auth = req.headers("Authorization");
@@ -96,6 +100,14 @@ public class TransportAnalyst {
         ScenarioController.register();
         GraphQLController.register();
         BundleController.register();
+
+        // load and serve index.html
+
+        InputStream indexStream = TransportAnalyst.class.getClassLoader().getResourceAsStream("public/index.html");
+        String index = CharStreams.toString(new InputStreamReader(indexStream)).replace("${S3BUCKET}", AnalystConfig.uiBucket);
+        indexStream.close();
+
+        get("/*", (req, res) -> { res.type("text/html"); return index; });
 
         LOG.info("Transport Analyst is ready");
     }
