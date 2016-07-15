@@ -9,6 +9,8 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoClientURI;
 import com.mongodb.MongoURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -26,7 +28,7 @@ public class Persistence {
     private static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
 
     // TODO deprecated but needed for MongoJack
-    private static Mongo mongo;
+    private static MongoClient mongo;
     private static DB db;
 
     public static MongoMap<Modification> modifications;
@@ -38,12 +40,14 @@ public class Persistence {
         // allow configurable db connection params
 
         if (AnalystConfig.databaseUri != null) {
-            mongo = new Mongo(new MongoURI(AnalystConfig.databaseUri));
+            MongoClientOptions.Builder builder = MongoClientOptions.builder()
+                    .sslEnabled(true);
+            mongo = new MongoClient(new MongoClientURI(AnalystConfig.databaseUri, builder));
             LOG.info("Connecting to remote MongoDB instance");
         }
         else {
             LOG.info("Connecting to local MongoDB instance");
-            mongo = new Mongo();
+            mongo = new MongoClient();
         }
 
         db = mongo.getDB(AnalystConfig.databaseName);
