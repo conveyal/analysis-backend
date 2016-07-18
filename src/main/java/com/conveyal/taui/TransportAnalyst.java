@@ -2,6 +2,7 @@ package com.conveyal.taui;
 
 import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.taui.controllers.AnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
@@ -102,6 +103,7 @@ public class TransportAnalyst {
         ScenarioController.register();
         GraphQLController.register();
         BundleController.register();
+        AnalysisController.register();
 
         // load and serve index.html
 
