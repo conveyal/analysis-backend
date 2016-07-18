@@ -156,7 +156,15 @@ public class BundleController {
             // and we are supposed to average the two middle value, but close enough
             finalBundle.centerLat = lats.get(lats.size() / 2);
             finalBundle.centerLon = lons.get(lons.size() / 2);
-            finalBundle.status = Bundle.Status.DONE;
+
+            try {
+                finalBundle.writeManifestToCache();
+                finalBundle.status = Bundle.Status.DONE;
+            } catch (IOException e) {
+                LOG.error("Error writing bundle manifest to cache", e);
+                finalBundle.status = Bundle.Status.ERROR;
+                finalBundle.errorCode = "cache-write-error";
+            }
 
             Persistence.bundles.put(bundleId, finalBundle);
 

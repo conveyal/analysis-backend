@@ -25,21 +25,23 @@ public class AnalysisController {
 
         res.type("application/json");
 
+        String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
+
         if ("GET".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.get(AnalystConfig.brokerUrl + "/" + path)
+            HttpResponse<String> brokerRes = Unirest.get(brokerUrl + "/" + path)
                     .asString();
 
             res.status(brokerRes.getStatus());
             return brokerRes.getBody();
         } else if ("POST".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.post(AnalystConfig.brokerUrl + "/" + path)
+            HttpResponse<String> brokerRes = Unirest.post(brokerUrl + "/" + path)
                     .body(req.body())
                     .asString();
 
             res.status(brokerRes.getStatus());
             return brokerRes.getBody();
         } else if ("DELETE".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.delete(AnalystConfig.brokerUrl + "/" + path)
+            HttpResponse<String> brokerRes = Unirest.delete(brokerUrl + "/" + path)
                     .asString();
 
             res.status(brokerRes.getStatus());

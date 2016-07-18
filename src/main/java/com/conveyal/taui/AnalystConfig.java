@@ -35,6 +35,7 @@ public class AnalystConfig {
     public static final int port = Integer.parseInt(getEnv("PORT", "7070"));
     public static final boolean offline = Boolean.parseBoolean(getEnv("OFFLINE", "false"));
     public static final String brokerUrl = getEnv("BROKER_URL", "http://localhost:9001");
+    public static final String vexUrl = getEnv("VEX_URL", "http://osm.conveyal.com/vex");
     
     public static String getEnv (String key, String defaultValue) {
         String val = System.getenv(key);

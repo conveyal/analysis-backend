@@ -2,6 +2,7 @@ package com.conveyal.taui;
 
 import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
@@ -112,6 +113,12 @@ public class TransportAnalyst {
         indexStream.close();
 
         get("/*", (req, res) -> { res.type("text/html"); return index; });
+
+        if (AnalystConfig.offline) {
+            LOG.info("Starting local cluster");
+            // TODO port is hardwired here and also in AnalysisController
+            new LocalCluster(6001);
+        }
 
         LOG.info("Transport Analyst is ready");
     }

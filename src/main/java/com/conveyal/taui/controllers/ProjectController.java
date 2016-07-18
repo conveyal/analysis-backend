@@ -3,11 +3,13 @@ package com.conveyal.taui.controllers;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.mashape.unirest.http.exceptions.UnirestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,6 +57,20 @@ public class ProjectController {
         }
 
         Persistence.projects.put(project.id, project);
+
+        if (existing == null) {
+            // download OSM
+            // TODO how to feed osm download errors back to user?
+            // how to prevent project from being used before OSM is downloaded?
+            final Project finalProject = project;
+            new Thread(() -> {
+                try {
+                    finalProject.fetchOsm();
+                } catch (IOException | UnirestException e) {
+                    LOG.error("Exception fetching OSM", e);
+                }
+            }).start();
+        }
 
         return project;
     }
