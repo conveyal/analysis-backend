@@ -23,15 +23,13 @@ public class ScenarioController {
         String group = (String) req.attribute("group");
         Scenario scenario = Persistence.scenarios.get(id);
 
-        if (scenario == null || !group.equals(scenario.group)) halt(404);
-
         return scenario;
     }
 
     public static Collection<Scenario> getAllScenarios (Request req, Response res) {
-        String group = (String) req.attribute("group");
+        String project = req.params("project");
         return Persistence.scenarios.values().stream()
-                .filter(s -> group.equals(s.group))
+                .filter(s -> project.equals(s.projectId))
                 .collect(Collectors.toList());
     }
 
@@ -40,14 +38,12 @@ public class ScenarioController {
         try {
             scenario = JsonUtilities.objectMapper.readValue(req.body(), Scenario.class);
         } catch (IOException e) {
-            halt(400, "Bad modification");
+            halt(400, "Bad scenario");
         }
-
-        scenario.group = (String) req.attribute("group");
 
         Scenario existing = Persistence.scenarios.get(scenario.id);
 
-        if (existing != null && !scenario.group.equals(existing.group)) {
+        if (existing != null && !scenario.projectId.equals(existing.projectId)) {
             halt(403);
         }
 
@@ -62,18 +58,14 @@ public class ScenarioController {
 
         if (scenario == null) halt(404);
 
-        // 404 don't give any information as to whether it exists or not
-        if (!req.attribute("group").equals(scenario.group)) halt(404);
-
         return Persistence.modifications.getByProperty("scenario", id);
     }
 
     public static void register () {
         get("/api/scenario/:id", ScenarioController::getScenario, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/scenario", ScenarioController::getAllScenarios, JsonUtil.objectMapper::writeValueAsString);
         get("/api/scenario/:id/modifications", ScenarioController::modifications, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/scenario/", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
-        options("/api/scenario/", (q, s) -> "");
+        post("/api/scenario", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        options("/api/scenario", (q, s) -> "");
         put("/api/scenario/:id", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         options("/api/scenario/:id", (q, s) -> "");
     }
