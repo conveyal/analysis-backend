@@ -53,6 +53,7 @@ public class MigrateToProjects {
             Persistence.projects.put(project.id, project);
             b = b.clone();
             b.projectId = bundleToProjectIdMap.get(b.id);
+            b.group = null;
 
             newBundles.add(b);
         }
