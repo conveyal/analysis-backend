@@ -22,7 +22,6 @@ import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -147,7 +146,7 @@ public class GraphQLController {
 
         return bundle.feeds.stream()
                 .map(summary -> {
-                    FeedSource fs = ApiMain.getFeedSource(summary.id);
+                    FeedSource fs = ApiMain.getFeedSource(summary.s3key);
 
                     FeedInfo ret;
                     if (fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
@@ -160,7 +159,7 @@ public class GraphQLController {
                         ret.feed_id = fs.feed.feedId;
                     }
 
-                    return new WrappedFeedInfo(summary.id, ret, summary.checksum);
+                    return new WrappedFeedInfo(summary.s3key, ret, summary.checksum);
                 })
                 .collect(Collectors.toList());
     }

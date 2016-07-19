@@ -16,7 +16,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -73,7 +72,7 @@ public class MigrateBundles {
                     eos.close();
 
                     // feedsummary.id already populated by mongo migration
-                    ApiMain.registerFeedSource(feed.id, entryFile);
+                    ApiMain.registerFeedSource(feed.s3key, entryFile);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
