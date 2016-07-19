@@ -2,6 +2,7 @@ package com.conveyal.taui.models;
 
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.persistence.OSMPersistence;
+import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.ByteStreams;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Represents a project, which is a set of GTFS, OSM, and land use data for a particular location.
@@ -36,6 +38,20 @@ public class Project extends Model {
 
     /** Group this project is associated with */
     public String group;
+
+    public List<Bundle> getBundles () {
+        return Persistence.bundles.values()
+                .stream()
+                .filter(b -> id.equals(b.projectId))
+                .collect(Collectors.toList());
+    }
+
+    public List<Scenario> getScenarios () {
+        return Persistence.scenarios.values()
+                .stream()
+                .filter(s -> id.equals(s.projectId))
+                .collect(Collectors.toList());
+    }
 
     public void fetchOsm () throws IOException, UnirestException {
         File temporaryFile = File.createTempFile("osm", ".pbf");

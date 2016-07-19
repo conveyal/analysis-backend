@@ -101,8 +101,6 @@ public class BundleController {
         bundle.name = files.get("Name").get(0).getString("UTF-8");
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
-        bundle.group = (String) req.attribute("group");
-
         bundle.status = Bundle.Status.PROCESSING_GTFS;
 
         Persistence.bundles.put(bundleId, bundle);
@@ -191,29 +189,19 @@ public class BundleController {
         return bundle;
     }
 
-    public static Object getBundles (Request req, Response res) {
-        String group = req.attribute("group");
+    public static Object getBundle (Request req, Response res) {
+        String id = req.params("id");
 
-        if (req.params("id") != null) {
-            String id = req.params("id");
+        Bundle bundle = Persistence.bundles.get(id);
 
-            Bundle bundle = Persistence.bundles.get(id);
-
-            if (bundle == null || !group.equals(bundle.group)) halt(404);
-            else return bundle;
-        }
-        else {
-            return Persistence.bundles.values().stream()
-                    .filter(b -> group.equals(b.group))
-                    .collect(Collectors.toList());
-        }
+        if (bundle == null) halt(404);
+        else return bundle;
 
         return null;
     }
 
     public static void register () {
-        get("/api/bundle/:id", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/bundle/:id", BundleController::getBundle, JsonUtil.objectMapper::writeValueAsString);
         post("/api/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/bundle/:id", BundleController::deleteBundle, JsonUtil.objectMapper::writeValueAsString);
     }

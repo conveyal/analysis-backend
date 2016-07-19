@@ -136,15 +136,10 @@ public class GraphQLController {
     private static List<Bundle> fetchBundle(DataFetchingEnvironment environment) {
         List<String> id = environment.getArgument("bundle_id");
         QueryContext context = (QueryContext) environment.getContext();
-        if (id != null) return Persistence.bundles.values().stream()
+        return Persistence.bundles.values().stream()
                 .filter(b -> context.group.equals(b.group))
                 .filter(b -> id.contains(b.id))
                 .collect(Collectors.toList());
-
-        else return new ArrayList<>(Persistence.bundles.values().stream()
-                .filter(b -> context.group.equals(b.group))
-                .collect(Collectors.toList())
-        );
     }
 
     private static List<WrappedGTFSEntity<FeedInfo>> fetchFeeds(DataFetchingEnvironment environment) {

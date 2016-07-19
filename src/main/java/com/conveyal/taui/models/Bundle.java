@@ -46,6 +46,7 @@ public class Bundle extends Model implements Cloneable {
 
     public String name;
 
+    @Deprecated
     public String group;
 
     public double north;

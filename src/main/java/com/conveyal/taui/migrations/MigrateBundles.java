@@ -1,10 +1,11 @@
-package com.conveyal.taui;
+package com.conveyal.taui.migrations;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.ByteStreams;
