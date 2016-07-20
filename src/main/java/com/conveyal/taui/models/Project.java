@@ -3,6 +3,8 @@ package com.conveyal.taui.models;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.io.ByteStreams;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
@@ -39,6 +41,8 @@ public class Project extends Model {
     /** Group this project is associated with */
     public String group;
 
+    // don't persist to DB but do expose to API
+    @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
         return Persistence.bundles.values()
                 .stream()
@@ -46,6 +50,7 @@ public class Project extends Model {
                 .collect(Collectors.toList());
     }
 
+    @JsonView(JsonViews.Api.class)
     public List<Scenario> getScenarios () {
         return Persistence.scenarios.values()
                 .stream()

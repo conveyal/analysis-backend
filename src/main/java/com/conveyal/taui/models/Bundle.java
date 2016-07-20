@@ -7,6 +7,7 @@ import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.r5.analyst.cluster.BundleManifest;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.util.JsonUtil;
+import com.fasterxml.jackson.annotation.JsonView;
 
 import java.io.File;
 import java.io.IOException;
@@ -74,6 +75,8 @@ public class Bundle extends Model implements Cloneable {
         public String fileName;
 
         /** The feed ID scoped with the bundle ID, for use as a unique identifier on S3 and in the GTFS API */
+        // don't expose to client to avoid confusion
+        @JsonView(JsonViews.Db.class)
         public String bundleScopedFeedId;
 
         public LocalDate serviceStart;

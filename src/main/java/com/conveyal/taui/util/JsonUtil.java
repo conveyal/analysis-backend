@@ -2,6 +2,7 @@ package com.conveyal.taui.util;
 
 import com.conveyal.geojson.GeoJsonModule;
 import com.conveyal.r5.common.JsonUtilities;
+import com.conveyal.taui.models.JsonViews;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -12,5 +13,6 @@ public class JsonUtil {
 
     static {
         objectMapper.registerModule(new GeoJsonModule());
+        objectMapper.setConfig(objectMapper.getSerializationConfig().withView(JsonViews.Api.class));
     }
 }

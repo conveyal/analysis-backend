@@ -1,11 +1,14 @@
 package com.conveyal.taui.persistence;
 
+import com.conveyal.geojson.GeoJsonModule;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
+import com.conveyal.taui.models.JsonViews;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.Scenario;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.Mongo;
@@ -16,6 +19,7 @@ import com.mongodb.MongoURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.mongojack.JacksonDBCollection;
+import org.mongojack.internal.MongoJackModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +44,6 @@ public class Persistence {
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
         // allow configurable db connection params
-
         if (AnalystConfig.databaseUri != null) {
             MongoClientOptions.Builder builder = MongoClientOptions.builder()
                     .sslEnabled(true);
@@ -63,7 +66,7 @@ public class Persistence {
     /** connect to a table using MongoJack */
     private static <V extends Model> MongoMap<V> getTable (String name, Class clazz) {
         DBCollection collection = db.getCollection(name);
-        JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class);
+        JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class, JsonViews.Db.class);
         return new MongoMap<>(coll);
     }
 }
