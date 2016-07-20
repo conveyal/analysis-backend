@@ -136,7 +136,6 @@ public class GraphQLController {
         List<String> id = environment.getArgument("bundle_id");
         QueryContext context = (QueryContext) environment.getContext();
         return Persistence.bundles.values().stream()
-                .filter(b -> context.group.equals(b.group))
                 .filter(b -> id.contains(b.id))
                 .collect(Collectors.toList());
     }
