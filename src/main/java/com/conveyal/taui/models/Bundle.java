@@ -47,7 +47,7 @@ public class Bundle extends Model implements Cloneable {
     public void writeManifestToCache () throws IOException {
         BundleManifest manifest = new BundleManifest();
         manifest.osmId = this.projectId;
-        manifest.gtfsIds = this.feeds.stream().map(f -> f.s3key).collect(Collectors.toList());
+        manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
         File cacheDir = new File(AnalystConfig.localCache);
         String manifestFileName = GTFSCache.cleanId(this.id) + ".json";
         File manifestFile = new File(cacheDir, manifestFileName);
@@ -72,14 +72,17 @@ public class Bundle extends Model implements Cloneable {
         public String name;
         public String originalFileName;
         public String fileName;
-        public String s3key;
+
+        /** The feed ID scoped with the bundle ID, for use as a unique identifier on S3 and in the GTFS API */
+        public String bundleScopedFeedId;
+
         public LocalDate serviceStart;
         public LocalDate serviceEnd;
         public long checksum;
 
         public FeedSummary(GTFSFeed feed, Bundle bundle) {
             feedId = feed.feedId;
-            s3key = String.format("%s_%s", feed.feedId, bundle.id);
+            bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle.id);
             name = feed.agency.values().iterator().next().agency_name;
             checksum = feed.checksum;
         }

@@ -72,7 +72,7 @@ public class MigrateBundles {
                     eos.close();
 
                     // feedsummary.id already populated by mongo migration
-                    ApiMain.registerFeedSource(feed.s3key, entryFile);
+                    ApiMain.registerFeedSource(feed.bundleScopedFeedId, entryFile);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

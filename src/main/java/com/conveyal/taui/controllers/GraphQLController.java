@@ -146,7 +146,7 @@ public class GraphQLController {
 
         return bundle.feeds.stream()
                 .map(summary -> {
-                    FeedSource fs = ApiMain.getFeedSource(summary.s3key);
+                    FeedSource fs = ApiMain.getFeedSource(summary.bundleScopedFeedId);
 
                     FeedInfo ret;
                     if (fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
@@ -159,7 +159,7 @@ public class GraphQLController {
                         ret.feed_id = fs.feed.feedId;
                     }
 
-                    return new WrappedFeedInfo(summary.s3key, ret, summary.checksum);
+                    return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
                 })
                 .collect(Collectors.toList());
     }
