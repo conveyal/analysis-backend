@@ -61,12 +61,21 @@ public class ScenarioController {
         return Persistence.modifications.getByProperty("scenario", id);
     }
 
+    public static Scenario deleteScenario (Request req, Response res) {
+        String id = req.params("id");
+        Scenario scenario = Persistence.scenarios.get(id);
+        if (scenario == null) halt(404);
+
+        return Persistence.scenarios.remove(id);
+    }
+
     public static void register () {
         get("/api/scenario/:id", ScenarioController::getScenario, JsonUtil.objectMapper::writeValueAsString);
         get("/api/scenario/:id/modifications", ScenarioController::modifications, JsonUtil.objectMapper::writeValueAsString);
         post("/api/scenario", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         options("/api/scenario", (q, s) -> "");
         put("/api/scenario/:id", ScenarioController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/scenario/:id", ScenarioController::deleteScenario, JsonUtil.objectMapper::writeValueAsString);
         options("/api/scenario/:id", (q, s) -> "");
     }
 }
