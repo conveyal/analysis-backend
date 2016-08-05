@@ -7,6 +7,7 @@ import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.Stop;
+import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.TransportAnalyst;
 import com.conveyal.taui.models.Bundle;
@@ -38,10 +39,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static spark.Spark.delete;
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 /**
  * Created by matthewc on 3/14/16.
@@ -174,8 +172,8 @@ public class BundleController {
 
     public static Bundle deleteBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.get(req.params("id"));
-        if (bundle == null || !req.attribute("group").equals(bundle.group)) {
-            halt(404);
+        if (bundle == null) {
+            halt(404, "Bundle does not exist");
         }
 
         Persistence.bundles.remove(bundle.id);
@@ -183,9 +181,23 @@ public class BundleController {
         // free memory
         ApiMain.feedSources.invalidate(bundle.id);
 
-        // remove from s3
-        s3.deleteObject(AnalystConfig.bundleBucket, bundle.id + ".zip");
+        if (AnalystConfig.bundleBucket != null) {
+            // remove from s3
+            s3.deleteObject(AnalystConfig.bundleBucket, bundle.id + ".zip");
+        }
 
+        return bundle;
+    }
+
+    public static Bundle update (Request req, Response res) {
+        Bundle bundle = null;
+        try {
+            bundle = JsonUtilities.objectMapper.readValue(req.body(), Bundle.class);
+        } catch (IOException e) {
+            halt(400, "Bad bundle");
+        }
+        if (bundle == null) halt(404);
+        Persistence.bundles.put(bundle.id, bundle);
         return bundle;
     }
 
@@ -195,14 +207,13 @@ public class BundleController {
         Bundle bundle = Persistence.bundles.get(id);
 
         if (bundle == null) halt(404);
-        else return bundle;
-
-        return null;
+        return bundle;
     }
 
     public static void register () {
         get("/api/bundle/:id", BundleController::getBundle, JsonUtil.objectMapper::writeValueAsString);
         post("/api/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
+        put("/api/bundle/:id", BundleController::update, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/bundle/:id", BundleController::deleteBundle, JsonUtil.objectMapper::writeValueAsString);
     }
 

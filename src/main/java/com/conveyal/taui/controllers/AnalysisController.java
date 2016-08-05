@@ -4,14 +4,10 @@ import com.conveyal.taui.AnalystConfig;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
-import com.mashape.unirest.request.body.Body;
 import spark.Request;
 import spark.Response;
 
-import static spark.Spark.delete;
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 /**
  * Handles talking to the broker.

@@ -21,7 +21,8 @@ import java.util.BitSet;
         @JsonSubTypes.Type(name = "adjust-speed", value = AdjustSpeed.class),
         @JsonSubTypes.Type(name = "adjust-dwell-time", value = AdjustDwellTime.class),
         @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class),
-        @JsonSubTypes.Type(name = "add-stops", value = AddStops.class)
+        @JsonSubTypes.Type(name = "add-stops", value = AddStops.class),
+        @JsonSubTypes.Type(name = "reroute", value = Reroute.class)
 })
 public abstract class Modification extends Model {
     /** the type of this modification, see JsonSubTypes annotation above */
