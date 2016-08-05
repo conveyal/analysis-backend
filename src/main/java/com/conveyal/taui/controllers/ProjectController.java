@@ -13,10 +13,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.post;
-import static spark.Spark.put;
+import static spark.Spark.*;
 
 /**
  * Created by matthewc on 7/12/16.
@@ -75,11 +72,20 @@ public class ProjectController {
         return project;
     }
 
+    public static Project deleteProject (Request req, Response res) {
+        String id = req.params("id");
+        Project project = Persistence.projects.get(id);
+        if (project == null) halt(404);
+
+        return Persistence.projects.remove(id);
+    }
+
     public static void register () {
         get("/api/project", ProjectController::getAllProjects, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:id", ProjectController::getProject, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:project/scenarios", ScenarioController::getAllScenarios, JsonUtil.objectMapper::writeValueAsString);
         post("/api/project", ProjectController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         put("/api/project/:id", ProjectController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/project/:id", ProjectController::deleteProject, JsonUtil.objectMapper::writeValueAsString);
     }
 }
