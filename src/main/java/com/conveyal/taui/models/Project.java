@@ -41,6 +41,8 @@ public class Project extends Model {
     /** Group this project is associated with */
     public String group;
 
+    public Boolean showGeocoder;
+
     // don't persist to DB but do expose to API
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
