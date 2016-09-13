@@ -80,7 +80,7 @@ public class GraphQLController {
                     .name("routes")
                     .type(new GraphQLList(routeType))
                     .argument(multiStringArg("route_id"))
-                    .dataFetcher(RouteFetcher::forFeed)
+                    .dataFetcher(RouteFetcher::fromFeed)
                     .build()
             )
             .field(newFieldDefinition()
