@@ -196,8 +196,16 @@ public class BundleController {
         } catch (IOException e) {
             halt(400, "Bad bundle");
         }
-        if (bundle == null) halt(404);
-        Persistence.bundles.put(bundle.id, bundle);
+
+        // bundles are mostly immutable, only copy relevant things
+        Bundle existing = Persistence.bundles.get(bundle.id);
+
+        if (existing == null) halt(404);
+
+        existing = existing.clone();
+        existing.name = bundle.name;
+
+        Persistence.bundles.put(existing.id, existing);
         return bundle;
     }
 
