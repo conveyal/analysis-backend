@@ -4,8 +4,14 @@ import com.conveyal.taui.AnalystConfig;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.http.conn.HttpHostConnectException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
+
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 
 import static spark.Spark.*;
 
@@ -13,6 +19,8 @@ import static spark.Spark.*;
  * Handles talking to the broker.
  */
 public class AnalysisController {
+    public static final Logger LOG = LoggerFactory.getLogger(AnalysisController.class);
+
     public static String analysis (Request req, Response res) throws UnirestException {
         // we already know the user is authenticated, and we need not check if they have access to the graphs etc,
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
@@ -23,29 +31,42 @@ public class AnalysisController {
 
         String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
 
-        if ("GET".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.get(brokerUrl + "/" + path)
-                    .asString();
+        try {
+            if ("GET".equals(method)) {
+                HttpResponse<String> brokerRes = Unirest.get(brokerUrl + "/" + path)
+                        .asString();
 
-            res.status(brokerRes.getStatus());
-            return brokerRes.getBody();
-        } else if ("POST".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.post(brokerUrl + "/" + path)
-                    .body(req.body())
-                    .asString();
+                res.status(brokerRes.getStatus());
+                return brokerRes.getBody();
+            } else if ("POST".equals(method)) {
+                HttpResponse<String> brokerRes = Unirest.post(brokerUrl + "/" + path)
+                        .body(req.body())
+                        .asString();
 
-            res.status(brokerRes.getStatus());
-            return brokerRes.getBody();
-        } else if ("DELETE".equals(method)) {
-            HttpResponse<String> brokerRes = Unirest.delete(brokerUrl + "/" + path)
-                    .asString();
+                res.status(brokerRes.getStatus());
+                return brokerRes.getBody();
+            } else if ("DELETE".equals(method)) {
+                HttpResponse<String> brokerRes = Unirest.delete(brokerUrl + "/" + path)
+                        .asString();
 
-            res.status(brokerRes.getStatus());
-            return brokerRes.getBody();
-        } else {
-            halt(400, "Unsupported method for broker request");
-            return null;
+                res.status(brokerRes.getStatus());
+                return brokerRes.getBody();
+            } else {
+                halt(400, "Unsupported method for broker request");
+                return null;
+            }
+        } catch (UnirestException e) {
+            LOG.error("analysis error", e.getCause());
+            if (e.getCause() instanceof SocketTimeoutException) {
+                halt(504, "Timeout contacting broker");
+            } else if (e.getCause() instanceof HttpHostConnectException) {
+                halt(503, "Broker not available");
+            } else {
+                halt(500, "Could not contact broker");
+            }
         }
+
+        return null;
     }
 
     public static void register () {
