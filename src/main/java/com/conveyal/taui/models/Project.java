@@ -60,7 +60,7 @@ public class Project extends Model {
                 .collect(Collectors.toList());
     }
 
-    public void fetchOsm () throws IOException, UnirestException {
+    public synchronized void fetchOsm () throws IOException, UnirestException {
         File temporaryFile = File.createTempFile("osm", ".pbf");
         String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalystConfig.vexUrl,
                 bounds.south,
@@ -83,9 +83,23 @@ public class Project extends Model {
 
         OSMPersistence.cache.put(this.id, temporaryFile);
         temporaryFile.delete();
+
+        // TODO remove all cached transport networks for this project
     }
 
     public static class Bounds {
         public double north, east, south, west;
+
+        @Override
+        public boolean equals (Object other) {
+            return equals(other, 0D);
+        }
+
+        public boolean equals (Object other, double tolerance) {
+            if (!Bounds.class.isInstance(other)) return false;
+            Bounds o = (Bounds) other;
+            return Math.abs(north - o.north) <= tolerance && Math.abs(east - o.east) <= tolerance &&
+                    Math.abs(south - o.south) <= tolerance && Math.abs(west - o.west) <= tolerance;
+        }
     }
 }

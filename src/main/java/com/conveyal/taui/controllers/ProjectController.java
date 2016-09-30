@@ -55,7 +55,7 @@ public class ProjectController {
 
         Persistence.projects.put(project.id, project);
 
-        if (existing == null) {
+        if (existing == null || !existing.bounds.equals(project.bounds, 1e-6)) {
             // download OSM
             // TODO how to feed osm download errors back to user?
             // how to prevent project from being used before OSM is downloaded?
