@@ -86,7 +86,7 @@ public class Bundle extends Model implements Cloneable {
         public FeedSummary(GTFSFeed feed, Bundle bundle) {
             feedId = feed.feedId;
             bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle.id);
-            name = feed.agency.values().iterator().next().agency_name;
+            name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
         }
 
