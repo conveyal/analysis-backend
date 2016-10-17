@@ -59,10 +59,13 @@ public class ProjectController {
             // download OSM
             // TODO how to feed osm download errors back to user?
             // how to prevent project from being used before OSM is downloaded?
-            final Project finalProject = project;
+            final Project finalProject = project.clone();
             new Thread(() -> {
                 try {
                     finalProject.fetchOsm();
+                    finalProject.fetchCensus();
+                    // save indicators
+                    Persistence.projects.put(finalProject.id, finalProject);
                 } catch (IOException | UnirestException e) {
                     LOG.error("Exception fetching OSM", e);
                 }

@@ -6,6 +6,7 @@ import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
+import com.conveyal.taui.controllers.GridController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.ScenarioController;
@@ -105,6 +106,7 @@ public class TransportAnalyst {
         GraphQLController.register();
         BundleController.register();
         AnalysisController.register();
+        GridController.register();
 
         // load and serve index.html
 

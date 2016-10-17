@@ -12,7 +12,6 @@ import java.util.Properties;
  */
 public class AnalystConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AnalystConfig.class);
-
     private static Properties config = new Properties();
 
     static {
@@ -36,7 +35,9 @@ public class AnalystConfig {
     public static final boolean offline = Boolean.parseBoolean(getEnv("OFFLINE", "false"));
     public static final String brokerUrl = getEnv("BROKER_URL", "http://localhost:9001");
     public static final String vexUrl = getEnv("VEX_URL", "http://osm.conveyal.com/vex");
-    
+    public static final String seamlessCensusBucket = getEnv("SEAMLESS_CENSUS_BUCKET", "lodes-data-2014");
+    public static final String gridBucket = getEnv("GRID_BUCKET", null);
+
     public static String getEnv (String key, String defaultValue) {
         String val = System.getenv(key);
 

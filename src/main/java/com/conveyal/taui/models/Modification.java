@@ -34,9 +34,7 @@ public abstract class Modification extends Model {
     public boolean expanded = true;
 
     /** what variants is this modification a part of? */
-    @JsonSerialize(using = BitSetSerializer.class)
-    @JsonDeserialize(using = BitSetDeserializer.class)
-    public BitSet variants = new BitSet();
+    public boolean[] variants;
 
     /** What scenario is this modification a part of? */
     public String scenario;

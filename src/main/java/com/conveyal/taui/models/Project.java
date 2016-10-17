@@ -1,6 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.grids.SeamlessCensusGridFetcher;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 /**
  * Represents a project, which is a set of GTFS, OSM, and land use data for a particular location.
  */
-public class Project extends Model {
+public class Project extends Model implements Cloneable {
     private static final Logger LOG = LoggerFactory.getLogger(Project.class);
 
     /** Project name */
@@ -43,6 +44,12 @@ public class Project extends Model {
 
     public Boolean showGeocoder;
 
+    private static SeamlessCensusGridFetcher gridFetcher = new SeamlessCensusGridFetcher();
+    static {
+        gridFetcher.sourceBucket = AnalystConfig.seamlessCensusBucket;
+        gridFetcher.name = AnalystConfig.seamlessCensusBucket;
+    }
+
     // don't persist to DB but do expose to API
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
@@ -59,6 +66,8 @@ public class Project extends Model {
                 .filter(s -> id.equals(s.projectId))
                 .collect(Collectors.toList());
     }
+
+    public List<Indicator> indicators;
 
     public synchronized void fetchOsm () throws IOException, UnirestException {
         File temporaryFile = File.createTempFile("osm", ".pbf");
@@ -87,6 +96,24 @@ public class Project extends Model {
         // TODO remove all cached transport networks for this project
     }
 
+    public synchronized void fetchCensus () {
+        this.indicators = gridFetcher.extractData(AnalystConfig.gridBucket, this.id,
+                bounds.north,
+                bounds.east,
+                bounds.south,
+                bounds.west
+                );
+    }
+
+    public Project clone () {
+        try {
+            return (Project) super.clone();
+        } catch (CloneNotSupportedException e) {
+            // can't happen.
+            throw new RuntimeException(e);
+        }
+    }
+
     public static class Bounds {
         public double north, east, south, west;
 
@@ -101,5 +128,17 @@ public class Project extends Model {
             return Math.abs(north - o.north) <= tolerance && Math.abs(east - o.east) <= tolerance &&
                     Math.abs(south - o.south) <= tolerance && Math.abs(west - o.west) <= tolerance;
         }
+    }
+
+    /** Represents an indicator */
+    public static class Indicator {
+        /** The human-readable name of the data source from which this came */
+        public String dataSource;
+
+        /** The human readable name of the indicator */
+        public String name;
+
+        /** The key on S3 */
+        public String key;
     }
 }

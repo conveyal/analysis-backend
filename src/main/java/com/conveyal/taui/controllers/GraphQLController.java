@@ -1,8 +1,8 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.gtfs.api.ApiMain;
-import com.conveyal.gtfs.api.graphql.RouteFetcher;
-import com.conveyal.gtfs.api.graphql.StopFetcher;
+import com.conveyal.gtfs.api.graphql.fetchers.RouteFetcher;
+import com.conveyal.gtfs.api.graphql.fetchers.StopFetcher;
 import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
@@ -26,11 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.multiStringArg;
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.string;
+import static com.conveyal.gtfs.api.util.GraphQLUtil.multiStringArg;
+import static com.conveyal.gtfs.api.util.GraphQLUtil.string;
+import static com.conveyal.gtfs.api.util.GraphQLUtil.doublee;
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.routeType;
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stopType;
-import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.doublee;
 
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
