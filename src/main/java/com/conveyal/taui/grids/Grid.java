@@ -68,15 +68,34 @@ public class Grid {
         }
     }
 
-    /** Write in R5 grid format */
+    /**
+     * Burn point data into the grid.
+     */
+    public void incrementPoint (double lat, double lon, double amount) {
+        int worldx = lonToPixel(lon, zoom);
+        int worldy = latToPixel(lat, zoom);
+        int x = worldx - west;
+        int y = worldy - north;
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            grid[x][y] += amount;
+        } else {
+            // Warn that an attempt was made to increment outside the grid
+        }
+    }
+
+    /** Write this grid out in R5 binary grid format. */
     public void write (OutputStream outputStream) throws IOException {
+        // Java's DataOutputStream only outputs big-endian format ("network byte order").
+        // These grids will be read out of Javascript typed arrays which use the machine's native byte order.
+        // On almost all current hardware this is little-endian. Guava saves us again.
         LittleEndianDataOutputStream out = new LittleEndianDataOutputStream(outputStream);
+        // A header consisting of six 4-byte integers specifying the zoom level and bounds.
         out.writeInt(zoom);
         out.writeInt(west);
         out.writeInt(north);
         out.writeInt(width);
         out.writeInt(height);
-
+        // The rest of the file is 32-bit integers in row-major order (x changes faster than y), delta-coded.
         for (int y = 0, prev = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int val = (int) Math.round(grid[x][y]);
