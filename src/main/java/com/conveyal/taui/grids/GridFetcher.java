@@ -31,7 +31,7 @@ public abstract class GridFetcher {
     public String name;
 
     /** Get an outputstream on S3, already set up and gzipped */
-    protected static OutputStream getOutputStream (String bucket, String key) {
+    public static OutputStream getOutputStream (String bucket, String key) {
         try {
             PipedOutputStream outputStream = new PipedOutputStream();
             PipedInputStream inputStream = new PipedInputStream(outputStream);

@@ -168,6 +168,7 @@ public class Grid {
         }
 
         ImageIO.write(img, "png", outputStream);
+        outputStream.close();
     }
 
     /** Write this grid out as an ESRI Shapefile. */

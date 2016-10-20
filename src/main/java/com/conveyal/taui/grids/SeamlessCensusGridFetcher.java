@@ -3,12 +3,14 @@ package com.conveyal.taui.grids;
 import com.conveyal.data.census.S3SeamlessSource;
 import com.conveyal.data.geobuf.GeobufFeature;
 import com.conveyal.taui.models.Project;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,11 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
             features = source.extract(north, east, south, west, false);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+        if (features.isEmpty()) {
+            LOG.info("No seamless census data found here, not prepopulating grids");
+            return Collections.emptyList();
         }
 
         Set<String> attributes = new HashSet<>();

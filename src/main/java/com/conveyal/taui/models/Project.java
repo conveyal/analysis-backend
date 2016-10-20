@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -67,7 +68,7 @@ public class Project extends Model implements Cloneable {
                 .collect(Collectors.toList());
     }
 
-    public List<Indicator> indicators;
+    public List<Indicator> indicators = new ArrayList<>();
 
     public synchronized void fetchOsm () throws IOException, UnirestException {
         File temporaryFile = File.createTempFile("osm", ".pbf");
@@ -97,12 +98,12 @@ public class Project extends Model implements Cloneable {
     }
 
     public synchronized void fetchCensus () {
-        this.indicators = gridFetcher.extractData(AnalystConfig.gridBucket, this.id,
+        this.indicators.addAll(gridFetcher.extractData(AnalystConfig.gridBucket, this.id,
                 bounds.north,
                 bounds.east,
                 bounds.south,
                 bounds.west
-                );
+                ));
     }
 
     public Project clone () {
