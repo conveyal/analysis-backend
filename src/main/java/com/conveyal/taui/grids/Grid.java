@@ -8,10 +8,16 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
+import org.geotools.data.*;
+import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -22,16 +28,45 @@ import static java.lang.Math.sinh;
 import static java.lang.Math.tan;
 
 /**
- * Class that represents a grid.
+ * Class that represents a grid in the spherical Mercator "projection" at a given zoom level.
+ * This is actually a sub-grid of the full-world web mercator grid, with a specified width and height and offset from
+ * the edges of the world.
  */
 public class Grid {
+
+    /** The web mercator zoom level for this grid. */
     public final int zoom;
+
+    /* The following fields establish the position of this sub-grid within the full worldwide web mercator grid. */
+
+    /**
+     * The pixel number of the northernmost pixel in this grid (smallest y value in web Mercator,
+     * because y increases from north to south in web Mercator).
+     */
     public final int north;
+
+    /**
+     * The pixel number of the northernmost pixel in this grid (smallest y value in web Mercator,
+     * because y increases from north to south in web Mercator).
+     */
     public final int west;
+
+    /** The width of the grid in web Mercator pixels. */
     public final int width;
+
+    /** The height of the grid in web Mercator pixels. */
     public final int height;
+
+    /** The data values for each pixel within this grid. */
     private final double[][] grid;
 
+    /**
+     * @param zoom web mercator zoom level for the grid.
+     * @param north latitude in decimal degrees of the north edge of this grid.
+     * @param east longitude in decimal degrees of the east edge of this grid.
+     * @param south latitude in decimal degrees of the south edge of this grid.
+     * @param west longitude in decimal degrees of the west edge of this grid.
+     */
     public Grid (int zoom, double north, double east, double south, double west) {
         this.zoom = zoom;
         this.north = latToPixel(north, zoom);
@@ -41,7 +76,11 @@ public class Grid {
         this.grid = new double[width][height];
     }
 
-    /** Do pycnoplactic mapping, feed in a polygon and its associated value; it will be split out to constituent pixels */
+    /**
+     * Do pycnoplactic mapping:
+     * the value associated with the supplied polygon a polygon will be split out proportionately to
+     * all the web Mercator pixels that intersect it.
+     */
     public void rasterize (Geometry geometry, double value) {
         // TODO do we need to convert to a local coordinate system? I don't think so; although we scale differently
         // in the two dimensions, the scale factor applied to each geometry should be consistent.
@@ -103,11 +142,10 @@ public class Grid {
                 prev = val;
             }
         }
-
         out.close();
     }
 
-    /** Write in PNG format */
+    /** Write this grid out to a normalized grayscale image in PNG format. */
     public void writePng(OutputStream outputStream) throws IOException {
         // Find maximum pixel value to normalize brightness
         double maxPixel = 0;
