@@ -113,7 +113,45 @@ public class Grid {
         ImageIO.write(img, "png", outputStream);
     }
 
+    /** Write this grid out as an ESRI Shapefile. */
+    public void writeShapefile (String fileName, String fieldName) {
+        SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
+        builder.setName("Mercator Grid");
+        builder.setCRS(DefaultGeographicCRS.WGS84);
+        builder.add("the_geom", Polygon.class);
+        builder.add(fieldName, Double.class);
+        final SimpleFeatureType gridCell = builder.buildFeatureType();
+        try {
+            FileDataStore store = FileDataStoreFinder.getDataStore(new File(fileName));
+            store.createSchema(gridCell);
+            Transaction transaction = new DefaultTransaction("Save Grid");
+            FeatureWriter writer = store.getFeatureWriterAppend(transaction);
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    try {
+                        double value = grid[x][y];
+                        if (value > 0) {
+                            SimpleFeature feature = (SimpleFeature) writer.next();
+                            Polygon pixelPolygon = getPixelGeometry(x + west, y + north, zoom);
+                            feature.setDefaultGeometry(pixelPolygon);
+                            feature.setAttribute(fieldName, value);
+                            writer.write();
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            transaction.commit();
+            writer.close();
+            store.dispose();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /* functions below from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics */
+
     public static int lonToPixel (double lon, int zoom) {
         return (int) ((lon + 180) / 360 * Math.pow(2, zoom) * 256);
     }
@@ -131,10 +169,15 @@ public class Grid {
         return Math.toDegrees(atan(sinh(Math.PI - (pixel / 256d) / Math.pow(2, zoom) * 2 * Math.PI)));
     }
 
-    public static Geometry getPixelGeometry (int x, int y, int zoom) {
+    /**
+     * @param x absolute (world) x pixel number at the given zoom level.
+     * @param y absolute (world) y pixel number at the given zoom level.
+     * @return a JTS Polygon in WGS84 coordinates for the given absolute (world) pixel.
+     */
+    public static Polygon getPixelGeometry (int x, int y, int zoom) {
         double minLon = pixelToLon(x, zoom);
         double maxLon = pixelToLon(x + 1, zoom);
-        // y axis reversed in web mercator
+        // The y axis increases from north to south in web Mercator.
         double minLat = pixelToLat(y + 1, zoom);
         double maxLat = pixelToLat(y, zoom);
         return GeometryUtils.geometryFactory.createPolygon(new Coordinate[] {
