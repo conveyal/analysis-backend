@@ -78,9 +78,9 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
                 os.close();
 
                 // TODO do we need this long term?
-                os = getOutputStream(targetBucket, outPng);
+                /*os = getOutputStream(targetBucket, outPng);
                 grid.writePng(os);
-                os.close();
+                os.close();*/
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

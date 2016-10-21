@@ -210,7 +210,7 @@ public class GridController {
             String pngKey = String.format("%s/%s.png", projectId, key);
 
             grid.write(GridFetcher.getOutputStream(AnalystConfig.gridBucket, gridKey));
-            grid.writePng(GridFetcher.getOutputStream(AnalystConfig.gridBucket, pngKey));
+            //grid.writePng(GridFetcher.getOutputStream(AnalystConfig.gridBucket, pngKey));
 
             Project.Indicator indicator = new Project.Indicator();
             indicator.key = key;
