@@ -9,7 +9,6 @@ import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.GridController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ProjectController;
-import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ScenarioController;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -108,7 +107,6 @@ public class TransportAnalyst {
         BundleController.register();
         AnalysisController.register();
         GridController.register();
-        RegionalAnalysisController.register();
 
         // load and serve index.html
 

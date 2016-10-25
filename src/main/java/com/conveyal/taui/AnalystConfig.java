@@ -37,9 +37,6 @@ public class AnalystConfig {
     public static final String vexUrl = getEnv("VEX_URL", "http://osm.conveyal.com/vex");
     public static final String seamlessCensusBucket = getEnv("SEAMLESS_CENSUS_BUCKET", "lodes-data-2014");
     public static final String gridBucket = getEnv("GRID_BUCKET", null);
-    public static final String resultsBucket = getEnv("RESULTS_BUCKET", null);
-    public static final String resultsQueue = getEnv("RESULTS_QUEUE", null);
-    public static final String region = getEnv("REGION", "eu-west-1");
 
     public static String getEnv (String key, String defaultValue) {
         String val = System.getenv(key);
