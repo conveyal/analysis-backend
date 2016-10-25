@@ -38,6 +38,7 @@ public class LocalCluster {
         workerConfig.setProperty("broker-address", "localhost");
         workerConfig.setProperty("broker-port", "" + brokerPort);
         workerConfig.setProperty("cache-dir", AnalystConfig.localCache);
+        workerConfig.setProperty("pointsets-bucket", AnalystConfig.gridBucket);
 
         AnalystWorker worker = new AnalystWorker(workerConfig);
 

@@ -2,6 +2,7 @@ package com.conveyal.taui.grids;
 
 import com.conveyal.data.census.S3SeamlessSource;
 import com.conveyal.data.geobuf.GeobufFeature;
+import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.models.Project;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
