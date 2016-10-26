@@ -1,11 +1,8 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.profile.ProfileRequest;
-import com.conveyal.taui.controllers.RegionalAnalysisManager;
+import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.fasterxml.jackson.annotation.JsonView;
-
-import java.util.Date;
 
 /**
  * Represents a query.

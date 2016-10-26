@@ -1,6 +1,7 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
