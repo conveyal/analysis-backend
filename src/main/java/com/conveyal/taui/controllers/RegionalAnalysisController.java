@@ -6,8 +6,9 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.analyst.ImprovementProbabilityGridSampler;
 import com.conveyal.r5.analyst.PercentileGridSampler;
-import com.conveyal.r5.util.S3Util;
+import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridSampler;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
@@ -64,15 +65,31 @@ public class RegionalAnalysisController {
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
-        int percentile = parseInt(req.params("percentile"));
-        String percentileGridKey = String.format("%s_%d_percentile.grid", regionalAnalysisId, percentile);
+        String percentileText = req.params("percentile").toLowerCase();
+        String percentileGridKey;
+
+        int percentile;
+
+        if ("mean".equals(percentileText)) {
+            percentileGridKey = String.format("%s_average.grid", regionalAnalysisId);
+            percentile = -1;
+        } else {
+            percentile = parseInt(percentileText);
+            percentileGridKey = String.format("%s_%d_percentile.grid", regionalAnalysisId, percentile);
+        }
+
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
 
         if (!s3.doesObjectExist(AnalystConfig.resultsBucket, percentileGridKey)) {
             // make the grid
-            LOG.info("Percentile {} for regional analysis {} not found, building it", percentile, regionalAnalysisId);
-            Grid grid =
-                    PercentileGridSampler.computePercentile(AnalystConfig.resultsBucket, accessGridKey, percentile);
+            Grid grid;
+            if ("mean".equals(percentileText)) {
+                LOG.info("Mean for regional analysis {} not found, building it", regionalAnalysisId);
+                grid = AndrewOwenMeanGridSampler.computeMean(AnalystConfig.resultsBucket, accessGridKey);
+            } else {
+                LOG.info("Percentile {} for regional analysis {} not found, building it", percentile, regionalAnalysisId);
+                grid = PercentileGridSampler.computePercentile(AnalystConfig.resultsBucket, accessGridKey, percentile);
+            }
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -98,6 +115,55 @@ public class RegionalAnalysisController {
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
 
         GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalystConfig.resultsBucket, percentileGridKey);
+        presigned.setExpiration(expiration);
+        presigned.setMethod(HttpMethod.GET);
+        URL url = s3.generatePresignedUrl(presigned);
+
+        res.redirect(url.toString());
+        res.status(302); // temporary redirect, this URL will soon expire
+        return null;
+    }
+
+    /** Get a probability of improvement from a baseline to a scenario */
+    public static Object getProbabilitySurface (Request req, Response res) throws IOException {
+        String base = req.params("baseId");
+        String scenario = req.params("scenarioId");
+
+        String probabilitySurfaceKey = String.format("%s_%s_probability.grid", base, scenario);
+
+        if (!s3.doesObjectExist(AnalystConfig.resultsBucket, probabilitySurfaceKey)) {
+            LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
+
+            String baseKey = String.format("%s.access", base);
+            String scenarioKey = String.format("%s.access", scenario);
+
+            Grid grid = ImprovementProbabilityGridSampler
+                    .computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
+
+            PipedInputStream pis = new PipedInputStream();
+            PipedOutputStream pos = new PipedOutputStream(pis);
+
+            ObjectMetadata om = new ObjectMetadata();
+            om.setContentType("application/octet-stream");
+            om.setContentEncoding("gzip");
+
+            executorService.execute(() -> {
+                try {
+                    grid.write(new GZIPOutputStream(pos));
+                } catch (IOException e) {
+                    LOG.info("Error writing percentile to S3", e);
+                }
+            });
+
+            // not using S3Util.streamToS3 because we need to make sure the put completes before we return
+            // the URL, as the client will go to it immediately.
+            s3.putObject(AnalystConfig.resultsBucket, probabilitySurfaceKey, pis, om);
+        }
+
+        Date expiration = new Date();
+        expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
+
+        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalystConfig.resultsBucket, probabilitySurfaceKey);
         presigned.setExpiration(expiration);
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
@@ -138,6 +204,7 @@ public class RegionalAnalysisController {
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:regionalAnalysisId/grid/:percentile", RegionalAnalysisController::getPercentile);
+        get("/api/regional/:baseId/:scenarioId/grid", RegionalAnalysisController::getProbabilitySurface);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 }
