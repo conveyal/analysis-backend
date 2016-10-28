@@ -24,6 +24,7 @@ import spark.Response;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.io.Serializable;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
@@ -35,9 +36,11 @@ import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.taui.grids.SeamlessCensusGridFetcher.ZOOM;
 
+import static java.lang.Boolean.parseBoolean;
 import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 import static spark.Spark.get;
+import static spark.Spark.halt;
 import static spark.Spark.post;
 
 /**
@@ -66,16 +69,26 @@ public class RegionalAnalysisController {
         String regionalAnalysisId = req.params("regionalAnalysisId");
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
         String percentileText = req.params("percentile").toLowerCase();
+        String format = req.params("format").toLowerCase();
         String percentileGridKey;
+
+        String redirectText = req.queryParams("redirect");
+        boolean redirect;
+        if (redirectText == null || "" .equals(redirectText)) redirect = true;
+        else redirect = parseBoolean(redirectText);
+
+        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
+            halt(400);
+        }
 
         int percentile;
 
         if ("mean".equals(percentileText)) {
-            percentileGridKey = String.format("%s_average.grid", regionalAnalysisId);
+            percentileGridKey = String.format("%s_average.%s", regionalAnalysisId, format);
             percentile = -1;
         } else {
             percentile = parseInt(percentileText);
-            percentileGridKey = String.format("%s_%d_percentile.grid", regionalAnalysisId, percentile);
+            percentileGridKey = String.format("%s_%d_percentile.%s", regionalAnalysisId, percentile, format);
         }
 
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
@@ -95,12 +108,25 @@ public class RegionalAnalysisController {
             PipedOutputStream pos = new PipedOutputStream(pis);
 
             ObjectMetadata om = new ObjectMetadata();
-            om.setContentType("application/octet-stream");
-            om.setContentEncoding("gzip");
+
+            if ("grid".equals(format)) {
+                om.setContentType("application/octet-stream");
+                om.setContentEncoding("gzip");
+            } else if ("png".equals(format)) {
+                om.setContentType("image/png");
+            } else if ("tiff".equals(format)) {
+                om.setContentType("image/tiff");
+            }
 
             executorService.execute(() -> {
                 try {
-                    grid.write(new GZIPOutputStream(pos));
+                    if ("grid".equals(format)) {
+                        grid.write(new GZIPOutputStream(pos));
+                    } else if ("png".equals("format")) {
+                        grid.writePng(pos);
+                    } else if ("tiff".equals(format)) {
+                        grid.writeGeotiff(pos);
+                    }
                 } catch (IOException e) {
                     LOG.info("Error writing percentile to S3", e);
                 }
@@ -119,17 +145,32 @@ public class RegionalAnalysisController {
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
 
-        res.redirect(url.toString());
-        res.status(302); // temporary redirect, this URL will soon expire
-        return null;
+        if (redirect) {
+            res.redirect(url.toString());
+            res.status(302); // temporary redirect, this URL will soon expire
+            return null;
+        } else {
+            return new WrappedURL(url.toString());
+        }
     }
 
     /** Get a probability of improvement from a baseline to a scenario */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String base = req.params("baseId");
         String scenario = req.params("scenarioId");
+        String format = req.params("format").toLowerCase();
 
-        String probabilitySurfaceKey = String.format("%s_%s_probability.grid", base, scenario);
+        String redirectText = req.queryParams("redirect");
+        boolean redirect;
+        if (redirectText == null || "" .equals(redirectText)) redirect = true;
+        else redirect = parseBoolean(redirectText);
+
+
+        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
+            halt(400);
+        }
+
+        String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
 
         if (!s3.doesObjectExist(AnalystConfig.resultsBucket, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
@@ -144,14 +185,26 @@ public class RegionalAnalysisController {
             PipedOutputStream pos = new PipedOutputStream(pis);
 
             ObjectMetadata om = new ObjectMetadata();
-            om.setContentType("application/octet-stream");
-            om.setContentEncoding("gzip");
+            if ("grid".equals(format)) {
+                om.setContentType("application/octet-stream");
+                om.setContentEncoding("gzip");
+            } else if ("png".equals(format)) {
+                om.setContentType("image/png");
+            } else if ("tiff".equals(format)) {
+                om.setContentType("image/tiff");
+            }
 
             executorService.execute(() -> {
                 try {
-                    grid.write(new GZIPOutputStream(pos));
+                    if ("grid".equals(format)) {
+                        grid.write(new GZIPOutputStream(pos));
+                    } else if ("png".equals("format")) {
+                        grid.writePng(pos);
+                    } else if ("tiff".equals(format)) {
+                        grid.writeGeotiff(pos);
+                    }
                 } catch (IOException e) {
-                    LOG.info("Error writing percentile to S3", e);
+                    LOG.info("Error writing probability surface to S3", e);
                 }
             });
 
@@ -168,9 +221,13 @@ public class RegionalAnalysisController {
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
 
-        res.redirect(url.toString());
-        res.status(302); // temporary redirect, this URL will soon expire
-        return null;
+        if (redirect) {
+            res.redirect(url.toString());
+            res.status(302); // temporary redirect, this URL will soon expire
+            return null;
+        } else {
+            return new WrappedURL(url.toString());
+        }
     }
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
@@ -203,8 +260,16 @@ public class RegionalAnalysisController {
 
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/grid/:percentile", RegionalAnalysisController::getPercentile);
-        get("/api/regional/:baseId/:scenarioId/grid", RegionalAnalysisController::getProbabilitySurface);
+        get("/api/regional/:regionalAnalysisId/grid/:percentile/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+    }
+
+    private static class WrappedURL implements Serializable {
+        public String url;
+
+        public WrappedURL(String url) {
+            this.url = url;
+        }
     }
 }
