@@ -6,9 +6,9 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.ImprovementProbabilityGridSampler;
-import com.conveyal.r5.analyst.PercentileGridSampler;
-import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridSampler;
+import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
+import com.conveyal.r5.analyst.PercentileGridStatisticComputer;
+import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridStatisticComputer;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
@@ -37,7 +37,6 @@ import java.util.zip.GZIPOutputStream;
 import static com.conveyal.taui.grids.SeamlessCensusGridFetcher.ZOOM;
 
 import static java.lang.Boolean.parseBoolean;
-import static java.lang.Double.parseDouble;
 import static java.lang.Integer.parseInt;
 import static spark.Spark.get;
 import static spark.Spark.halt;
@@ -98,10 +97,10 @@ public class RegionalAnalysisController {
             Grid grid;
             if ("mean".equals(percentileText)) {
                 LOG.info("Mean for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = AndrewOwenMeanGridSampler.computeMean(AnalystConfig.resultsBucket, accessGridKey);
+                grid = AndrewOwenMeanGridStatisticComputer.computeMean(AnalystConfig.resultsBucket, accessGridKey);
             } else {
                 LOG.info("Percentile {} for regional analysis {} not found, building it", percentile, regionalAnalysisId);
-                grid = PercentileGridSampler.computePercentile(AnalystConfig.resultsBucket, accessGridKey, percentile);
+                grid = PercentileGridStatisticComputer.computePercentile(AnalystConfig.resultsBucket, accessGridKey, percentile);
             }
 
             PipedInputStream pis = new PipedInputStream();
@@ -178,7 +177,7 @@ public class RegionalAnalysisController {
             String baseKey = String.format("%s.access", base);
             String scenarioKey = String.format("%s.access", scenario);
 
-            Grid grid = ImprovementProbabilityGridSampler
+            Grid grid = ImprovementProbabilityGridStatisticComputer
                     .computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
 
             PipedInputStream pis = new PipedInputStream();

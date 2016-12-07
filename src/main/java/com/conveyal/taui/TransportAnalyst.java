@@ -17,6 +17,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -51,6 +52,10 @@ public class TransportAnalyst {
 
         LOG.info("Starting server");
         port(AnalystConfig.port);
+
+        // initialize ImageIO
+        // http://stackoverflow.com/questions/20789546
+        ImageIO.scanForPlugins();
 
         // serve up index.html which pulls client code from S3
 
