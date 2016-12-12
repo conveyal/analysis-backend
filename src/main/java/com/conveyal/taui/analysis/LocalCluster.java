@@ -22,7 +22,7 @@ public class LocalCluster {
 
     public final int brokerPort;
 
-    public LocalCluster(int brokerPort) {
+    public LocalCluster(int brokerPort, GTFSCache gtfsCache, OSMCache osmCache) {
         this.brokerPort = brokerPort;
 
         // start the broker
@@ -45,8 +45,6 @@ public class LocalCluster {
         workerConfig.setProperty("cache-dir", AnalystConfig.localCache);
         workerConfig.setProperty("pointsets-bucket", AnalystConfig.gridBucket);
 
-        GTFSCache gtfsCache = new GTFSCache(null, new File("cache"));
-        OSMCache osmCache = new OSMCache(null, new File("cache"));
         TransportNetworkCache transportNetworkCache = new TransportNetworkCache(gtfsCache, osmCache);
         AnalystWorker worker = new AnalystWorker(workerConfig, transportNetworkCache);
 

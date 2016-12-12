@@ -1,6 +1,7 @@
 package com.conveyal.taui;
 
 import com.auth0.jwt.JWTVerifier;
+import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AnalysisController;
@@ -11,6 +12,7 @@ import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ScenarioController;
+import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
 import org.apache.commons.codec.binary.Base64;
@@ -48,7 +50,8 @@ public class TransportAnalyst {
         LOG.info("Initializing GTFS cache");
         File cacheDir = new File(AnalystConfig.localCache);
         cacheDir.mkdirs();
-        ApiMain.initialize(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, AnalystConfig.localCache);
+        GTFSCache gtfsCache = new GTFSCache(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, new File(AnalystConfig.localCache));
+        ApiMain.initialize(gtfsCache);
 
         LOG.info("Starting server");
         port(AnalystConfig.port);
@@ -126,7 +129,7 @@ public class TransportAnalyst {
         if (AnalystConfig.offline) {
             LOG.info("Starting local cluster");
             // TODO port is hardwired here and also in AnalysisController
-            new LocalCluster(6001);
+            new LocalCluster(6001, gtfsCache, OSMPersistence.cache);
         }
 
         LOG.info("Transport Analyst is ready");
