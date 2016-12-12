@@ -12,10 +12,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Fetch data from seamless-census s3 buckets
@@ -31,6 +33,7 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
     public final String type = "seamless";
 
     public List<Project.Indicator> extractData (String targetBucket, String prefix, double north, double east, double south, double west) {
+        long startTime = System.currentTimeMillis();
         S3SeamlessSource source = new S3SeamlessSource(sourceBucket);
         Map<Long, GeobufFeature> features;
         try {
@@ -55,17 +58,27 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
 
         List<Project.Indicator> indicators = new ArrayList<>();
 
-        for (String attribute : attributes) {
-            Grid grid = new Grid(ZOOM, north, east, south, west);
+        Map<String, Grid> gridsForAttribute = attributes.stream()
+                .collect(Collectors.toMap(k -> k, k -> new Grid(ZOOM, north, east, south, west)));
 
-            for (GeobufFeature feature : features.values()) {
+        // features are unique because they've been put in a map by ID
+        // loop over features only once here, caching grids. We previously looped over features once per attribute but
+        // that was very slow.
+        int featIdx = 0;
+        for (GeobufFeature feature : features.values()) {
+            if (++featIdx % 1000 == 0) LOG.info("{} / {} features read", featIdx, features.size());
+
+            for (String attribute : attributes) {
+
                 Number value = (Number) feature.properties.get(attribute);
                 if (value == null) continue;
 
-                // features are unique because they've been put in a map by ID
+                Grid grid = gridsForAttribute.get(attribute);
                 grid.rasterize(feature.geometry, value.doubleValue());
             }
+        }
 
+        gridsForAttribute.forEach((attribute, grid) -> {
             String attributeClean = attribute
                     .replaceAll(" ", "_")
                     .replaceAll("[^a-zA-Z0-9_]", "");
@@ -79,9 +92,9 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
                 os.close();
 
                 // TODO do we need this long term?
-                /*os = getOutputStream(targetBucket, outPng);
+                os = getOutputStream(targetBucket, outPng);
                 grid.writePng(os);
-                os.close();*/
+                os.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -91,7 +104,10 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
             indicator.name = attribute;
             indicator.key = attributeClean;
             indicators.add(indicator);
-        }
+        });
+
+        long endTime = System.currentTimeMillis();
+        LOG.info("Extracting Census data took {} seconds", (endTime - startTime) / 1000);
 
         return indicators;
     }
