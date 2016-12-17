@@ -2,7 +2,6 @@ package com.conveyal.taui.controllers;
 
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
-import com.google.common.io.CountingInputStream;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
@@ -15,7 +14,6 @@ import spark.Response;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 
 import static spark.Spark.*;
@@ -23,8 +21,8 @@ import static spark.Spark.*;
 /**
  * Handles talking to the broker.
  */
-public class AnalysisController {
-    public static final Logger LOG = LoggerFactory.getLogger(AnalysisController.class);
+public class SinglePointAnalysisController {
+    public static final Logger LOG = LoggerFactory.getLogger(SinglePointAnalysisController.class);
 
     public static byte[] analysis (Request req, Response res) throws UnirestException {
         // we already know the user is authenticated, and we need not check if they have access to the graphs etc,
@@ -55,7 +53,7 @@ public class AnalysisController {
             res.status(brokerRes.getStatus());
             res.type(brokerRes.getHeaders().getFirst("Content-Type"));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            InputStream is = new CountingInputStream(brokerRes.getBody());
+            InputStream is = brokerRes.getBody();
 
             try {
                 long l = ByteStreams.copy(is, baos);
@@ -83,8 +81,8 @@ public class AnalysisController {
     public static void register () {
         // TODO is there a way to do a wildcard that includes slashes?
         // Also, are there any broker endpoints that don't have two path components.
-        post("/api/analysis/*/*", AnalysisController::analysis);
-        get("/api/analysis/*/*", AnalysisController::analysis);
-        delete("/api/analysis/*/*", AnalysisController::analysis);
+        post("/api/analysis/*/*", SinglePointAnalysisController::analysis);
+        get("/api/analysis/*/*", SinglePointAnalysisController::analysis);
+        delete("/api/analysis/*/*", SinglePointAnalysisController::analysis);
     }
 }

@@ -4,7 +4,7 @@ import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.taui.analysis.LocalCluster;
-import com.conveyal.taui.controllers.AnalysisController;
+import com.conveyal.taui.controllers.SinglePointAnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.GridController;
@@ -30,7 +30,6 @@ import static spark.Spark.before;
 import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.port;
-import static spark.Spark.staticFileLocation;
 
 /**
  * Main entry point
@@ -114,7 +113,7 @@ public class TransportAnalyst {
         ScenarioController.register();
         GraphQLController.register();
         BundleController.register();
-        AnalysisController.register();
+        SinglePointAnalysisController.register();
         GridController.register();
         RegionalAnalysisController.register();
 
@@ -128,7 +127,7 @@ public class TransportAnalyst {
 
         if (AnalystConfig.offline) {
             LOG.info("Starting local cluster");
-            // TODO port is hardwired here and also in AnalysisController
+            // TODO port is hardwired here and also in SinglePointAnalysisController
             new LocalCluster(6001, gtfsCache, OSMPersistence.cache);
         }
 
