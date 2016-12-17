@@ -17,6 +17,8 @@ in the working directory, or as environment variables.
 
 Alternatively, omit all of that and set `OFFLINE=true` (for the time being you still need a grid bucket, that does not yet work offline).
 
+You will need to have S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets in use, including the seamless census data bucket. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment or in application.conf to choose which AWS credentials profile will be used.
+
 Currently we depend on the `scenario-editor` branch of R5. Check that out and `mvn install` it, or in IntelliJ use the plus icon in the 'Maven projects' pane to add the `pom.xml` from your local copy of R5, for which you've checked out the `scenario-editor` branch.
 
 By default it will use the `scenario-editor` database in your Mongo instance. You can set `DATABASE_NAME` to change that.
