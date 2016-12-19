@@ -64,8 +64,8 @@ public class AddTripPattern extends Modification {
         /** allow naming timetables so it's easier to see what's going on */
         public String name;
 
-        /** Speed, kilometers per hour */
-        public int speed;
+        /** Speed, kilometers per hour, for each segment */
+        public int[] speed;
         
         /** start time (seconds since GTFS midnight) */
         public int startTime;
