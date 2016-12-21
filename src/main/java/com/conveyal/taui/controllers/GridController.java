@@ -6,16 +6,13 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalystConfig;
-import com.conveyal.taui.grids.GridFetcher;
-import com.conveyal.taui.grids.SeamlessCensusGridFetcher;
+import com.conveyal.taui.grids.GridExtractor;
+import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
-import com.csvreader.CsvReader;
 import com.google.common.io.Files;
-import com.vividsolutions.jts.geom.Envelope;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
-import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.slf4j.Logger;
@@ -23,27 +20,15 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static com.conveyal.gtfs.util.Util.human;
-import static java.lang.Double.parseDouble;
 import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.post;
@@ -136,7 +121,7 @@ public class GridController {
         File tempFile = File.createTempFile("grid", ".csv");
         file.get(0).write(tempFile);
 
-        Map<String, Grid> grids = Grid.fromCsv(tempFile, latField, lonField, SeamlessCensusGridFetcher.ZOOM);
+        Map<String, Grid> grids = Grid.fromCsv(tempFile, latField, lonField, SeamlessCensusGridExtractor.ZOOM);
         // clean up
         tempFile.delete();
 
@@ -172,7 +157,7 @@ public class GridController {
             filesByName.get(baseName + ".shx").write(shxFile);
         }
 
-        Map<String, Grid> grids = Grid.fromShapefile(shpFile, SeamlessCensusGridFetcher.ZOOM);
+        Map<String, Grid> grids = Grid.fromShapefile(shpFile, SeamlessCensusGridExtractor.ZOOM);
         tempDir.delete();
         return grids;
     }
@@ -188,8 +173,8 @@ public class GridController {
             String pngKey = String.format("%s/%s.png", projectId, key);
 
             try {
-                grid.write(GridFetcher.getOutputStream(AnalystConfig.gridBucket, gridKey));
-                grid.writePng(GridFetcher.getOutputStream(AnalystConfig.gridBucket, pngKey));
+                grid.write(GridExtractor.getOutputStream(AnalystConfig.gridBucket, gridKey));
+                grid.writePng(GridExtractor.getOutputStream(AnalystConfig.gridBucket, pngKey));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

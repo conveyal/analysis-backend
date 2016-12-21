@@ -4,7 +4,6 @@ import com.conveyal.data.census.S3SeamlessSource;
 import com.conveyal.data.geobuf.GeobufFeature;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.models.Project;
-import com.google.common.collect.Lists;
 import gnu.trove.map.TObjectDoubleMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +12,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +22,9 @@ import java.util.stream.Collectors;
  * Fetch data from the seamless-census s3 buckets and convert it from block-level vector data (polygons)
  * to raster opportunity density data (grids).
  */
-public class SeamlessCensusGridFetcher extends GridFetcher {
+public class SeamlessCensusGridExtractor extends GridExtractor {
 
-    public static final Logger LOG = LoggerFactory.getLogger(SeamlessCensusGridFetcher.class);
+    public static final Logger LOG = LoggerFactory.getLogger(SeamlessCensusGridExtractor.class);
 
     // The Web Mercator zoom level of the census data grids that will be created.
     public static final int ZOOM = 9;

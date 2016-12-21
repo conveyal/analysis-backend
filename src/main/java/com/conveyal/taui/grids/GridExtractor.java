@@ -18,7 +18,7 @@ import java.util.zip.GZIPOutputStream;
  * Abstract base class for classes that create opportunity density grids for accessibility analysis
  * from some other data source. These grids are uploaded to S3 for later use once they are created.
  */
-public abstract class GridFetcher {
+public abstract class GridExtractor {
 
     // A pool of threads that upload newly created grids to S3. The pool is shared between all GridFetchers.
     // The default policy when the pool's work queue is full is to abort with an exception.

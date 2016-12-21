@@ -34,7 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static com.conveyal.taui.grids.SeamlessCensusGridFetcher.ZOOM;
+import static com.conveyal.taui.grids.SeamlessCensusGridExtractor.ZOOM;
 
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;

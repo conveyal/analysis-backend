@@ -1,10 +1,9 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.taui.AnalystConfig;
-import com.conveyal.taui.grids.SeamlessCensusGridFetcher;
+import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.io.ByteStreams;
 import com.mashape.unirest.http.HttpResponse;
@@ -45,7 +44,7 @@ public class Project extends Model implements Cloneable {
 
     public Boolean showGeocoder;
 
-    private static SeamlessCensusGridFetcher gridFetcher = new SeamlessCensusGridFetcher();
+    private static SeamlessCensusGridExtractor gridFetcher = new SeamlessCensusGridExtractor();
     static {
         gridFetcher.sourceBucket = AnalystConfig.seamlessCensusBucket;
         gridFetcher.name = AnalystConfig.seamlessCensusBucket;
