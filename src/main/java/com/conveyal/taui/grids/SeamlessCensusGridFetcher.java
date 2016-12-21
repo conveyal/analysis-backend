@@ -5,6 +5,7 @@ import com.conveyal.data.geobuf.GeobufFeature;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.models.Project;
 import com.google.common.collect.Lists;
+import gnu.trove.map.TObjectDoubleMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,13 +77,19 @@ public class SeamlessCensusGridFetcher extends GridFetcher {
         for (GeobufFeature feature : features.values()) {
             if (++featIdx % 1000 == 0) LOG.info("{} / {} features read", featIdx, features.size());
 
+            TObjectDoubleMap<int[]> weights = null;
+
             for (String attribute : attributes) {
 
                 Number value = (Number) feature.properties.get(attribute);
                 if (value == null) continue;
 
                 Grid grid = gridForAttribute.get(attribute);
-                grid.rasterize(feature.geometry, value.doubleValue());
+
+                // grids for each attribute are identical in size, do geographic math once and cache for whole feature
+                if (weights == null) weights = grid.getPixelWeights(feature.geometry);
+
+                grid.incrementFromPixelWeights(weights, value.doubleValue());
             }
         }
 
