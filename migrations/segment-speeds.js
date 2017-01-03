@@ -5,6 +5,7 @@ const reroutes = db.modifications.find({ type: { $eq: 'reroute' } }).toArray()
 reroutes.forEach(rr => {
   if (!(rr.segmentSpeeds instanceof Array)) {
     rr.segmentSpeeds = rr.segments.map(s => rr.speed)
+    delete rr.speed
     db.modifications.save(rr)
   }
 })
@@ -15,6 +16,7 @@ addTrips.forEach(at => {
   at.timetables.forEach(tt => {
     if (!(tt.segmentSpeeds instanceof Array)) {
       tt.segmentSpeeds = at.segments.map(s => tt.speed)
+      delete tt.speed
       modified = true
     }
   })
