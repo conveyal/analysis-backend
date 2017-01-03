@@ -3,8 +3,8 @@
 
 const reroutes = db.modifications.find({ type: { $eq: 'reroute' } }).toArray()
 reroutes.forEach(rr => {
-  if (!(rr.speed instanceof Array)) {
-    rr.speed = rr.segments.map(s => rr.speed)
+  if (!(rr.segmentSpeeds instanceof Array)) {
+    rr.segmentSpeeds = rr.segments.map(s => rr.speed)
     db.modifications.save(rr)
   }
 })
@@ -13,8 +13,8 @@ const addTrips = db.modifications.find({ type: { $eq: 'add-trip-pattern' } }).to
 addTrips.forEach(at => {
   var modified = false
   at.timetables.forEach(tt => {
-    if (!(tt.speed instanceof Array)) {
-      tt.speed = at.segments.map(s => tt.speed)
+    if (!(tt.segmentSpeeds instanceof Array)) {
+      tt.segmentSpeeds = at.segments.map(s => tt.speed)
       modified = true
     }
   })
