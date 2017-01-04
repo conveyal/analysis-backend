@@ -15,22 +15,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * Abstract class to fetch grids.
+ * Abstract base class for classes that create opportunity density grids for accessibility analysis
+ * from some other data source. These grids are uploaded to S3 for later use once they are created.
  */
-public abstract class GridFetcher {
-    private static ThreadPoolExecutor s3Upload = new ThreadPoolExecutor(4, 8, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1024));
+public abstract class GridExtractor {
 
-    static {
-        // can't use caller-runs as that would cause deadlocks
-        s3Upload.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-    }
+    // A pool of threads that upload newly created grids to S3. The pool is shared between all GridFetchers.
+    // The default policy when the pool's work queue is full is to abort with an exception.
+    // We shouldn't use the caller-runs policy because that will cause deadlocks.
+    private static ThreadPoolExecutor s3Upload = new ThreadPoolExecutor(4, 8, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1024));
 
     private static AmazonS3 s3 = new AmazonS3Client();
 
-    /** Human readable name for this source */
+    /** Human readable name for this source of grids. */
     public String name;
 
-    /** Get an outputstream on S3, already set up and gzipped */
+    /** Prepare an outputstream on S3, set up to gzip and upload whatever is uploaded in a thread. */
     public static OutputStream getOutputStream (String bucket, String key) {
         try {
             PipedOutputStream outputStream = new PipedOutputStream();
