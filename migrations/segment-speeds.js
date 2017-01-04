@@ -6,6 +6,8 @@ reroutes.forEach(rr => {
   if (!(rr.segmentSpeeds instanceof Array)) {
     rr.segmentSpeeds = rr.segments.map(s => rr.speed)
     delete rr.speed
+    rr.dwellTime = rr.dwell
+    delete rr.dwell
     db.modifications.save(rr)
   }
 })
