@@ -18,10 +18,10 @@ public class Reroute extends Modification {
     public List<AddTripPattern.Segment> segments;
 
     /** speed of the adjusted segment, km/h, per segment */
-    public int[] speed;
+    public int[] segmentSpeeds;
 
     /** dwell time at adjusted stops, seconds */
-    public int dwell;
+    public int dwellTime;
 
     @Override
     public String getType() {
