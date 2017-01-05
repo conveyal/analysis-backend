@@ -78,5 +78,8 @@ public class AddTripPattern extends Modification {
 
         /** headway for frequency-based patterns */
         public int headwaySecs;
+
+        /** should this be specified as an exact schedule */
+        public boolean exactTimes;
     }
 }

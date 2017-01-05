@@ -43,6 +43,7 @@ public class ConvertToFrequency extends Modification {
         public int headwaySecs;
 
         /** start times of this trip (seconds since midnight), when non-null scheduled trips will be created */
+        @Deprecated
         public int[] startTimes;
 
         /** trip from which to copy travel times */
@@ -50,5 +51,8 @@ public class ConvertToFrequency extends Modification {
 
         /** trips on the selected patterns which could be used as source trips */
         public String[] patternTrips;
+
+        /** Should this frequency entry use exact times? */
+        public boolean exactTimes;
     }
 }
