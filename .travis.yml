@@ -18,10 +18,10 @@ env:
 
 script: mvn package
 
-after-success:
+after_success:
   # Upload a shaded jar to S3
   - pip install --user awscli && export PATH=$PATH:~/.local/bin/
-  - if [[ "$TRAVIS_PULL_REQUEST" = false ]] aws s3 cp target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git describe`.jar
+  - if [[ "$TRAVIS_PULL_REQUEST" = false ]] aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git describe`.jar
 
 cache:
   directories:
