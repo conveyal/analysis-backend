@@ -132,7 +132,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>gtfs-api</artifactId>
-            <version>0.4-SNAPSHOT</version>
+            <version>0.5-SNAPSHOT</version>
         </dependency>
 
         <dependency>
