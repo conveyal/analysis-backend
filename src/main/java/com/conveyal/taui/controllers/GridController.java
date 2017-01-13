@@ -5,11 +5,14 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.GridExtractor;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
+import com.conveyal.taui.util.Jobs;
+import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.Files;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
@@ -25,8 +28,10 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static spark.Spark.get;
@@ -42,6 +47,9 @@ public class GridController {
     private static final AmazonS3 s3 = new AmazonS3Client();
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
+
+    /** Store upload status objects */
+    private static Map<String, GridUploadStatus> uploadStati = new HashMap<>();
 
     /** How long request URLs are good for */
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
@@ -66,9 +74,14 @@ public class GridController {
         return res;
     }
 
-    /** Handle many types of file upload */
-    // TODO process async
-    public static List<Project.Indicator> createGrid (Request req, Response res) throws Exception {
+    public static GridUploadStatus getUploadStatus (Request req, Response res) {
+        String handle = req.params("handle");
+        // no need for security, the UUID provides plenty
+        return uploadStati.get(handle);
+    }
+
+    /** Handle many types of file upload. Returns a GridUploadStatus which has a handle to request status. */
+    public static GridUploadStatus createGrid (Request req, Response res) throws Exception {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
         String projectId = req.params("projectId");
@@ -77,36 +90,46 @@ public class GridController {
 
         String dataSet = query.get("Name").get(0).getString("UTF-8");
 
-        Map<String, Grid> grids = null;
+        GridUploadStatus status = new GridUploadStatus();
+        status.status = Status.PROCESSING;
+        status.handle = UUID.randomUUID().toString();
+        uploadStati.put(status.handle, status);
 
-        for (FileItem fi : query.get("files")) {
-            String name = fi.getName();
-            if (name.endsWith(".csv")) {
-                LOG.info("Detected grid stored as CSV");
-                grids = createGridsFromCsv(query);
-                break;
-            } else if (name.endsWith(".shp")) {
-                LOG.info("Detected grid stored as shapefile");
-                grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4));
-                break;
+        Jobs.service.submit(() -> {
+            Map<String, Grid> grids = null;
+
+            for (FileItem fi : query.get("files")) {
+                String name = fi.getName();
+                if (name.endsWith(".csv")) {
+                    LOG.info("Detected grid stored as CSV");
+                    grids = createGridsFromCsv(query, status);
+                    break;
+                } else if (name.endsWith(".shp")) {
+                    LOG.info("Detected grid stored as shapefile");
+                    grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
+                    break;
+                }
             }
-        }
 
-        if (grids == null) {
-            halt(400);
-            return null;
-        } else {
-            List<Project.Indicator> indicators = writeGridsToS3(grids, projectId, dataSet);
-            Project project = Persistence.projects.get(projectId).clone();
-            project.indicators = new ArrayList<>(project.indicators);
-            project.indicators.addAll(indicators);
-            Persistence.projects.put(projectId, project);
-            return indicators;
-        }
+            if (grids == null) {
+                status.status = Status.ERROR;
+                return null;
+            } else {
+                status.status = Status.DONE;
+                List<Project.Indicator> indicators = writeGridsToS3(grids, projectId, dataSet);
+                Project project = Persistence.projects.get(projectId).clone();
+                project.indicators = new ArrayList<>(project.indicators);
+                project.indicators.addAll(indicators);
+                Persistence.projects.put(projectId, project);
+                return indicators;
+            }
+        });
+
+        return status;
     }
 
     /** Create a grid from WGS 84 points in a CSV file */
-    private static Map<String, Grid> createGridsFromCsv(Map<String, List<FileItem>> query) throws Exception {
+    private static Map<String, Grid> createGridsFromCsv(Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
         String latField = query.get("latField").get(0).getString("UTF-8");
         String lonField = query.get("lonField").get(0).getString("UTF-8");
 
@@ -121,14 +144,17 @@ public class GridController {
         File tempFile = File.createTempFile("grid", ".csv");
         file.get(0).write(tempFile);
 
-        Map<String, Grid> grids = Grid.fromCsv(tempFile, latField, lonField, SeamlessCensusGridExtractor.ZOOM);
+        Map<String, Grid> grids = Grid.fromCsv(tempFile, latField, lonField, SeamlessCensusGridExtractor.ZOOM, (complete, total) -> {
+            status.completedFeatures = complete;
+            status.totalFeatures = total;
+        });
         // clean up
         tempFile.delete();
 
         return grids;
     }
 
-    private static Map<String, Grid> createGridsFromShapefile (Map<String, List<FileItem>> query, String baseName) throws Exception {
+    private static Map<String, Grid> createGridsFromShapefile (Map<String, List<FileItem>> query, String baseName, GridUploadStatus status) throws Exception {
         // extract relevant files: .shp, .prj, .dbf, and .shx.
         // We need the SHX even though we're looping over every feature as they might be sparse.
         Map<String, FileItem> filesByName = query.get("files").stream()
@@ -157,7 +183,11 @@ public class GridController {
             filesByName.get(baseName + ".shx").write(shxFile);
         }
 
-        Map<String, Grid> grids = Grid.fromShapefile(shpFile, SeamlessCensusGridExtractor.ZOOM);
+        Map<String, Grid> grids = Grid.fromShapefile(shpFile, SeamlessCensusGridExtractor.ZOOM, (complete, total) -> {
+            status.completedFeatures = complete;
+            status.totalFeatures = total;
+        });
+
         tempDir.delete();
         return grids;
     }
@@ -189,8 +219,20 @@ public class GridController {
         return ret;
     }
 
+    private static class GridUploadStatus {
+        public int totalFeatures = -1;
+        public int completedFeatures = -1;
+        public String handle;
+        public Status status;
+    }
+
+    private static enum Status {
+        PROCESSING, ERROR, DONE;
+    }
+
     public static void register () {
+        get("/api/grid/status/:handle", GridController::getUploadStatus, JsonUtil.objectMapper::writeValueAsString);
         get("/api/grid/:projectId/:gridId", GridController::getGrid);
-        post("/api/grid/:projectId", GridController::createGrid);
+        post("/api/grid/:projectId", GridController::createGrid, JsonUtil.objectMapper::writeValueAsString);
     }
 }

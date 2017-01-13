@@ -41,6 +41,11 @@ public class Bundle extends Model implements Cloneable {
 
     public List<FeedSummary> feeds;
     public Status status;
+
+
+    public int feedsComplete;
+    public int totalFeeds;
+
     public String errorCode;
 
     private static final AmazonS3 s3 = new AmazonS3Client();

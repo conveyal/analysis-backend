@@ -100,6 +100,7 @@ public class BundleController {
         bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
+        bundle.totalFeeds = localFiles.size();
 
         Persistence.bundles.put(bundleId, bundle);
 
@@ -117,7 +118,10 @@ public class BundleController {
             Map<String, FeedSource> feeds = localFiles.stream()
                     .map(file -> {
                         try {
-                            return ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundleId), file);
+                            FeedSource fs = ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundleId), file);
+                            finalBundle.feedsComplete += 1;
+                            Persistence.bundles.put(finalBundle.id, finalBundle);
+                            return fs;
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
