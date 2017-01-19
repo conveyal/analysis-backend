@@ -62,8 +62,7 @@ public class Persistence {
     /** connect to a table using MongoJack */
     private static <V extends Model> MongoMap<V> getTable (String name, Class clazz) {
         DBCollection collection = db.getCollection(name);
-        ObjectMapper om = JsonUtil.getObjectMapper(JsonViews.Db.class);
-        MongoJackModule.configure(om);
+        ObjectMapper om = JsonUtil.getObjectMapper(JsonViews.Db.class, true);
         JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class, om);
         return new MongoMap<>(coll);
     }

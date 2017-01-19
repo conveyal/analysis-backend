@@ -39,6 +39,7 @@ import static com.conveyal.taui.grids.SeamlessCensusGridExtractor.ZOOM;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
 import static spark.Spark.get;
+import static spark.Spark.delete;
 import static spark.Spark.halt;
 import static spark.Spark.post;
 
@@ -61,6 +62,21 @@ public class RegionalAnalysisController {
         return Persistence.regionalAnalyses.values().stream()
                 .filter(q -> projectId.equals(q.projectId))
                 .collect(Collectors.toList());
+    }
+
+    public static RegionalAnalysis deleteRegionalAnalysis (Request req, Response res) {
+        // NB no need for security, UUID provides sufficient security
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(req.params("regionalAnalysisId"));
+        analysis.clone();
+        analysis.deleted = true;
+        Persistence.regionalAnalyses.put(analysis.id, analysis);
+
+        // clear it from the broker
+        if (!analysis.complete) {
+            RegionalAnalysisManager.deleteJob(analysis.id);
+        }
+
+        return analysis;
     }
 
     /** Get a particular percentile of a query as a grid file */
@@ -261,6 +277,7 @@ public class RegionalAnalysisController {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:regionalAnalysisId/grid/:percentile/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 

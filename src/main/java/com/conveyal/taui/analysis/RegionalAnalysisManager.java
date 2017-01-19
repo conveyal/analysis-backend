@@ -48,6 +48,9 @@ public class RegionalAnalysisManager {
     public static final GridResultConsumer consumer;
     public static final String resultsQueueUrl;
 
+    public static final String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
+
+
     static {
         AmazonSQS sqs = new AmazonSQSClient();
         sqs.setRegion(Region.getRegion(Regions.fromName(AnalystConfig.region)));
@@ -58,8 +61,6 @@ public class RegionalAnalysisManager {
     }
 
     public static void enqueue (RegionalAnalysis regionalAnalysis) {
-        String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
-
         executor.execute(() -> {
             // first save the scenario
             ProfileRequest request = regionalAnalysis.request.clone();
@@ -121,6 +122,17 @@ public class RegionalAnalysisManager {
                 LOG.error("error enqueueing requests", e);
             }
         });
+    }
+
+    public static void deleteJob(String jobId) {
+        try {
+            Unirest.delete(String.format("%s/jobs/%s", brokerUrl, jobId))
+                    .asString();
+        } catch (UnirestException e) {
+            LOG.error("error deleting job {}", e);
+        }
+        // free temp disk space
+        consumer.deleteJob(jobId);
     }
 
     public static RegionalAnalysisStatus getStatus (String jobId) {
