@@ -7,10 +7,9 @@ import com.conveyal.taui.models.JsonViews;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mongojack.internal.MongoJackModule;
 
-/**
- * Created by matthewc on 2/9/16.
- */
-public class JsonUtil {
+public abstract class JsonUtil {
+
+
     public static ObjectMapper objectMapper = getObjectMapper(JsonViews.Api.class);
 
     public static ObjectMapper getObjectMapper (Class view) {
@@ -27,4 +26,5 @@ public class JsonUtil {
         objectMapper.setConfig(objectMapper.getSerializationConfig().withView(view));
         return objectMapper;
     }
+
 }
