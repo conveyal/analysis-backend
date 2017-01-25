@@ -12,17 +12,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 
 /**
  * Start up all the components of an analyst cluster locally.
  */
 public class LocalCluster {
+
     private static final Logger LOG = LoggerFactory.getLogger(LocalCluster.class);
-
     public final int brokerPort;
+    public Thread brokerThread;
+    public List<Thread> workerThreads = new ArrayList<>();
 
-    public LocalCluster(int brokerPort, GTFSCache gtfsCache, OSMCache osmCache) {
+    /**
+     * @param nWorkers cannot currently start more than 1 worker because the IDs are static, see AnalystWorker.machineId
+     */
+    public LocalCluster(int brokerPort, GTFSCache gtfsCache, OSMCache osmCache, int nWorkers) {
+
         this.brokerPort = brokerPort;
 
         // start the broker
@@ -33,8 +42,8 @@ public class LocalCluster {
         brokerConfig.setProperty("port", "" + brokerPort);
 
         BrokerMain broker = new BrokerMain(brokerConfig);
-
-        new Thread(broker::run).start();
+        brokerThread = new Thread(broker, "BROKER");
+        brokerThread.start();
 
         Properties workerConfig = new Properties();
 
@@ -46,8 +55,12 @@ public class LocalCluster {
         workerConfig.setProperty("pointsets-bucket", AnalystConfig.gridBucket);
 
         TransportNetworkCache transportNetworkCache = new TransportNetworkCache(gtfsCache, osmCache);
-        AnalystWorker worker = new AnalystWorker(workerConfig, transportNetworkCache);
+        for (int i = 0; i < nWorkers; i++) {
+            AnalystWorker worker = new AnalystWorker(workerConfig, transportNetworkCache);
+            Thread workerThread = new Thread(worker, "WORKER " + worker.machineId);
+            workerThreads.add(workerThread);
+            workerThread.start();
+        }
 
-        new Thread(worker::run).start();
     }
 }

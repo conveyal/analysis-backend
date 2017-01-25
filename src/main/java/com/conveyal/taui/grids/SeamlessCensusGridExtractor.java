@@ -46,6 +46,7 @@ public class SeamlessCensusGridExtractor extends GridExtractor {
             // All the features are buffered in a Map in memory. This could be problematic on large areas.
             features = source.extract(north, east, south, west, false);
         } catch (IOException e) {
+            // This will happen if you don't have access to this bucket on S3.
             throw new RuntimeException(e);
         }
 

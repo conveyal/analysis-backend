@@ -131,7 +131,8 @@ public class TransportAnalyst {
         if (AnalystConfig.offline) {
             LOG.info("Starting local cluster");
             // TODO port is hardwired here and also in SinglePointAnalysisController
-            new LocalCluster(6001, gtfsCache, OSMPersistence.cache);
+            // You have to make the worker machineId non-static if you want to launch more than one worker.
+            new LocalCluster(6001, gtfsCache, OSMPersistence.cache, 1);
         }
 
         LOG.info("Transport Analyst is ready");
