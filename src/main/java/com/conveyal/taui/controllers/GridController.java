@@ -71,6 +71,7 @@ public class GridController {
 
         res.redirect(url.toString());
         res.status(302); // temporary redirect, this URL will soon expire
+        res.type("text/plain"); // override application/json default
         return res;
     }
 

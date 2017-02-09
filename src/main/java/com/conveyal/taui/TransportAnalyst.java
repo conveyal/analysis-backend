@@ -106,6 +106,9 @@ public class TransportAnalyst {
                 // hardwire group name if we're working offline
                 req.attribute("group", "OFFLINE");
             }
+
+            // Default is JSON, will be overridden by the few controllers that do not return JSON
+            res.type("application/json");
         });
 
         ProjectController.register();
