@@ -1,16 +1,25 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.gtfs.model.Entity;
+import com.conveyal.r5.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
-import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.HttpHostConnectException;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +33,7 @@ import static spark.Spark.*;
 public class SinglePointAnalysisController {
     public static final Logger LOG = LoggerFactory.getLogger(SinglePointAnalysisController.class);
 
-    public static byte[] analysis (Request req, Response res) throws UnirestException {
+    public static byte[] analysis (Request req, Response res) throws IOException {
         // we already know the user is authenticated, and we need not check if they have access to the graphs etc,
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
         String path = req.pathInfo().replaceAll("^/api/analysis/", "");
@@ -32,40 +41,42 @@ public class SinglePointAnalysisController {
 
         String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
 
-        HttpResponse<InputStream> brokerRes;
+        CloseableHttpResponse brokerRes = null;
 
         try {
             if ("GET".equals(method)) {
-                brokerRes = Unirest.get(brokerUrl + "/" + path)
-                        .asBinary();
+                HttpGet get = new HttpGet(brokerUrl + "/" + path);
+                brokerRes = HttpUtil.httpClient.execute(get);
             } else if ("POST".equals(method)) {
-                brokerRes = Unirest.post(brokerUrl + "/" + path)
-                        .body(req.body())
-                        .asBinary();
+                HttpPost post = new HttpPost(brokerUrl + "/" + path);
+                post.setEntity(new StringEntity(req.body()));
+                brokerRes = HttpUtil.httpClient.execute(post);
             } else if ("DELETE".equals(method)) {
-                brokerRes = Unirest.delete(brokerUrl + "/" + path)
-                        .asBinary();
+                HttpDelete delete = new HttpDelete(brokerUrl + "/" + path);
+                brokerRes = HttpUtil.httpClient.execute(delete);
             } else {
                 halt(400, "Unsupported method for broker request");
                 return null;
             }
 
-            res.status(brokerRes.getStatus());
-            res.type(brokerRes.getHeaders().getFirst("Content-Type"));
+            res.status(brokerRes.getStatusLine().getStatusCode());
+            res.type(brokerRes.getFirstHeader("Content-Type").getValue());
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            InputStream is = brokerRes.getBody();
+            InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
 
             try {
                 long l = ByteStreams.copy(is, baos);
                 LOG.info("Returning {} bytes to scenario editor frontend", l);
                 is.close();
+                EntityUtils.consume(brokerRes.getEntity());
             } catch (IOException e) {
                 LOG.error("Error proxying broker", e);
             }
 
             return baos.toByteArray();
-        } catch (UnirestException e) {
+        } catch (IOException e) {
             LOG.error("analysis error", e.getCause());
+            // TODO is this catch clause still good?
             if (e.getCause() instanceof SocketTimeoutException) {
                 halt(504, "Timeout contacting broker");
             } else if (e.getCause() instanceof HttpHostConnectException) {
@@ -73,6 +84,8 @@ public class SinglePointAnalysisController {
             } else {
                 halt(500, "Could not contact broker");
             }
+        } finally {
+            if (brokerRes != null) brokerRes.close();
         }
 
         return null;

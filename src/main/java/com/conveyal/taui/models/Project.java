@@ -1,21 +1,25 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.r5.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.io.ByteStreams;
-import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -69,7 +73,7 @@ public class Project extends Model implements Cloneable {
 
     public List<Indicator> indicators = new ArrayList<>();
 
-    public synchronized void fetchOsm () throws IOException, UnirestException {
+    public synchronized void fetchOsm () throws IOException {
         File temporaryFile = File.createTempFile("osm", ".pbf");
         String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalystConfig.vexUrl,
                 bounds.south,
@@ -77,21 +81,27 @@ public class Project extends Model implements Cloneable {
                 bounds.north,
                 bounds.east);
 
-        HttpResponse<InputStream> res = Unirest.get(url)
-                .asBinary();
+        HttpGet get = new HttpGet(url);
+        CloseableHttpResponse res = null;
+        try {
+            res = HttpUtil.httpClient.execute(get);
 
-        if (res.getStatus() != 200) {
-            LOG.info("Could not retrieve OSM for project {}", this.name);
+            if (res.getStatusLine().getStatusCode() != 200) {
+                LOG.info("Could not retrieve OSM for project {}", this.name);
+            }
+
+            InputStream is = res.getEntity().getContent();
+            OutputStream fos = new BufferedOutputStream(new FileOutputStream(temporaryFile));
+            ByteStreams.copy(is, fos);
+            fos.close();
+            is.close();
+            EntityUtils.consume(res.getEntity());
+
+            OSMPersistence.cache.put(this.id, temporaryFile);
+            temporaryFile.delete();
+        } finally {
+            if (res != null) res.close();
         }
-
-        InputStream is = res.getBody();
-        FileOutputStream fos = new FileOutputStream(temporaryFile);
-        ByteStreams.copy(is, fos);
-        fos.close();
-        is.close();
-
-        OSMPersistence.cache.put(this.id, temporaryFile);
-        temporaryFile.delete();
 
         // TODO remove all cached transport networks for this project
     }

@@ -3,7 +3,6 @@ package com.conveyal.taui.controllers;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.mashape.unirest.http.exceptions.UnirestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -66,7 +65,7 @@ public class ProjectController {
                     finalProject.fetchCensus();
                     // save indicators
                     Persistence.projects.put(finalProject.id, finalProject);
-                } catch (IOException | UnirestException e) {
+                } catch (IOException e) {
                     LOG.error("Exception fetching OSM", e);
                 }
             }).start();

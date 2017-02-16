@@ -12,14 +12,21 @@ import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultConsumer;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.r5.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
+import org.glassfish.grizzly.http.HttpPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,21 +122,37 @@ public class RegionalAnalysisManager {
                 JsonUtil.objectMapper.writeValue(baos, requests);
 
                 // TODO cluster?
-                Unirest.post(String.format("%s/enqueue/regional", brokerUrl))
-                        .body(baos.toByteArray())
-                        .asJson();
-            } catch (IOException | UnirestException e) {
+                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+                CloseableHttpResponse res = null;
+
+                try {
+                    res = HttpUtil.httpClient.execute(post);
+                    EntityUtils.consume(res.getEntity());
+                } finally {
+                    if (res != null) res.close();
+                }
+
+            } catch (IOException e) {
                 LOG.error("error enqueueing requests", e);
             }
         });
     }
 
     public static void deleteJob(String jobId) {
+        CloseableHttpResponse res = null;
         try {
-            Unirest.delete(String.format("%s/jobs/%s", brokerUrl, jobId))
-                    .asString();
-        } catch (UnirestException e) {
+            HttpDelete del = new HttpDelete(String.format("%s/jobs/%s", brokerUrl, jobId));
+            res = HttpUtil.httpClient.execute(del);
+            EntityUtils.consume(res.getEntity());
+        } catch (IOException e) {
             LOG.error("error deleting job {}", e);
+        } finally {
+            if (res != null) try {
+                res.close();
+            } catch (IOException e) {
+                LOG.error("error deleting job {}", e);
+            }
         }
         // free temp disk space
         consumer.deleteJob(jobId);
