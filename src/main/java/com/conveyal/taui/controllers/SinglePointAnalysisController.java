@@ -1,18 +1,14 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.gtfs.model.Entity;
-import com.conveyal.r5.util.HttpUtil;
+import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

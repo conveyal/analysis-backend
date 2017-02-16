@@ -1,13 +1,12 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.r5.util.HttpUtil;
+import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.io.ByteStreams;
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
