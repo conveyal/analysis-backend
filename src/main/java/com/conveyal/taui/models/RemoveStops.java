@@ -14,6 +14,8 @@ public class RemoveStops extends Modification {
 
     public String[] stops;
 
+    public int secondsSavedAtEachStop = 0;
+
     @Override
     public String getType() {
         return "remove-stops";
