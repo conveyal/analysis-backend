@@ -70,7 +70,7 @@
         <repository>
             <id>conveyal</id>
             <name>Conveyal</name>
-            <url>https://s3.amazonaws.com/maven.conveyal.com</url>
+            <url>https://maven.conveyal.com</url>
         </repository>
     </repositories>
 
