@@ -5,10 +5,12 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
 import com.conveyal.r5.analyst.PercentileGridStatisticComputer;
 import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridStatisticComputer;
+import com.conveyal.r5.util.S3Util;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
@@ -21,7 +23,9 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.Serializable;
@@ -32,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.taui.grids.SeamlessCensusGridExtractor.ZOOM;
@@ -256,12 +261,6 @@ public class RegionalAnalysisController {
         Project project = Persistence.projects.get(bundle.projectId);
 
         // fill in the fields
-        regionalAnalysis.zoom = ZOOM;
-        regionalAnalysis.west = Grid.lonToPixel(project.bounds.west, regionalAnalysis.zoom);
-        regionalAnalysis.north = Grid.latToPixel(project.bounds.north, regionalAnalysis.zoom);
-        regionalAnalysis.width = Grid.lonToPixel(project.bounds.east, regionalAnalysis.zoom) - regionalAnalysis.west + 1; // + 1 to account for flooring
-        regionalAnalysis.height = Grid.latToPixel(project.bounds.south, regionalAnalysis.zoom) - regionalAnalysis.north + 1;
-
         regionalAnalysis.id = UUID.randomUUID().toString();
         regionalAnalysis.projectId = project.id;
 
@@ -270,6 +269,27 @@ public class RegionalAnalysisController {
         regionalAnalysis.request.scenario.id = regionalAnalysis.id;
 
         regionalAnalysis.creationTime = System.currentTimeMillis();
+
+        if (regionalAnalysis.origins == null) {
+            regionalAnalysis.zoom = ZOOM;
+            regionalAnalysis.west = Grid.lonToPixel(project.bounds.west, regionalAnalysis.zoom);
+            regionalAnalysis.north = Grid.latToPixel(project.bounds.north, regionalAnalysis.zoom);
+            regionalAnalysis.width = Grid.lonToPixel(project.bounds.east, regionalAnalysis.zoom) - regionalAnalysis.west + 1; // + 1 to account for flooring
+            regionalAnalysis.height = Grid.latToPixel(project.bounds.south, regionalAnalysis.zoom) - regionalAnalysis.north + 1;
+        } else {
+            // read the origins
+            String maskPath = String.format("%s/%s.grid", bundle.projectId, regionalAnalysis.origins);
+            S3Object maskObj = S3Util.s3.getObject(AnalystConfig.gridBucket, maskPath);
+            InputStream is = new GZIPInputStream(new BufferedInputStream(maskObj.getObjectContent()));
+            Grid mask = Grid.read(is);
+            is.close();
+
+            regionalAnalysis.zoom = mask.zoom;
+            regionalAnalysis.west = mask.west;
+            regionalAnalysis.north = mask.north;
+            regionalAnalysis.width = mask.width;
+            regionalAnalysis.height = mask.height;
+        }
 
         Persistence.regionalAnalyses.put(regionalAnalysis.id, regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);

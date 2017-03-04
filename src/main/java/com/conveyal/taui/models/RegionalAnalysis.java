@@ -30,6 +30,9 @@ public class RegionalAnalysis extends Model implements Cloneable {
     public String grid;
     public int cutoffMinutes;
 
+    // The key of a grid to use as a origins; only cells within this grid will be computed
+    public String origins;
+
     /** Has this analysis been (soft) deleted? */
     public boolean deleted;
 
