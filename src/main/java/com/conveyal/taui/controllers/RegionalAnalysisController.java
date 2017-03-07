@@ -165,9 +165,8 @@ public class RegionalAnalysisController {
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
 
-        res.type("text/plain"); // override application/json
-
         if (redirect) {
+            res.type("text/plain"); // override application/json
             res.redirect(url.toString());
             res.status(302); // temporary redirect, this URL will soon expire
             return null;
@@ -243,9 +242,8 @@ public class RegionalAnalysisController {
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
 
-        res.type("text/plain"); // override default application/json
-
         if (redirect) {
+            res.type("text/plain"); // override default application/json
             res.redirect(url.toString());
             res.status(302); // temporary redirect, this URL will soon expire
             return null;
