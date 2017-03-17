@@ -22,6 +22,8 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +31,10 @@ import java.util.stream.Collectors;
  */
 public class Project extends Model implements Cloneable {
     private static final Logger LOG = LoggerFactory.getLogger(Project.class);
+
+    // Keep track of project load status in memory, don't go back and forth to the DB
+    // not a memory leak, since when projects are done they are removed from the map.
+    public static Map<String, LoadStatus> loadStatusForProject = new ConcurrentHashMap<>();
 
     /** Project name */
     public String name;
@@ -53,6 +59,15 @@ public class Project extends Model implements Cloneable {
         gridFetcher.name = AnalystConfig.seamlessCensusBucket;
     }
 
+    public LoadStatus getLoadStatus () {
+        return loadStatusForProject.getOrDefault(id, LoadStatus.DONE);
+    }
+
+    public void setLoadStatus (LoadStatus status) {
+        // do nothing, because we can't mark getLoadStatus as jsonignore because it has to go to the API, and
+        // and JsonViews don't work in MongoJack . . . *sigh*
+    }
+
     // don't persist to DB but do expose to API
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
@@ -73,6 +88,7 @@ public class Project extends Model implements Cloneable {
     public List<Indicator> indicators = new ArrayList<>();
 
     public synchronized void fetchOsm () throws IOException {
+        loadStatusForProject.put(id, LoadStatus.DOWNLOADING_OSM);
         File temporaryFile = File.createTempFile("osm", ".pbf");
         String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalystConfig.vexUrl,
                 bounds.south,
@@ -110,7 +126,8 @@ public class Project extends Model implements Cloneable {
                 bounds.north,
                 bounds.east,
                 bounds.south,
-                bounds.west
+                bounds.west,
+                status -> loadStatusForProject.put(id, status)
                 ));
     }
 
@@ -149,5 +166,24 @@ public class Project extends Model implements Cloneable {
 
         /** The key on S3 */
         public String key;
+    }
+
+    /** Represents the status of OSM and Census loading */
+    public enum LoadStatus {
+        /** Downloading OpenStreetMap data */
+        DOWNLOADING_OSM,
+
+        /** Downloading Census data using seamless-census */
+        DOWNLOADING_CENSUS,
+
+        /** Figuring out which census columns are numeric */
+        EXTRACTING_CENSUS_COLUMNS,
+
+        /** Projecting census features into grids */
+        PROJECTING_CENSUS,
+
+        /** Storing census data on S3 */
+        STORING_CENSUS,
+        DONE
     }
 }

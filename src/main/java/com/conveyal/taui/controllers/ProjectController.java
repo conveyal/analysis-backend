@@ -63,6 +63,7 @@ public class ProjectController {
                 try {
                     finalProject.fetchOsm();
                     finalProject.fetchCensus();
+                    Project.loadStatusForProject.remove(finalProject.id);
                     // save indicators
                     Persistence.projects.put(finalProject.id, finalProject);
                 } catch (IOException e) {
