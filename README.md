@@ -1,6 +1,6 @@
 # Analyst
 
-This is the server component of Transport Analyst version 2.
+This is the server component of Conveyal's analysis platform.
 
 ## Setup
 
