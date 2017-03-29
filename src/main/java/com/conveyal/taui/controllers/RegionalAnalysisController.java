@@ -268,26 +268,10 @@ public class RegionalAnalysisController {
 
         regionalAnalysis.creationTime = System.currentTimeMillis();
 
-        if (regionalAnalysis.origins == null) {
-            regionalAnalysis.zoom = ZOOM;
-            regionalAnalysis.west = Grid.lonToPixel(project.bounds.west, regionalAnalysis.zoom);
-            regionalAnalysis.north = Grid.latToPixel(project.bounds.north, regionalAnalysis.zoom);
-            regionalAnalysis.width = Grid.lonToPixel(project.bounds.east, regionalAnalysis.zoom) - regionalAnalysis.west + 1; // + 1 to account for flooring
-            regionalAnalysis.height = Grid.latToPixel(project.bounds.south, regionalAnalysis.zoom) - regionalAnalysis.north + 1;
-        } else {
-            // read the origins
-            String maskPath = String.format("%s/%s.grid", bundle.projectId, regionalAnalysis.origins);
-            S3Object maskObj = S3Util.s3.getObject(AnalystConfig.gridBucket, maskPath);
-            InputStream is = new GZIPInputStream(new BufferedInputStream(maskObj.getObjectContent()));
-            Grid mask = Grid.read(is);
-            is.close();
+        regionalAnalysis.zoom = 9;
 
-            regionalAnalysis.zoom = mask.zoom;
-            regionalAnalysis.west = mask.west;
-            regionalAnalysis.north = mask.north;
-            regionalAnalysis.width = mask.width;
-            regionalAnalysis.height = mask.height;
-        }
+        if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
+        else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromProject(project);
 
         Persistence.regionalAnalyses.put(regionalAnalysis.id, regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);
