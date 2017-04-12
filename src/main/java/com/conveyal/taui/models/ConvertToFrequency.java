@@ -1,12 +1,5 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.r5.model.json_serialization.BitSetDeserializer;
-import com.conveyal.r5.model.json_serialization.BitSetSerializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-
-import java.util.BitSet;
-
 /**
  * Convert a line to frequency.
  */
@@ -27,6 +20,8 @@ public class ConvertToFrequency extends Modification {
     }
 
     public static class FrequencyEntry {
+        public String id;
+
         /** Days of the week on which this service is active, 0 is Monday */
         public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
@@ -54,5 +49,20 @@ public class ConvertToFrequency extends Modification {
 
         /** Should this frequency entry use exact times? */
         public boolean exactTimes;
+
+        /** Phase at a stop that is in this modification */
+        public String phaseAtStop;
+
+        /**
+         * Phase from a timetable (frequency entry) on another modification.
+         * Syntax is `${modification.id}:${timetable.id}`
+         */
+        public String phaseFromTimetable;
+
+        /** Phase from a stop that can be found in the phased from modification's stops */
+        public String phaseFromStop;
+
+        /** Amount of time to phase from the other lines frequency */
+        public int phaseSeconds;
     }
 }
