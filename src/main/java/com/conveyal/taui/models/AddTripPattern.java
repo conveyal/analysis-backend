@@ -1,16 +1,12 @@
 package com.conveyal.taui.models;
 
-import java.util.BitSet;
-import java.util.List;
-
 import com.conveyal.geojson.GeometryDeserializer;
 import com.conveyal.geojson.GeometrySerializer;
-import com.conveyal.r5.model.json_serialization.BitSetDeserializer;
-import com.conveyal.r5.model.json_serialization.BitSetSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.LineString;
+
+import java.util.List;
 
 /**
  * Add a trip pattern.
@@ -58,6 +54,8 @@ public class AddTripPattern extends Modification {
     }
 
     public static class Timetable {
+        public String id;
+        
         /** Days of the week on which this service is active */
         public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
 
@@ -81,5 +79,20 @@ public class AddTripPattern extends Modification {
 
         /** should this be specified as an exact schedule */
         public boolean exactTimes;
+
+        /** Phase at a stop that is in this modification */
+        public String phaseAtStop;
+
+        /**
+         * Phase from a timetable (frequency entry) on another modification.
+         * Syntax is `${modification.id}:${timetable.id}`
+         */
+        public String phaseFromTimetable;
+
+        /** Phase from a stop that can be found in the phased from modification's stops */
+        public String phaseFromStop;
+
+        /** Amount of time to phase from the other lines frequency */
+        public int phaseSeconds;
     }
 }
