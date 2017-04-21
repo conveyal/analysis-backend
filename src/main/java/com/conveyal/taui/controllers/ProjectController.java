@@ -87,6 +87,8 @@ public class ProjectController {
         get("/api/project", ProjectController::getAllProjects, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:id", ProjectController::getProject, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:project/scenarios", ScenarioController::getAllScenarios, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/project/:project/bookmark", BookmarkController::getAllBookmarks, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/project/:project/bookmark", BookmarkController::createBookmark, JsonUtil.objectMapper::writeValueAsString);
         post("/api/project", ProjectController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         put("/api/project/:id", ProjectController::createOrUpdate, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/project/:id", ProjectController::deleteProject, JsonUtil.objectMapper::writeValueAsString);
