@@ -105,6 +105,7 @@ public class RegionalAnalysisManager {
                     req.outputQueue = resultsQueueUrl;
                     req.cutoffMinutes = regionalAnalysis.cutoffMinutes;
                     req.request = request;
+                    req.travelTimePercentile = regionalAnalysis.travelTimePercentile;
                     req.x = x;
                     req.y = y;
                     req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);

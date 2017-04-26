@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
+import com.conveyal.r5.analyst.ExtractingGridStatisticComputer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
 import com.conveyal.r5.analyst.PercentileGridStatisticComputer;
@@ -87,8 +88,11 @@ public class RegionalAnalysisController {
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
+
+        if (analysis == null) halt(404);
+
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
-        String percentileText = req.params("percentile").toLowerCase();
         String format = req.params("format").toLowerCase();
         String percentileGridKey;
 
@@ -101,14 +105,16 @@ public class RegionalAnalysisController {
             halt(400);
         }
 
-        int percentile;
 
-        if ("mean".equals(percentileText)) {
+        if (analysis.travelTimePercentile == -1) {
+            // Andrew Owen style average instantaneous accessibility
             percentileGridKey = String.format("%s_average.%s", regionalAnalysisId, format);
-            percentile = -1;
         } else {
-            percentile = parseInt(percentileText);
-            percentileGridKey = String.format("%s_%d_percentile.%s", regionalAnalysisId, percentile, format);
+            // accessibility given X percentile travel time
+            // use the point estimate when there are many bootstrap replications of the accessibility given median
+            // accessibility
+            // no need to record what the percentile is, that is fixed by the regional analysis.
+            percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, format);
         }
 
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
@@ -116,13 +122,21 @@ public class RegionalAnalysisController {
         if (!s3.doesObjectExist(AnalystConfig.resultsBucket, percentileGridKey)) {
             // make the grid
             Grid grid;
-            if ("mean".equals(percentileText)) {
+            long computeStart = System.currentTimeMillis();
+            if (analysis.travelTimePercentile == -1) {
+                // Andrew Owen style average instantaneous accessibility
+                // The samples stored in the access grid are samples of instantaneous accessibility at different minutes
+                // and Monte Carlo draws, average them together
                 LOG.info("Mean for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = AndrewOwenMeanGridStatisticComputer.computeMean(AnalystConfig.resultsBucket, accessGridKey);
+                grid = new AndrewOwenMeanGridStatisticComputer().compute(AnalystConfig.resultsBucket, accessGridKey);
             } else {
-                LOG.info("Percentile {} for regional analysis {} not found, building it", percentile, regionalAnalysisId);
-                grid = PercentileGridStatisticComputer.computePercentile(AnalystConfig.resultsBucket, accessGridKey, percentile);
+                // This is accessibility given x percentile travel time, the first sample is the point estimate
+                // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
+                // point estimate in the grids.
+                LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
+                grid = new ExtractingGridStatisticComputer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
             }
+            LOG.info("Building grid took {}s", (computeStart - System.currentTimeMillis()) / 1000d);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -281,7 +295,7 @@ public class RegionalAnalysisController {
 
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/grid/:percentile/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:regionalAnalysisId/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
