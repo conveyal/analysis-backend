@@ -4,7 +4,7 @@ jdk:
   - oraclejdk8
 
  # r5 from branch
- before_install:
+before_install:
   - git clone -b improve-bootstrap-hypothesis-tests --depth 200 https://github.com/conveyal/r5.git
   - cd r5
   - mvn install -DskipTests
