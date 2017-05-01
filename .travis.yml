@@ -3,12 +3,12 @@ language: java
 jdk:
   - oraclejdk8
 
+ # r5 from branch
  before_install:
-   # we're currently using a branch of R5
-   - git clone -b improve-bootstrap-hypothesis-tests --depth 200 https://github.com/conveyal/r5.git
-   - cd r5
-   - mvn install -DskipTests
-   - cd ..
+  - git clone -b improve-bootstrap-hypothesis-tests --depth 200 https://github.com/conveyal/r5.git
+  - cd r5
+  - mvn install -DskipTests
+  - cd ..
 
 env:
   global:
