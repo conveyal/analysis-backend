@@ -6,6 +6,8 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
+import com.conveyal.r5.analyst.BootstrapPercentileHypothesisTestGridStatisticComputer;
+import com.conveyal.r5.analyst.DualGridStatisticComputer;
 import com.conveyal.r5.analyst.ExtractingGridStatisticComputer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
@@ -213,8 +215,16 @@ public class RegionalAnalysisController {
             String baseKey = String.format("%s.access", base);
             String scenarioKey = String.format("%s.access", scenario);
 
-            Grid grid = ImprovementProbabilityGridStatisticComputer
-                    .computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
+            RegionalAnalysis analysis = Persistence.regionalAnalyses.get(base);
+
+            // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
+            // p-value/hypothesis test computer. Otherwise use the older setup.
+            // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
+            DualGridStatisticComputer computer = analysis.travelTimePercentile == -1 ?
+                    new ImprovementProbabilityGridStatisticComputer() :
+                    new BootstrapPercentileHypothesisTestGridStatisticComputer();
+
+            Grid grid = computer.computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
