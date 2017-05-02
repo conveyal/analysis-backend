@@ -123,7 +123,7 @@ public class TransportAnalyst {
         // load and serve index.html
 
         InputStream indexStream = TransportAnalyst.class.getClassLoader().getResourceAsStream("public/index.html");
-        String index = CharStreams.toString(new InputStreamReader(indexStream)).replace("${S3BUCKET}", AnalystConfig.uiBucket);
+        String index = CharStreams.toString(new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalystConfig.assetLocation);
         indexStream.close();
 
         get("/*", (req, res) -> { res.type("text/html"); return index; });

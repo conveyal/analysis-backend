@@ -30,7 +30,7 @@ public class AnalystConfig {
     public static final String auth0ClientId = getEnv("AUTH0_CLIENT_ID", null);
     public static final String auth0Secret = getEnv("AUTH0_SECRET", null);
     public static final String localCache = getEnv("LOCAL_CACHE", "cache");
-    public static final String uiBucket = getEnv("UI_BUCKET", "scenario-editor");
+    public static final String assetLocation = getEnv("ASSET_LOCATION", "https://d1uqjuy3laovxb.cloudfront.net");
     public static final int port = Integer.parseInt(getEnv("PORT", "7070"));
     public static final boolean offline = Boolean.parseBoolean(getEnv("OFFLINE", "false"));
     public static final String brokerUrl = getEnv("BROKER_URL", "http://localhost:9001");
