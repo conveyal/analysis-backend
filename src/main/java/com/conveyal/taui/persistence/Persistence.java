@@ -1,6 +1,7 @@
 package com.conveyal.taui.persistence;
 
 import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.models.Bookmark;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.JsonViews;
 import com.conveyal.taui.models.Model;
@@ -35,6 +36,7 @@ public class Persistence {
     public static MongoMap<Bundle> bundles;
     public static MongoMap<Project> projects;
     public static MongoMap<RegionalAnalysis> regionalAnalyses;
+    public static MongoMap<Bookmark> bookmarks;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
@@ -57,6 +59,7 @@ public class Persistence {
         bundles = getTable("bundles", Bundle.class);
         projects = getTable("projects", Project.class);
         regionalAnalyses = getTable("regional-analyses", RegionalAnalysis.class);
+        bookmarks = getTable("bookmarks", Bookmark.class);
     }
 
     /** connect to a table using MongoJack */
