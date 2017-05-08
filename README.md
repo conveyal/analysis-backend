@@ -24,4 +24,4 @@ By default it will use the `scenario-editor` database in your Mongo instance. Yo
 Once you have configured your environment or `application.conf`, build the application with `mvn package` and start it with
 `java -Xmx2g -jar target/analyst.jar`
 
-You can then start the frontend with `npm start`
+You can then start the [frontend](https://github.com/conveyal/analysis-ui) with `npm start`
