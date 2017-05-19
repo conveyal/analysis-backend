@@ -3,12 +3,13 @@ language: java
 jdk:
   - oraclejdk8
 
-# before_install:
-#   # we're currently using a branch of R5
-#   - git clone -b scenario-editor --depth 200 https://github.com/conveyal/r5.git
-#   - cd r5
-#   - mvn install -DskipTests
-#   - cd ..
+ # r5 from branch
+before_install:
+  - git clone -b improve-bootstrap-hypothesis-tests --depth 200 https://github.com/conveyal/r5.git
+  - cd r5
+  # can't just call mvn install because it will try to sign the jar
+  - mvn package install:install -DskipTests
+  - cd ..
 
 env:
   global:

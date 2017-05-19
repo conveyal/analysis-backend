@@ -183,7 +183,7 @@ public class BundleController {
         Persistence.bundles.remove(bundle.id);
 
         // free memory
-        ApiMain.feedSources.invalidate(bundle.id);
+        //ApiMain.invalidate(bundle.id);
 
         if (AnalystConfig.bundleBucket != null) {
             // remove from s3
