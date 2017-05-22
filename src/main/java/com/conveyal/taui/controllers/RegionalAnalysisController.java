@@ -5,15 +5,12 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.BootstrapPercentileHypothesisTestGridStatisticComputer;
 import com.conveyal.r5.analyst.DualGridStatisticComputer;
 import com.conveyal.r5.analyst.ExtractingGridStatisticComputer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
-import com.conveyal.r5.analyst.PercentileGridStatisticComputer;
 import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridStatisticComputer;
-import com.conveyal.r5.util.S3Util;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
@@ -21,17 +18,15 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.conveyal.taui.util.WrappedURL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.io.Serializable;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
@@ -39,10 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
-import static com.conveyal.taui.grids.SeamlessCensusGridExtractor.ZOOM;
 
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
@@ -311,11 +303,4 @@ public class RegionalAnalysisController {
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 
-    private static class WrappedURL implements Serializable {
-        public String url;
-
-        public WrappedURL(String url) {
-            this.url = url;
-        }
-    }
 }

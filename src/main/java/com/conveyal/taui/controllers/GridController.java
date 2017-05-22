@@ -13,6 +13,7 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.Jobs;
 import com.conveyal.taui.util.JsonUtil;
+import com.conveyal.taui.util.WrappedURL;
 import com.google.common.io.Files;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
@@ -69,10 +70,22 @@ public class GridController {
 
         URL url = s3.generatePresignedUrl(presigned);
 
-        res.redirect(url.toString());
-        res.status(302); // temporary redirect, this URL will soon expire
-        res.type("text/plain"); // override application/json default
-        return res;
+        boolean redirect = true;
+
+        try {
+            redirect = Boolean.parseBoolean(req.queryParams("redirect"));
+        } catch (Exception e) {
+            // do nothing
+        }
+
+        if (redirect) {
+            res.redirect(url.toString());
+            res.status(302); // temporary redirect, this URL will soon expire
+            res.type("text/plain"); // override application/json default
+            return res;
+        } else {
+            return new WrappedURL(url);
+        }
     }
 
     public static GridUploadStatus getUploadStatus (Request req, Response res) {
@@ -233,7 +246,7 @@ public class GridController {
 
     public static void register () {
         get("/api/grid/status/:handle", GridController::getUploadStatus, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/grid/:projectId/:gridId", GridController::getGrid);
+        get("/api/grid/:projectId/:gridId", GridController::getGrid, JsonUtil.objectMapper::writeValueAsString);
         post("/api/grid/:projectId", GridController::createGrid, JsonUtil.objectMapper::writeValueAsString);
     }
 }
