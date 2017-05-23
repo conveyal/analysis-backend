@@ -74,6 +74,9 @@ public class AddTripPattern extends Modification {
         /** Dwell time at each stop, seconds */
         public int dwellTime;
 
+        /** Dwell times at specific stops, seconds */
+        public int[] dwellTimes;
+
         /** headway for frequency-based patterns */
         public int headwaySecs;
 
