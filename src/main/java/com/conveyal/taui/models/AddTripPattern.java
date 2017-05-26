@@ -75,7 +75,8 @@ public class AddTripPattern extends Modification {
         public int dwellTime;
 
         /** Dwell times at specific stops, seconds */
-        public int[] dwellTimes;
+        // using Integer not int because dwell times can be null
+        public Integer[] dwellTimes;
 
         /** headway for frequency-based patterns */
         public int headwaySecs;

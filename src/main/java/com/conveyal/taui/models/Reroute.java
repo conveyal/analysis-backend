@@ -22,7 +22,9 @@ public class Reroute extends Modification {
 
     /** dwell time at adjusted stops, seconds */
     public int dwellTime;
-    public int[] dwellTimes;
+
+    // using Integer not int because Integers can be null
+    public Integer[] dwellTimes;
 
     @Override
     public String getType() {
