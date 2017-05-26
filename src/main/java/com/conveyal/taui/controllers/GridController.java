@@ -73,7 +73,8 @@ public class GridController {
         boolean redirect = true;
 
         try {
-            redirect = Boolean.parseBoolean(req.queryParams("redirect"));
+            String redirectParam = req.queryParams("redirect");
+            if (redirectParam != null) redirect = Boolean.parseBoolean(redirectParam);
         } catch (Exception e) {
             // do nothing
         }
