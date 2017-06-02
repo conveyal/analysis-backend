@@ -38,4 +38,7 @@ public abstract class Modification extends Model {
 
     /** What scenario is this modification a part of? */
     public String scenario;
+
+    /** A description/comment about this modification */
+    public String description;
 }
