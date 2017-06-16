@@ -42,3 +42,5 @@ with config files for local development. If you set `OFFLINE=true`, you won't ne
 and AWS credentials to access them, as these do not yet have offline equivalents.
 
 You can then follow the instructions to get the [frontend](https://github.com/conveyal/analysis-ui) started up.
+
+You'll also need a MongoDB instance running locally.
