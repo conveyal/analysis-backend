@@ -24,4 +24,21 @@ By default it will use the `scenario-editor` database in your Mongo instance. Yo
 Once you have configured your environment or `application.conf`, build the application with `mvn package` and start it with
 `java -Xmx2g -jar target/analyst.jar`
 
-You can then start the [frontend](https://github.com/conveyal/analysis-ui) with `npm start`
+You can then start the [frontend](https://github.com/conveyal/analysis-ui) with `yarn start`
+
+## Creating a development environment
+
+In order to do development on the frontend, backend, or on [R5](https://github.com/conveyal/r5), which we use for
+performing the analyses, you'll want a local development environment. We use [IntelliJ IDEA](https://www.jetbrains.com/idea/)
+(free/community version is fine). First, clone the project with `git`, and add it as a project to IntelliJ. Do the same with
+R5; add it as another module _in the same IntelliJ project_. Then, enter the project settings of `analysis-backend` and remove 
+the existing dependency on R5 (which will pull down a built JAR from Maven Central) and replace it with a module dependency 
+on your local R5. This way, any changes you make to R5 will also be reflected when you run it.
+
+You can then create a run configuration for `com.conveyal.taui.TransportAnalyst`, which is the main class. You will need to
+configure the options mentioned above; I recommend using environment variables in the run configuration rather than messing
+with config files for local development. If you set `OFFLINE=true`, you won't need to run the R5 `BrokerMain` and
+`AnalystWorker` classses separately. You will need to configure an `GRID_BUCKET`, `RESULTS_QUEUE` and `RESULTS_BUCKET`,
+and AWS credentials to access them, as these do not yet have offline equivalents.
+
+You can then follow the instructions to get the [frontend](https://github.com/conveyal/analysis-ui) started up.
