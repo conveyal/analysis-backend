@@ -1,15 +1,23 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.taui.models.Project;
+import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemFactory;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static spark.Spark.*;
@@ -19,6 +27,8 @@ import static spark.Spark.*;
  */
 public class ProjectController {
     private static final Logger LOG = LoggerFactory.getLogger(ProjectController.class);
+
+    private static FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
     public static Project getProject (Request req, Response res) {
         Project project = Persistence.projects.get(req.params("id"));
@@ -35,10 +45,15 @@ public class ProjectController {
                 .collect(Collectors.toList());
     }
 
-    public static Project createOrUpdate (Request req, Response res) {
+    public static Project createOrUpdate (Request req, Response res) throws Exception {
         Project project = null;
+        ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
+        Map<String, List<FileItem>> files = sfu.parseParameterMap(req.raw());
+
         try {
-            project = JsonUtil.objectMapper.readValue(req.body(), Project.class);
+            InputStream is = files.get("project").get(0).getInputStream();
+            project = JsonUtil.objectMapper.readValue(is, Project.class);
+            is.close();
         } catch (Exception e) {
             LOG.error("Could not deserialize project from client", e);
             halt(400, "Bad project");
@@ -54,11 +69,34 @@ public class ProjectController {
 
         Persistence.projects.put(project.id, project);
 
-        if (existing == null || !existing.bounds.equals(project.bounds, 1e-6)) {
+        final Project finalProject = project.clone();
+        if (files.containsKey("customOpenStreetMapData")) {
+            // parse uploaded OSM
+            new Thread(() -> {
+                try {
+                    File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
+                    files.get("customOpenStreetMapData").get(0).write(customOsmData);
+                    OSMPersistence.cache.put(finalProject.id, customOsmData);
+                    customOsmData.delete();
+
+                    // update load status
+                    Project.loadStatusForProject.remove(finalProject.id);
+
+                    if (existing == null || !existing.bounds.equals(finalProject.bounds, 1e-6)) {
+                        // fetch census data
+                        finalProject.fetchCensus();
+                        // save indicators
+                        Persistence.projects.put(finalProject.id, finalProject);
+                    }
+                } catch (Exception e) {
+                    LOG.error("Exception storing OSM", e);
+                }
+            }).start();
+        }
+        else if (existing == null || !existing.bounds.equals(project.bounds, 1e-6)) {
             // download OSM
             // TODO how to feed osm download errors back to user?
             // how to prevent project from being used before OSM is downloaded?
-            final Project finalProject = project.clone();
             new Thread(() -> {
                 try {
                     finalProject.fetchOsm();

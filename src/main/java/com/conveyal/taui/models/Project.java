@@ -52,6 +52,9 @@ public class Project extends Model implements Cloneable {
     /** Group this project is associated with */
     public String group;
 
+    /** Does this project use custom OSM */
+    public boolean customOsm;
+
     public Boolean showGeocoder;
 
     private static SeamlessCensusGridExtractor gridFetcher = new SeamlessCensusGridExtractor();
