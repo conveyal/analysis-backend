@@ -5,12 +5,9 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.conveyal.r5.analyst.BootstrapPercentileHypothesisTestGridStatisticComputer;
-import com.conveyal.r5.analyst.DualGridStatisticComputer;
-import com.conveyal.r5.analyst.ExtractingGridStatisticComputer;
+import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
-import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridStatisticComputer;
+import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
@@ -121,16 +118,15 @@ public class RegionalAnalysisController {
                 // Andrew Owen style average instantaneous accessibility
                 // The samples stored in the access grid are samples of instantaneous accessibility at different minutes
                 // and Monte Carlo draws, average them together
-                LOG.info("Mean for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new AndrewOwenMeanGridStatisticComputer().compute(AnalystConfig.resultsBucket, accessGridKey);
+                throw new IllegalArgumentException("Old-style instantaneous-accessibility regional analyses are no longer supported");
             } else {
                 // This is accessibility given x percentile travel time, the first sample is the point estimate
                 // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
                 // point estimate in the grids.
                 LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new ExtractingGridStatisticComputer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
+                grid = new SelectingGridReducer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
             }
-            LOG.info("Building grid took {}s", (computeStart - System.currentTimeMillis()) / 1000d);
+            LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -212,9 +208,7 @@ public class RegionalAnalysisController {
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
-            DualGridStatisticComputer computer = analysis.travelTimePercentile == -1 ?
-                    new ImprovementProbabilityGridStatisticComputer() :
-                    new BootstrapPercentileHypothesisTestGridStatisticComputer();
+            BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
             Grid grid = computer.computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
 
