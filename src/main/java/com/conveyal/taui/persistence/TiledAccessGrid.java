@@ -76,6 +76,9 @@ public class TiledAccessGrid {
     /** Cache access grid tiles on local disk so we don't always have to pull from S3 */
     private static LoadingCache<Map.Entry<String, String>, File> tileCache = CacheBuilder.newBuilder()
             .maximumSize(50)
+            // delete files when they drop out of the cache.
+            // It is possible this would delete a file someone is using, but unlikely, because the files are only open for
+            // a matter of milliseconds after being pulled from this cache.
             .removalListener((RemovalListener<Map.Entry<String, String>, File>) removalNotification -> removalNotification.getValue().delete())
             .build(new CacheLoader<Map.Entry<String, String>, File>() {
                 @Override

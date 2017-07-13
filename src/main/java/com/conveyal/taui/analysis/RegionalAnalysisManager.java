@@ -184,6 +184,11 @@ public class RegionalAnalysisManager {
         protected synchronized void finish () {
             super.finish();
             // build the tiles (used to display sampling distributions in the client)
+            // Note that the job will be marked as complete even before the tiles are built, but this is okay;
+            // the tiles are not needed to display the regional analysis, only to display sampling distributions from it
+            // the user can view the results immediately, and the sampling distribution loading will block until the tiles
+            // are built thanks to the use of a Guava loadingCache below (which will only build the value for a particular key
+            // once)
             TiledAccessGrid.get(outputBucket, String.format("%s.access", request.jobId));
         }
     }
