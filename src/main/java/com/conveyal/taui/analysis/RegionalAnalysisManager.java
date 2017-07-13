@@ -12,6 +12,7 @@ import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
@@ -169,6 +170,20 @@ public class RegionalAnalysisManager {
         public RegionalAnalysisStatus (GridResultAssembler assembler) {
             total = assembler.nTotal;
             complete = assembler.nComplete;
+        }
+    }
+
+    /** A GridResultAssembler that tiles the results once they are complete */
+    public static class TilingGridResultAssembler extends GridResultAssembler {
+        public TilingGridResultAssembler(AnalysisRequest request, String outputBucket) {
+            super(request, outputBucket);
+        }
+
+        @Override
+        protected synchronized void finish () {
+            super.finish();
+            // build the tiles (used to display sampling distributions in the client)
+            TiledAccessGrid.get(outputBucket, String.format("%s.access", request.jobId));
         }
     }
 }

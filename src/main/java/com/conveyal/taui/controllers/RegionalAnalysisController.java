@@ -13,6 +13,7 @@ import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.conveyal.taui.util.WrappedURL;
@@ -262,6 +263,16 @@ public class RegionalAnalysisController {
         }
     }
 
+    public static int[] getSamplingDistribution (Request req, Response res) {
+        String regionalAnalysisId = req.params("regionalAnalysisId");
+        double lat = Double.parseDouble(req.params("lat"));
+        double lon = Double.parseDouble(req.params("lon"));
+
+        return TiledAccessGrid
+                .get(AnalystConfig.resultsBucket,  String.format("%s.access", regionalAnalysisId))
+                .getLatLon(lat, lon);
+    }
+
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
         RegionalAnalysis regionalAnalysis = JsonUtil.objectMapper.readValue(req.body(), RegionalAnalysis.class);
 
@@ -292,6 +303,7 @@ public class RegionalAnalysisController {
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:regionalAnalysisId/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:regionalAnalysisId/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
