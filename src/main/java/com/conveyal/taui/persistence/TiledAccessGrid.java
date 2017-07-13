@@ -37,7 +37,8 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * A TiledAccessGrid is an access grid split up into many smaller files to allow random access.
+ * A TiledAccessGrid is an access grid split up into many smaller files to allow random access. This is used for
+ * retrieving the sampling distribution at a particular point in a regional analysis for display in the client.
  */
 public class TiledAccessGrid {
     private static final Logger LOG = LoggerFactory.getLogger(TiledAccessGrid.class);
