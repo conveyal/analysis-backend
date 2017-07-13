@@ -114,7 +114,8 @@ public class RegionalAnalysisManager {
                 }
             }
 
-            consumer.registerJob(requests.get(0));
+            AnalysisRequest exemplar = requests.get(0);
+            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
 
             try {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
