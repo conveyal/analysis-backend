@@ -4,6 +4,7 @@ import com.conveyal.geojson.GeoJsonModule;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.r5.model.json_serialization.JavaLocalDateSerializer;
 import com.conveyal.taui.models.JsonViews;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mongojack.internal.MongoJackModule;
 
@@ -18,6 +19,7 @@ public abstract class JsonUtil {
 
     public static ObjectMapper getObjectMapper(Class view, boolean configureMongoJack) {
         ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         objectMapper.registerModule(new GeoJsonModule());
         objectMapper.registerModule(JavaLocalDateSerializer.makeModule());
 
