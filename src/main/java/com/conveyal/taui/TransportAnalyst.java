@@ -4,7 +4,7 @@ import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.taui.analysis.LocalCluster;
-import com.conveyal.taui.controllers.MaskController;
+import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.SinglePointAnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
@@ -13,7 +13,6 @@ import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ScenarioController;
-import com.conveyal.taui.models.Mask;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -121,7 +120,7 @@ public class TransportAnalyst {
         SinglePointAnalysisController.register();
         GridController.register();
         RegionalAnalysisController.register();
-        MaskController.register();
+        AggregationAreaController.register();
 
         // load and serve index.html
 

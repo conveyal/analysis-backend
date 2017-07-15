@@ -10,7 +10,7 @@ import com.conveyal.r5.util.S3Util;
 import com.conveyal.r5.util.ShapefileReader;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
-import com.conveyal.taui.models.Mask;
+import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.conveyal.taui.util.WrappedURL;
@@ -19,10 +19,8 @@ import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.operation.union.UnaryUnionOp;
 import gnu.trove.map.TObjectDoubleMap;
-import gnu.trove.map.TObjectIntMap;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
-import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.slf4j.Logger;
@@ -37,14 +35,11 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
@@ -53,16 +48,16 @@ import static spark.Spark.halt;
 import static spark.Spark.post;
 
 /**
- * Stores vector masks (used to define the region of a weighted average accessibility metric).
+ * Stores vector aggregationAreas (used to define the region of a weighted average accessibility metric).
  */
-public class MaskController {
-    private static final Logger LOG = LoggerFactory.getLogger(MaskController.class);
+public class AggregationAreaController {
+    private static final Logger LOG = LoggerFactory.getLogger(AggregationAreaController.class);
 
     private static final AmazonS3 s3 = new AmazonS3Client();
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
-    public static Mask createMask (Request req, Response res) throws Exception {
+    public static AggregationArea createAggregationArea (Request req, Response res) throws Exception {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
 
@@ -121,10 +116,10 @@ public class MaskController {
         metadata.setContentEncoding("gzip");
         metadata.setContentType("application/octet-stream");
 
-        Mask mask = new Mask();
-        mask.name = maskName;
-        mask.id = UUID.randomUUID().toString();
-        mask.projectId = projectId;
+        AggregationArea aggregationArea = new AggregationArea();
+        aggregationArea.name = maskName;
+        aggregationArea.id = UUID.randomUUID().toString();
+        aggregationArea.projectId = projectId;
 
         File gridFile = new File(tempDir, "weights.grid");
         OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
@@ -133,17 +128,17 @@ public class MaskController {
 
         InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
         // can't use putObject with File when we have metadata . . .
-        S3Util.s3.putObject(AnalystConfig.gridBucket, mask.getS3Key(), is, metadata);
+        S3Util.s3.putObject(AnalystConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
         is.close();
 
-        Persistence.masks.put(mask.id, mask);
+        Persistence.aggregationAreas.put(aggregationArea.id, aggregationArea);
 
         tempDir.delete();
 
-        return mask;
+        return aggregationArea;
     }
 
-    public static Object getMask (Request req, Response res) {
+    public static Object getAggregationArea (Request req, Response res) {
         String maskId = req.params("maskId");
         String projectId = req.params("projectId");
         boolean redirect = true;
@@ -155,11 +150,11 @@ public class MaskController {
             // do nothing
         }
 
-        Mask mask = Persistence.masks.get(maskId);
+        AggregationArea aggregationArea = Persistence.aggregationAreas.get(maskId);
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + 60 * 1000);
-        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(AnalystConfig.gridBucket, mask.getS3Key(), HttpMethod.GET);
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(AnalystConfig.gridBucket, aggregationArea.getS3Key(), HttpMethod.GET);
         request.setExpiration(expiration);
 
         URL url = s3.generatePresignedUrl(request);
@@ -175,7 +170,7 @@ public class MaskController {
     }
 
     public static void register () {
-        get("/api/project/:projectId/mask/:maskId", MaskController::getMask, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/project/:projectId/mask", MaskController::createMask, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/project/:projectId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/project/:projectId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
     }
 }

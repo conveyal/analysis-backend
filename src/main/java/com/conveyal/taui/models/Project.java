@@ -95,8 +95,8 @@ public class Project extends Model implements Cloneable {
     }
 
     @JsonView(JsonViews.Api.class)
-    public Collection<Mask> getMasks () {
-        return Persistence.masks.getByProperty("projectId", id);
+    public Collection<AggregationArea> getAggregationAreas () {
+        return Persistence.aggregationAreas.getByProperty("projectId", id);
     }
 
     public List<Indicator> indicators = new ArrayList<>();
