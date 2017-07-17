@@ -25,6 +25,9 @@ public abstract class JsonUtil {
 
         if (configureMongoJack) MongoJackModule.configure(objectMapper);
 
+        // We removed a bunch of fields from ProfileRequests which are persisted to the DB
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
         objectMapper.setConfig(objectMapper.getSerializationConfig().withView(view));
         return objectMapper;
     }

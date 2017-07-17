@@ -7,11 +7,12 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.conveyal.r5.analyst.broker.JobStatus;
-import com.conveyal.r5.analyst.cluster.GridRequest;
+import com.conveyal.r5.analyst.cluster.AnalysisRequest;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
-import com.conveyal.r5.analyst.cluster.GridResultConsumer;
+import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
@@ -49,7 +50,7 @@ public class RegionalAnalysisManager {
 
     public static Map<String, JobStatus> statusByJob;
 
-    public static final GridResultConsumer consumer;
+    public static final GridResultQueueConsumer consumer;
     public static final String resultsQueueUrl;
 
     public static final String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
@@ -59,7 +60,7 @@ public class RegionalAnalysisManager {
         AmazonSQS sqs = new AmazonSQSClient();
         sqs.setRegion(Region.getRegion(Regions.fromName(AnalystConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalystConfig.resultsQueue).getQueueUrl();
-        consumer = new GridResultConsumer(resultsQueueUrl, AnalystConfig.resultsBucket);
+        consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalystConfig.resultsBucket);
 
         new Thread(consumer, "queue-consumer").start();
     }
@@ -89,11 +90,11 @@ public class RegionalAnalysisManager {
             Project project = Persistence.projects.get(bundle.projectId);
 
             // now that that's done, make the requests to the broker
-            List<GridRequest> requests = new ArrayList<>();
+            List<AnalysisRequest> requests = new ArrayList<>();
 
             for (int x = 0; x < regionalAnalysis.width; x++) {
                 for (int y = 0; y < regionalAnalysis.height; y++) {
-                    GridRequest req = new GridRequest();
+                    AnalysisRequest req = regionalAnalysis.request.clone();
                     req.jobId = regionalAnalysis.id;
                     req.graphId = regionalAnalysis.bundleId;
                     req.workerVersion = regionalAnalysis.workerVersion;
@@ -103,17 +104,18 @@ public class RegionalAnalysisManager {
                     req.west = regionalAnalysis.west;
                     req.zoom = regionalAnalysis.zoom;
                     req.outputQueue = resultsQueueUrl;
-                    req.cutoffMinutes = regionalAnalysis.cutoffMinutes;
-                    req.request = request;
-                    req.travelTimePercentile = regionalAnalysis.travelTimePercentile;
+                    req.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
+                    req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
                     req.x = x;
                     req.y = y;
                     req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
+                    req.type = AnalysisRequest.Type.REGIONAL_ANALYSIS;
                     requests.add(req);
                 }
             }
 
-            consumer.registerJob(requests.get(0));
+            AnalysisRequest exemplar = requests.get(0);
+            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
 
             try {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -169,6 +171,25 @@ public class RegionalAnalysisManager {
         public RegionalAnalysisStatus (GridResultAssembler assembler) {
             total = assembler.nTotal;
             complete = assembler.nComplete;
+        }
+    }
+
+    /** A GridResultAssembler that tiles the results once they are complete */
+    public static class TilingGridResultAssembler extends GridResultAssembler {
+        public TilingGridResultAssembler(AnalysisRequest request, String outputBucket) {
+            super(request, outputBucket);
+        }
+
+        @Override
+        protected synchronized void finish () {
+            super.finish();
+            // build the tiles (used to display sampling distributions in the client)
+            // Note that the job will be marked as complete even before the tiles are built, but this is okay;
+            // the tiles are not needed to display the regional analysis, only to display sampling distributions from it
+            // the user can view the results immediately, and the sampling distribution loading will block until the tiles
+            // are built thanks to the use of a Guava loadingCache below (which will only build the value for a particular key
+            // once)
+            TiledAccessGrid.get(outputBucket, String.format("%s.access", request.jobId));
         }
     }
 }
