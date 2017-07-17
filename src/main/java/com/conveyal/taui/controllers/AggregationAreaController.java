@@ -106,7 +106,7 @@ public class AggregationAreaController {
         Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
 
         // Store the percentage each cell overlaps the mask, scaled as 0 to 100,000
-        TObjectDoubleMap<int[]> weights = maskGrid.getPixelWeights(merged, true);
+        TObjectDoubleMap<int[]> weights = maskGrid.getPixelWeights(merged);
         weights.forEachEntry((pixel, weight) -> {
             maskGrid.grid[pixel[0]][pixel[1]] = weight * 100_000;
             return true;
