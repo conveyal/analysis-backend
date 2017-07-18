@@ -1,7 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.amazonaws.partitions.model.Region;
-import com.conveyal.r5.analyst.cluster.AnalysisRequest;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.common.SphericalDistanceLibrary;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
@@ -21,7 +21,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
     public int height;
     public int north;
     public int west;
-    public AnalysisRequest request;
+    public RegionalTask request;
     public boolean complete;
     public String name;
     public String workerVersion;

@@ -7,9 +7,10 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.conveyal.r5.analyst.broker.JobStatus;
-import com.conveyal.r5.analyst.cluster.AnalysisRequest;
+import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.util.HttpUtil;
@@ -89,11 +90,11 @@ public class RegionalAnalysisManager {
             Project project = Persistence.projects.get(bundle.projectId);
 
             // now that that's done, make the requests to the broker
-            List<AnalysisRequest> requests = new ArrayList<>();
+            List<AnalysisTask> requests = new ArrayList<>();
 
             for (int x = 0; x < regionalAnalysis.width; x++) {
                 for (int y = 0; y < regionalAnalysis.height; y++) {
-                    AnalysisRequest req = regionalAnalysis.request.clone();
+                    RegionalTask req = regionalAnalysis.request.clone();
                     req.jobId = regionalAnalysis.id;
                     req.graphId = regionalAnalysis.bundleId;
                     req.workerVersion = regionalAnalysis.workerVersion;
@@ -108,7 +109,6 @@ public class RegionalAnalysisManager {
                     req.x = x;
                     req.y = y;
                     req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
-                    req.type = AnalysisRequest.Type.REGIONAL_ANALYSIS;
                     requests.add(req);
                 }
             }
