@@ -114,7 +114,7 @@ public class RegionalAnalysisManager {
                 }
             }
 
-            AnalysisRequest exemplar = requests.get(0);
+            AnalysisTask exemplar = requests.get(0);
             consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
 
             try {
@@ -176,7 +176,7 @@ public class RegionalAnalysisManager {
 
     /** A GridResultAssembler that tiles the results once they are complete */
     public static class TilingGridResultAssembler extends GridResultAssembler {
-        public TilingGridResultAssembler(AnalysisRequest request, String outputBucket) {
+        public TilingGridResultAssembler(AnalysisTask request, String outputBucket) {
             super(request, outputBucket);
         }
 
