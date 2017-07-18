@@ -13,6 +13,7 @@ import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bundle;
@@ -113,7 +114,8 @@ public class RegionalAnalysisManager {
                 }
             }
 
-            consumer.registerJob(requests.get(0));
+            AnalysisRequest exemplar = requests.get(0);
+            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
 
             try {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -169,6 +171,25 @@ public class RegionalAnalysisManager {
         public RegionalAnalysisStatus (GridResultAssembler assembler) {
             total = assembler.nTotal;
             complete = assembler.nComplete;
+        }
+    }
+
+    /** A GridResultAssembler that tiles the results once they are complete */
+    public static class TilingGridResultAssembler extends GridResultAssembler {
+        public TilingGridResultAssembler(AnalysisRequest request, String outputBucket) {
+            super(request, outputBucket);
+        }
+
+        @Override
+        protected synchronized void finish () {
+            super.finish();
+            // build the tiles (used to display sampling distributions in the client)
+            // Note that the job will be marked as complete even before the tiles are built, but this is okay;
+            // the tiles are not needed to display the regional analysis, only to display sampling distributions from it
+            // the user can view the results immediately, and the sampling distribution loading will block until the tiles
+            // are built thanks to the use of a Guava loadingCache below (which will only build the value for a particular key
+            // once)
+            TiledAccessGrid.get(outputBucket, String.format("%s.access", request.jobId));
         }
     }
 }
