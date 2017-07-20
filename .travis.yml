@@ -5,7 +5,7 @@ jdk:
 
  # r5 from branch
 before_install:
-  - git clone -b merge-request-types --depth 200 https://github.com/conveyal/r5.git
+  - git clone -b remove-cruft --depth 200 https://github.com/conveyal/r5.git
   - cd r5
   # can't just call mvn install because it will try to sign the jar
   - mvn package install:install -DskipTests
