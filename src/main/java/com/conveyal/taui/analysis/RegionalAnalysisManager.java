@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
@@ -104,6 +105,8 @@ public class RegionalAnalysisManager {
                     req.north = regionalAnalysis.north;
                     req.west = regionalAnalysis.west;
                     req.zoom = regionalAnalysis.zoom;
+                    req.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
+                    req.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
                     req.outputQueue = resultsQueueUrl;
                     req.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
                     req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
