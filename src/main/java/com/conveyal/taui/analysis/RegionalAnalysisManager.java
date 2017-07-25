@@ -19,6 +19,7 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.google.common.collect.Lists;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
@@ -51,6 +52,7 @@ public class RegionalAnalysisManager {
 
     public static final GridResultConsumer consumer;
     public static final String resultsQueueUrl;
+    private static final int REQUEST_CHUNK_SIZE = 1000;
 
     public static final String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
 
@@ -116,19 +118,22 @@ public class RegionalAnalysisManager {
             consumer.registerJob(requests.get(0));
 
             try {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                JsonUtil.objectMapper.writeValue(baos, requests);
+                // cluster requests to broker so that we don't risk running out of memory for regional analyses
+                // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
+                for (List<GridRequest> list : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    JsonUtil.objectMapper.writeValue(baos, list);
 
-                // TODO cluster?
-                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
-                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-                CloseableHttpResponse res = null;
+                    HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                    post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+                    CloseableHttpResponse res = null;
 
-                try {
-                    res = HttpUtil.httpClient.execute(post);
-                    EntityUtils.consume(res.getEntity());
-                } finally {
-                    if (res != null) res.close();
+                    try {
+                        res = HttpUtil.httpClient.execute(post);
+                        EntityUtils.consume(res.getEntity());
+                    } finally {
+                        if (res != null) res.close();
+                    }
                 }
 
             } catch (IOException e) {
