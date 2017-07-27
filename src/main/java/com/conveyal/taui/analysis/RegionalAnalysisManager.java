@@ -120,9 +120,10 @@ public class RegionalAnalysisManager {
             try {
                 // cluster requests to broker so that we don't risk running out of memory for regional analyses
                 // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
-                for (List<GridRequest> list : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
+                LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
+                for (List<GridRequest> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    JsonUtil.objectMapper.writeValue(baos, list);
+                    JsonUtil.objectMapper.writeValue(baos, chunkOfTasks);
 
                     HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
                     post.setEntity(new ByteArrayEntity(baos.toByteArray()));
@@ -130,6 +131,7 @@ public class RegionalAnalysisManager {
 
                     try {
                         res = HttpUtil.httpClient.execute(post);
+                        LOG.info("Enqueuing {} tasks to broker. Response status: {}", chunkOfTasks.size(), res.getStatusLine().getStatusCode());
                         EntityUtils.consume(res.getEntity());
                     } finally {
                         if (res != null) res.close();
