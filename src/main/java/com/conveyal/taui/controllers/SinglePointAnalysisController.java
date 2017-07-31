@@ -48,7 +48,9 @@ public class SinglePointAnalysisController {
                 brokerRes = HttpUtil.httpClient.execute(get);
             } else if ("POST".equals(method)) {
                 HttpPost post = new HttpPost(brokerUrl + "/" + path);
-                // TODO repeat content-type of request being proxied rather than forcing it to JSON
+                // We're ignoring the content type of the incoming request and forcing it to JSON
+                // which should be fine since the broker's single point endpoint always expects POST bodies to be JSON.
+                // We do need to force the encoding to utf-8 here otherwise multi-byte characters get corrupted.
                 post.setEntity(new StringEntity(req.body(), ContentType.create("application/json", "utf-8")));
                 brokerRes = HttpUtil.httpClient.execute(post);
             } else if ("DELETE".equals(method)) {
@@ -67,11 +69,11 @@ public class SinglePointAnalysisController {
                 LOG.info("Returning {} bytes to scenario editor frontend", l);
                 is.close();
                 EntityUtils.consume(brokerRes.getEntity());
-            } catch (IOException e) {
+            } catch (Exception e) {
                 reportException(res, e);
             }
             return baos.toByteArray();
-        } catch (IOException e) {
+        } catch (Exception e) {
             reportException(res, e);
         } finally {
             if (brokerRes != null) brokerRes.close();
