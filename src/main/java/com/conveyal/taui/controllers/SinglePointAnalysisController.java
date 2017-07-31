@@ -1,13 +1,18 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.error.TaskError;
+import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
+import com.sun.tools.javac.util.List;
+import org.apache.http.ExceptionLogger;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.HttpHostConnectException;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
@@ -20,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
+import java.nio.charset.Charset;
 
 import static spark.Spark.*;
 
@@ -45,46 +51,43 @@ public class SinglePointAnalysisController {
                 brokerRes = HttpUtil.httpClient.execute(get);
             } else if ("POST".equals(method)) {
                 HttpPost post = new HttpPost(brokerUrl + "/" + path);
-                post.setEntity(new StringEntity(req.body()));
+                post.setEntity(new StringEntity(req.body(), ContentType.create(req.contentType(), "UTF-8")));
                 brokerRes = HttpUtil.httpClient.execute(post);
             } else if ("DELETE".equals(method)) {
                 HttpDelete delete = new HttpDelete(brokerUrl + "/" + path);
                 brokerRes = HttpUtil.httpClient.execute(delete);
             } else {
-                halt(400, "Unsupported method for broker request");
-                return null;
+                throw new RuntimeException("Unsupported HTTP method on request, not proxying to the broker.");
             }
-
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
+            // TODO set encoding?
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
-
             try {
                 long l = ByteStreams.copy(is, baos);
                 LOG.info("Returning {} bytes to scenario editor frontend", l);
                 is.close();
                 EntityUtils.consume(brokerRes.getEntity());
             } catch (IOException e) {
-                LOG.error("Error proxying broker", e);
+                reportException(res, e);
             }
-
             return baos.toByteArray();
         } catch (IOException e) {
-            LOG.error("analysis error", e.getCause());
-            // TODO is this catch clause still good?
-            if (e.getCause() instanceof SocketTimeoutException) {
-                halt(504, "Timeout contacting broker");
-            } else if (e.getCause() instanceof HttpHostConnectException) {
-                halt(503, "Broker not available");
-            } else {
-                halt(500, "Could not contact broker");
-            }
+            reportException(res, e);
         } finally {
             if (brokerRes != null) brokerRes.close();
         }
-
         return null;
+    }
+
+    public static void reportException (Response response, Exception exception) {
+        LOG.error("Uncaught exception: ", exception.toString());
+        exception.printStackTrace();
+        response.status(500);
+        response.type("text/json");
+        List<TaskError> taskErrors = List.of(new TaskError(exception));
+        response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
     }
 
     public static void register () {
