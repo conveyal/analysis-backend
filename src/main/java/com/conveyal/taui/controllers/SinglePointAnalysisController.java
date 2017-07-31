@@ -5,13 +5,10 @@ import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
-import com.sun.tools.javac.util.List;
-import org.apache.http.ExceptionLogger;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -24,8 +21,8 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.SocketTimeoutException;
-import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
 
 import static spark.Spark.*;
 
@@ -86,7 +83,7 @@ public class SinglePointAnalysisController {
         exception.printStackTrace();
         response.status(500);
         response.type("text/json");
-        List<TaskError> taskErrors = List.of(new TaskError(exception));
+        List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
         response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
     }
 
