@@ -48,7 +48,8 @@ public class SinglePointAnalysisController {
                 brokerRes = HttpUtil.httpClient.execute(get);
             } else if ("POST".equals(method)) {
                 HttpPost post = new HttpPost(brokerUrl + "/" + path);
-                post.setEntity(new StringEntity(req.body(), ContentType.create(req.contentType(), "UTF-8")));
+                // TODO repeat content-type of request being proxied rather than forcing it to JSON
+                post.setEntity(new StringEntity(req.body(), ContentType.create("application/json", "utf-8")));
                 brokerRes = HttpUtil.httpClient.execute(post);
             } else if ("DELETE".equals(method)) {
                 HttpDelete delete = new HttpDelete(brokerUrl + "/" + path);
@@ -82,7 +83,7 @@ public class SinglePointAnalysisController {
         LOG.error("Uncaught exception: ", exception.toString());
         exception.printStackTrace();
         response.status(500);
-        response.type("text/json");
+        response.type("application/json");
         List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
         response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
     }
