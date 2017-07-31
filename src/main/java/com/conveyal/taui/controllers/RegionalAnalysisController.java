@@ -59,8 +59,12 @@ public class RegionalAnalysisController {
 
     public static List<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
         String projectId = req.params("projectId");
+        // exclude deleted regional analyses by default. if these should be included,
+        // request should include query param deleted=true
+        boolean includeDeleted = "true".equals(req.queryParams("deleted"));
         return Persistence.regionalAnalyses.values().stream()
                 .filter(q -> projectId.equals(q.projectId))
+                .filter(q -> includeDeleted || !q.deleted)
                 .collect(Collectors.toList());
     }
 
