@@ -32,7 +32,7 @@ import static spark.Spark.*;
 public class SinglePointAnalysisController {
     public static final Logger LOG = LoggerFactory.getLogger(SinglePointAnalysisController.class);
 
-    public static byte[] analysis (Request req, Response response) throws IOException {
+    public static byte[] analysis (Request req, Response res) throws IOException {
         // we already know the user is authenticated, and we need not check if they have access to the graphs etc,
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
         String path = req.pathInfo().replaceAll("^/api/analysis/", "");
@@ -41,7 +41,7 @@ public class SinglePointAnalysisController {
         String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
 
         CloseableHttpResponse brokerRes = null;
-        InputStream brokerInputStream = null;
+
         try {
             if ("GET".equals(method)) {
                 HttpGet get = new HttpGet(brokerUrl + "/" + path);
@@ -59,29 +59,35 @@ public class SinglePointAnalysisController {
             } else {
                 throw new RuntimeException("Unsupported HTTP method on request, not proxying to the broker.");
             }
-            response.status(brokerRes.getStatusLine().getStatusCode());
-            response.type(brokerRes.getFirstHeader("Content-Type").getValue());
+            res.status(brokerRes.getStatusLine().getStatusCode());
+            res.type(brokerRes.getFirstHeader("Content-Type").getValue());
             // TODO set encoding?
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            brokerInputStream = new BufferedInputStream(brokerRes.getEntity().getContent());
-            long l = ByteStreams.copy(brokerInputStream, baos);
-            LOG.info("Returning {} bytes to scenario editor frontend", l);
-            brokerInputStream.close();
-            EntityUtils.consume(brokerRes.getEntity());
+            InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
+            try {
+                long l = ByteStreams.copy(is, baos);
+                LOG.info("Returning {} bytes to scenario editor frontend", l);
+                is.close();
+                EntityUtils.consume(brokerRes.getEntity());
+            } catch (Exception e) {
+                reportException(res, e);
+            }
             return baos.toByteArray();
-        } catch (Exception exception) {
-            LOG.error("Uncaught exception: ", exception.toString());
-            exception.printStackTrace();
-            response.status(500);
-            response.type("application/json");
-            List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
-            response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
-            // TODO should we just return the byte array here rather than calling body()? Does returning null below override that?
+        } catch (Exception e) {
+            reportException(res, e);
         } finally {
             if (brokerRes != null) brokerRes.close();
-            if (brokerInputStream != null) brokerInputStream.close();
         }
         return null;
+    }
+
+    public static void reportException (Response response, Exception exception) {
+        LOG.error("Uncaught exception: ", exception.toString());
+        exception.printStackTrace();
+        response.status(500);
+        response.type("application/json");
+        List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
+        response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
     }
 
     public static void register () {
