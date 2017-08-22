@@ -15,7 +15,7 @@ in the working directory, or as environment variables.
 - `RESULTS_BUCKET`: S3 bucket to store results in
 - `RESULTS_QUEUE`: SQS queue to use to return results
 
-Alternatively, omit all of that and set `OFFLINE=true` (for the time being you still need a grid bucket and results queue, that does not yet work offline).
+Alternatively, omit all of that and set `OFFLINE=true`. For now, in offline mode you still need an S3 grid bucket and SQS results queue, those parts do not yet work offline. This means that regional jobs will write and read from the specified queue - be careful not to configure any development or staging instance with the same queue names used in production! For that matter, never configure any two instances to use the same queue.
 
 You will need to have S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets in use, including the seamless census data bucket. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment or in application.conf to choose which AWS credentials profile will be used.
 
