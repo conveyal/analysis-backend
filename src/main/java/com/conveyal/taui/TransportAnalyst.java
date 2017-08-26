@@ -4,6 +4,7 @@ import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.taui.analysis.LocalCluster;
+import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.SinglePointAnalysisController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
@@ -119,6 +120,7 @@ public class TransportAnalyst {
         SinglePointAnalysisController.register();
         GridController.register();
         RegionalAnalysisController.register();
+        AggregationAreaController.register();
 
         // load and serve index.html
 

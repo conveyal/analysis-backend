@@ -22,6 +22,7 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.google.common.collect.Lists;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
@@ -54,6 +55,7 @@ public class RegionalAnalysisManager {
 
     public static final GridResultQueueConsumer consumer;
     public static final String resultsQueueUrl;
+    private static final int REQUEST_CHUNK_SIZE = 1000;
 
     public static final String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
 
@@ -121,19 +123,24 @@ public class RegionalAnalysisManager {
             consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
 
             try {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                JsonUtil.objectMapper.writeValue(baos, requests);
+                // cluster requests to broker so that we don't risk running out of memory for regional analyses
+                // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
+                LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
+                for (List<GridRequest> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    JsonUtil.objectMapper.writeValue(baos, chunkOfTasks);
 
-                // TODO cluster?
-                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
-                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-                CloseableHttpResponse res = null;
+                    HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                    post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+                    CloseableHttpResponse res = null;
 
-                try {
-                    res = HttpUtil.httpClient.execute(post);
-                    EntityUtils.consume(res.getEntity());
-                } finally {
-                    if (res != null) res.close();
+                    try {
+                        res = HttpUtil.httpClient.execute(post);
+                        LOG.info("Enqueuing {} tasks to broker. Response status: {}", chunkOfTasks.size(), res.getStatusLine().getStatusCode());
+                        EntityUtils.consume(res.getEntity());
+                    } finally {
+                        if (res != null) res.close();
+                    }
                 }
 
             } catch (IOException e) {

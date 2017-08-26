@@ -4,6 +4,7 @@ import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.models.Bookmark;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.JsonViews;
+import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.models.Project;
@@ -17,7 +18,6 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import org.mongojack.JacksonDBCollection;
-import org.mongojack.internal.MongoJackModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +37,7 @@ public class Persistence {
     public static MongoMap<Project> projects;
     public static MongoMap<RegionalAnalysis> regionalAnalyses;
     public static MongoMap<Bookmark> bookmarks;
+    public static MongoMap<AggregationArea> aggregationAreas;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB");
@@ -60,6 +61,7 @@ public class Persistence {
         projects = getTable("projects", Project.class);
         regionalAnalyses = getTable("regional-analyses", RegionalAnalysis.class);
         bookmarks = getTable("bookmarks", Bookmark.class);
+        aggregationAreas = getTable("aggregationAreas", AggregationArea.class);
     }
 
     /** connect to a table using MongoJack */

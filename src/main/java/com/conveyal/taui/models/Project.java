@@ -94,6 +94,11 @@ public class Project extends Model implements Cloneable {
         return Persistence.bookmarks.getByProperty("projectId", id);
     }
 
+    @JsonView(JsonViews.Api.class)
+    public Collection<AggregationArea> getAggregationAreas () {
+        return Persistence.aggregationAreas.getByProperty("projectId", id);
+    }
+
     public List<Indicator> indicators = new ArrayList<>();
 
     public synchronized void fetchOsm () throws IOException {

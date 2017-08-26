@@ -1,5 +1,7 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.error.TaskError;
+import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
 import com.google.common.io.ByteStreams;
@@ -7,7 +9,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.HttpHostConnectException;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
@@ -19,7 +21,8 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.SocketTimeoutException;
+import java.util.Arrays;
+import java.util.List;
 
 import static spark.Spark.*;
 
@@ -45,46 +48,46 @@ public class SinglePointAnalysisController {
                 brokerRes = HttpUtil.httpClient.execute(get);
             } else if ("POST".equals(method)) {
                 HttpPost post = new HttpPost(brokerUrl + "/" + path);
-                post.setEntity(new StringEntity(req.body()));
+                // We're ignoring the content type of the incoming request and forcing it to JSON
+                // which should be fine since the broker's single point endpoint always expects POST bodies to be JSON.
+                // We do need to force the encoding to utf-8 here otherwise multi-byte characters get corrupted.
+                post.setEntity(new StringEntity(req.body(), ContentType.create("application/json", "utf-8")));
                 brokerRes = HttpUtil.httpClient.execute(post);
             } else if ("DELETE".equals(method)) {
                 HttpDelete delete = new HttpDelete(brokerUrl + "/" + path);
                 brokerRes = HttpUtil.httpClient.execute(delete);
             } else {
-                halt(400, "Unsupported method for broker request");
-                return null;
+                throw new RuntimeException("Unsupported HTTP method on request, not proxying to the broker.");
             }
-
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
+            // TODO set encoding?
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
-
             try {
                 long l = ByteStreams.copy(is, baos);
                 LOG.info("Returning {} bytes to scenario editor frontend", l);
                 is.close();
                 EntityUtils.consume(brokerRes.getEntity());
-            } catch (IOException e) {
-                LOG.error("Error proxying broker", e);
+            } catch (Exception e) {
+                reportException(res, e);
             }
-
             return baos.toByteArray();
-        } catch (IOException e) {
-            LOG.error("analysis error", e.getCause());
-            // TODO is this catch clause still good?
-            if (e.getCause() instanceof SocketTimeoutException) {
-                halt(504, "Timeout contacting broker");
-            } else if (e.getCause() instanceof HttpHostConnectException) {
-                halt(503, "Broker not available");
-            } else {
-                halt(500, "Could not contact broker");
-            }
+        } catch (Exception e) {
+            reportException(res, e);
         } finally {
             if (brokerRes != null) brokerRes.close();
         }
-
         return null;
+    }
+
+    public static void reportException (Response response, Exception exception) {
+        LOG.error("Uncaught exception: ", exception.toString());
+        exception.printStackTrace();
+        response.status(500);
+        response.type("application/json");
+        List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
+        response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
     }
 
     public static void register () {

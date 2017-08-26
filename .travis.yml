@@ -3,13 +3,15 @@ language: java
 jdk:
   - oraclejdk8
 
- # r5 from branch
-before_install:
-  - git clone -b remove-cruft --depth 200 https://github.com/conveyal/r5.git
-  - cd r5
-  # can't just call mvn install because it will try to sign the jar
-  - mvn package install:install -DskipTests
-  - cd ..
+ # FIXME? this should be handled entirely in the maven pom using artifact classifiers (e.g., 2.4.0-SNAPSHOT-pixel-weights)
+ # when analysis-backend needs to build with a non-master branch of r5,
+ # use before_install
+#before_install:
+#  - git clone -b pixel-weights --depth 200 https://github.com/conveyal/r5.git
+#  - cd r5
+#  # can't just call mvn install because it will try to sign the jar
+#  - mvn package install:install -DskipTests
+#  - cd ..
 
 env:
   global:
