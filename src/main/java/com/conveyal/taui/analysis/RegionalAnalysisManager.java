@@ -126,7 +126,7 @@ public class RegionalAnalysisManager {
                 // cluster requests to broker so that we don't risk running out of memory for regional analyses
                 // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
                 LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
-                for (List<GridRequest> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
+                for (List<AnalysisTask> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     JsonUtil.objectMapper.writeValue(baos, chunkOfTasks);
 
