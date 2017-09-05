@@ -119,6 +119,10 @@ public class GridController {
                     LOG.info("Detected grid stored as CSV");
                     grids = createGridsFromCsv(query, status);
                     break;
+                } else if (name.endsWith(".grid")) {
+                    LOG.info("Detected grid stored in Conveyal binary format.");
+                    grids = createGridsFromBinaryGridFiles(query, status);
+                    break;
                 } else if (name.endsWith(".shp")) {
                     LOG.info("Detected grid stored as shapefile");
                     grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
@@ -166,6 +170,22 @@ public class GridController {
         // clean up
         tempFile.delete();
 
+        return grids;
+    }
+
+    /**
+     * Create a grid from an input stream containing a binary grid file.
+     * For those in the know, we can upload manually created binary grid files.
+     */
+    private static Map<String, Grid> createGridsFromBinaryGridFiles (Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
+        Map<String, Grid> grids = new HashMap<>();
+        List<FileItem> uploadedFiles = query.get("files");
+        status.totalFeatures = uploadedFiles.size();
+        for (FileItem fileItem : uploadedFiles) {
+            Grid grid = Grid.read(fileItem.getInputStream());
+            grids.put(fileItem.getName(), grid);
+            status.completedFeatures += 1;
+        }
         return grids;
     }
 
