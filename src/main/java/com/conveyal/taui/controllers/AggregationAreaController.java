@@ -28,13 +28,7 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
@@ -43,8 +37,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.get;
-import static spark.Spark.halt;
 import static spark.Spark.post;
 
 /**
@@ -67,17 +61,19 @@ public class AggregationAreaController {
                 .collect(Collectors.toMap(FileItem::getName, f -> f));
 
         String fileName = filesByName.keySet().stream().filter(f -> f.endsWith(".shp")).findAny().orElse(null);
-        if (fileName == null) halt(400, "Please upload a shapefile");
+        if (fileName == null) {
+            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
+        }
         String baseName = fileName.substring(0, fileName.length() - 4);
-
-        String projectId = req.params("projectId");
-        String maskName = query.get("name").get(0).getString("UTF-8");
 
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            halt(400, "Shapefile upload must contain .shp, .prj, and .dbf");
+            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
         }
+
+        String projectId = req.params("projectId");
+        String maskName = query.get("name").get(0).getString("UTF-8");
 
         File tempDir = Files.createTempDir();
 

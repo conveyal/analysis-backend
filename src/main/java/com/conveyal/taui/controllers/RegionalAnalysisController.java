@@ -13,8 +13,8 @@ import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
-import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.persistence.Persistence;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
 import com.conveyal.taui.util.WrappedURL;
 import org.slf4j.Logger;
@@ -34,12 +34,9 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static java.lang.Boolean.parseBoolean;
-import static java.lang.Integer.parseInt;
-import static spark.Spark.get;
-import static spark.Spark.delete;
-import static spark.Spark.halt;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 /**
  * Created by matthewc on 10/21/16.
@@ -81,25 +78,31 @@ public class RegionalAnalysisController {
         return analysis;
     }
 
+    private static void haltWithIncorrectFormat (String format) {
+        haltWithJson(400, "Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+    }
+
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
         RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
 
-        if (analysis == null) halt(404);
+        if (analysis == null) {
+            haltWithJson(404, "Regional analysis does not exist for " + regionalAnalysisId + ".");
+        }
 
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
         String format = req.params("format").toLowerCase();
+        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
+            haltWithIncorrectFormat(format);
+        }
+
         String percentileGridKey;
 
         String redirectText = req.queryParams("redirect");
         boolean redirect;
         if (redirectText == null || "" .equals(redirectText)) redirect = true;
         else redirect = parseBoolean(redirectText);
-
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            halt(400);
-        }
 
 
         if (analysis.travelTimePercentile == -1) {
@@ -197,7 +200,7 @@ public class RegionalAnalysisController {
 
 
         if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            halt(400);
+            haltWithIncorrectFormat(format);
         }
 
         String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
