@@ -121,6 +121,11 @@ public class BundleController {
                             Persistence.bundles.put(finalBundle.id, finalBundle);
                             return fs;
                         } catch (Exception e) {
+                            // This catches any error while processing a feed with the GTFS Api and needs to be more
+                            // robust in bubbling up the specific errors to the UI. Really, we need to separate out the
+                            // idea of bundles, track uploads of single feeds at a time, and allow the creation of a
+                            // "bundle" at a later point. This updated error handling is a stopgap until we improve that
+                            // flow.
                             finalBundle.status = Bundle.Status.ERROR;
                             finalBundle.errorCode = e.getMessage();
                             Persistence.bundles.put(bundleId, finalBundle);
