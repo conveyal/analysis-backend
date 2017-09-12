@@ -21,7 +21,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
-import static spark.Spark.*;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Created by matthewc on 7/12/16.

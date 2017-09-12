@@ -26,11 +26,17 @@ import spark.Response;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
-import static spark.Spark.*;
+import static spark.Spark.get;
+import static spark.Spark.post;
 
 /**
  * Controller that handles fetching grids.

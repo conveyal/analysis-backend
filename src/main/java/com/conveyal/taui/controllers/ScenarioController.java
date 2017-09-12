@@ -13,7 +13,11 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
-import static spark.Spark.*;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.options;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Controller for scenarios.

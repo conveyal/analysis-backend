@@ -36,7 +36,9 @@ import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static java.lang.Boolean.parseBoolean;
-import static spark.Spark.*;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
 
 /**
  * Created by matthewc on 10/21/16.
