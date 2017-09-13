@@ -5,7 +5,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.GridExtractor;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
@@ -35,8 +34,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.get;
-import static spark.Spark.halt;
 import static spark.Spark.post;
 
 /**
@@ -156,7 +155,7 @@ public class GridController {
 
         if (file.size() != 1) {
             LOG.warn("CSV upload only supports one file at a time");
-            halt(400);
+            haltWithJson(400, "CSV upload only supports one file at a time.");
         }
 
         // create a temp file because we have to loop over it twice
@@ -198,7 +197,7 @@ public class GridController {
         if (!filesByName.containsKey(baseName + ".shp") ||
                     !filesByName.containsKey(baseName + ".prj") ||
                     !filesByName.containsKey(baseName + ".dbf")) {
-            halt(400, "Shapefile upload must contain .shp, .prj, and .dbf");
+            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         File tempDir = Files.createTempDir();

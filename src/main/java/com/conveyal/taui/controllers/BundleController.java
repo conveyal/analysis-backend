@@ -3,19 +3,14 @@ package com.conveyal.taui.controllers;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
-import com.conveyal.gtfs.model.Stop;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalystConfig;
-import com.conveyal.taui.TransportAnalyst;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
-import com.mongodb.util.JSON;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.commons.fileupload.FileItem;
@@ -27,19 +22,22 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
-import static spark.Spark.*;
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Created by matthewc on 3/14/16.
@@ -123,6 +121,14 @@ public class BundleController {
                             Persistence.bundles.put(finalBundle.id, finalBundle);
                             return fs;
                         } catch (Exception e) {
+                            // This catches any error while processing a feed with the GTFS Api and needs to be more
+                            // robust in bubbling up the specific errors to the UI. Really, we need to separate out the
+                            // idea of bundles, track uploads of single feeds at a time, and allow the creation of a
+                            // "bundle" at a later point. This updated error handling is a stopgap until we improve that
+                            // flow.
+                            finalBundle.status = Bundle.Status.ERROR;
+                            finalBundle.errorCode = e.getMessage();
+                            Persistence.bundles.put(bundleId, finalBundle);
                             throw new RuntimeException(e);
                         }
                     })
@@ -177,7 +183,7 @@ public class BundleController {
     public static Bundle deleteBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.get(req.params("id"));
         if (bundle == null) {
-            halt(404, "Bundle does not exist");
+            haltWithJson(404, "The bundle you are trying to delete does not exist.");
         }
 
         Persistence.bundles.remove(bundle.id);
@@ -198,16 +204,19 @@ public class BundleController {
         try {
             bundle = JsonUtilities.objectMapper.readValue(req.body(), Bundle.class);
         } catch (IOException e) {
-            halt(400, "Bad bundle");
+            haltWithJson(400, "Unable to parse Bundle JSON from the client.");
         }
 
         // bundles are mostly immutable, only copy relevant things
         Bundle existing = Persistence.bundles.get(bundle.id);
 
-        if (existing == null) halt(404);
+        if (existing == null) {
+            haltWithJson(404, "The bundle you are trying to edit does not exist.");
+        }
 
         existing = existing.clone();
         existing.name = bundle.name;
+        existing.feeds = bundle.feeds;
 
         Persistence.bundles.put(existing.id, existing);
         return bundle;
@@ -218,7 +227,9 @@ public class BundleController {
 
         Bundle bundle = Persistence.bundles.get(id);
 
-        if (bundle == null) halt(404);
+        if (bundle == null) {
+            haltWithJson(404, "Bundle " + id + " was not found. Have you deleted the bundle that was used for this scenario?");
+        }
         return bundle;
     }
 

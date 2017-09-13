@@ -145,10 +145,12 @@ public class GraphQLController {
 
         return bundle.feeds.stream()
                 .map(summary -> {
-                    FeedSource fs = ApiMain.getFeedSource(summary.bundleScopedFeedId);
+                    String bundleScopedFeedId = summary.bundleScopedFeedId == null
+                        ? String.format("%s_%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
+                    FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
 
                     FeedInfo ret;
-                    if (fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
+                    if (fs != null && fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
                     else {
                         ret = new FeedInfo();
                     }

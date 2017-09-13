@@ -12,16 +12,29 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-import static spark.Spark.*;
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.options;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Controller for scenarios.
  */
 public class ScenarioController {
+    private static Scenario getAndHaltIfMissing (String id) {
+        Scenario scenario = Persistence.scenarios.get(id);
+        if (scenario == null) {
+            haltWithJson(404, "Scenario ID " + id + " does not exist.");
+        }
+        return scenario;
+    }
+
     public static Scenario getScenario (Request req, Response res) {
         String id = req.params("id");
         String group = (String) req.attribute("group");
-        Scenario scenario = Persistence.scenarios.get(id);
+        Scenario scenario = getAndHaltIfMissing(id);
 
         return scenario;
     }
@@ -38,13 +51,13 @@ public class ScenarioController {
         try {
             scenario = JsonUtilities.objectMapper.readValue(req.body(), Scenario.class);
         } catch (IOException e) {
-            halt(400, "Bad scenario");
+            haltWithJson(400, "Unable to parse Scenario JSON sent from the client.");
         }
 
         Scenario existing = Persistence.scenarios.get(scenario.id);
 
         if (existing != null && !scenario.projectId.equals(existing.projectId)) {
-            halt(403);
+            haltWithJson(403, "Cannot change a Scenario's project.");
         }
 
         Persistence.scenarios.put(scenario.id, scenario);
@@ -53,20 +66,11 @@ public class ScenarioController {
     }
 
     public static Collection<Modification> modifications (Request req, Response res) {
-        String id = req.params("id");
-        Scenario scenario = Persistence.scenarios.get(id);
-
-        if (scenario == null) halt(404);
-
-        return Persistence.modifications.getByProperty("scenario", id);
+        return Persistence.modifications.getByProperty("scenario", req.params("id"));
     }
 
     public static Scenario deleteScenario (Request req, Response res) {
-        String id = req.params("id");
-        Scenario scenario = Persistence.scenarios.get(id);
-        if (scenario == null) halt(404);
-
-        return Persistence.scenarios.remove(id);
+        return Persistence.scenarios.remove(req.params("id"));
     }
 
     public static void register () {

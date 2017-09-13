@@ -20,7 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static spark.Spark.*;
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Created by matthewc on 7/12/16.
@@ -33,7 +37,9 @@ public class ProjectController {
     public static Project getProject (Request req, Response res) {
         Project project = Persistence.projects.get(req.params("id"));
 
-        if (project == null) halt(404);
+        if (project == null) {
+            haltWithJson(404, "Project does not exist for ID: " + req.params("id") + ".");
+        }
 
         return project;
     }
@@ -56,7 +62,7 @@ public class ProjectController {
             is.close();
         } catch (Exception e) {
             LOG.error("Could not deserialize project from client", e);
-            halt(400, "Bad project");
+            haltWithJson(400, "Could not deserialize project from client");
         }
 
         project.group = req.attribute("group");
@@ -64,7 +70,7 @@ public class ProjectController {
         Project existing = Persistence.projects.get(project.id);
 
         if (existing != null && !existing.group.equals(project.group)) {
-            halt(401, "Attempt to overwrite existing project belonging to other user");
+            haltWithJson(401, "Attempt to overwrite existing project belonging to other user");
         }
 
         Persistence.projects.put(project.id, project);
@@ -116,7 +122,7 @@ public class ProjectController {
     public static Project deleteProject (Request req, Response res) {
         String id = req.params("id");
         Project project = Persistence.projects.get(id);
-        if (project == null) halt(404);
+        if (project == null) haltWithJson(404, "Project ID: " + id + " does not exist on the server.");
 
         return Persistence.projects.remove(id);
     }
