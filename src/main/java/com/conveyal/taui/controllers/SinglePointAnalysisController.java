@@ -1,9 +1,7 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.r5.analyst.error.TaskError;
-import com.conveyal.r5.common.JsonUtilities;
-import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.util.HttpUtil;
 import com.google.common.io.ByteStreams;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -21,10 +19,11 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.List;
 
-import static spark.Spark.*;
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
 
 /**
  * Handles talking to the broker.
@@ -70,24 +69,21 @@ public class SinglePointAnalysisController {
                 is.close();
                 EntityUtils.consume(brokerRes.getEntity());
             } catch (Exception e) {
-                reportException(res, e);
+                reportException(e);
             }
             return baos.toByteArray();
         } catch (Exception e) {
-            reportException(res, e);
+            reportException(e);
         } finally {
             if (brokerRes != null) brokerRes.close();
         }
         return null;
     }
 
-    public static void reportException (Response response, Exception exception) {
+    private static void reportException (Exception exception) {
         LOG.error("Uncaught exception: ", exception.toString());
         exception.printStackTrace();
-        response.status(500);
-        response.type("application/json");
-        List<TaskError> taskErrors = Arrays.asList(new TaskError(exception));
-        response.body(new String(JsonUtilities.objectToJsonBytes(taskErrors)));
+        haltWithJson(500, exception);
     }
 
     public static void register () {

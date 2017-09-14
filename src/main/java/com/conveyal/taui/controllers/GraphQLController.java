@@ -1,23 +1,28 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
 import com.conveyal.gtfs.api.graphql.fetchers.RouteFetcher;
 import com.conveyal.gtfs.api.graphql.fetchers.StopFetcher;
-import com.conveyal.gtfs.api.graphql.WrappedGTFSEntity;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.util.concurrent.UncheckedExecutionException;
+import graphql.ExceptionWhileDataFetching;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLError;
+import graphql.execution.ExecutionContext;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLList;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
@@ -26,22 +31,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.conveyal.gtfs.api.util.GraphQLUtil.multiStringArg;
-import static com.conveyal.gtfs.api.util.GraphQLUtil.string;
-import static com.conveyal.gtfs.api.util.GraphQLUtil.doublee;
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.routeType;
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stopType;
-
+import static com.conveyal.gtfs.api.util.GraphQLUtil.doublee;
+import static com.conveyal.gtfs.api.util.GraphQLUtil.multiStringArg;
+import static com.conveyal.gtfs.api.util.GraphQLUtil.string;
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static graphql.Scalars.GraphQLLong;
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLObjectType.newObject;
-import static graphql.Scalars.GraphQLLong;
 import static spark.Spark.get;
 
 /**
  * GraphQL interface to scenario editing tools. For now it just wraps the GTFS API graphql response with a bundle object.
  */
 public class GraphQLController {
+    private static final Logger LOG = LoggerFactory.getLogger(GraphQLController.class);
+
     public static Object handleQuery (Request req, Response res) throws IOException {
         res.type("application/json");
 
@@ -49,16 +56,28 @@ public class GraphQLController {
         });
 
         QueryContext context = new QueryContext();
-        context.group = (String) req.attribute("group");
+        context.group = req.attribute("group");
 
-        ExecutionResult er = new GraphQL(schema).execute(req.queryParams("query"), null, context, variables);
+        ExecutionResult er = graphql.execute(req.queryParams("query"), null, context, variables);
         List<GraphQLError> errs = er.getErrors();
         if (!errs.isEmpty()) {
-            res.status(400);
-            return errs;
-        } else {
-            return er.getData();
+            errs.forEach((err) -> {
+                LOG.error("Uncaught exception: ", err.toString());
+            });
+            haltWithJson(400, errs.toString());
         }
+
+        errs = context.getErrors();
+        if (!errs.isEmpty()) {
+            errs.forEach((err) -> {
+                Exception e = ((ExceptionWhileDataFetching) err).getException();
+                e.printStackTrace();
+                LOG.error("Uncaught exception: ", e);
+            });
+            haltWithJson(400, ((ExceptionWhileDataFetching) errs.get(0)).getException());
+        }
+
+        return er.getData();
     }
 
     /** Special feed type that also includes checksum */
@@ -131,6 +150,7 @@ public class GraphQLController {
             .build();
 
     public static GraphQLSchema schema = GraphQLSchema.newSchema().query(bundleQuery).build();
+    private static GraphQL graphql = new GraphQL(schema);
 
     private static List<Bundle> fetchBundle(DataFetchingEnvironment environment) {
         List<String> id = environment.getArgument("bundle_id");
@@ -142,25 +162,35 @@ public class GraphQLController {
 
     private static List<WrappedGTFSEntity<FeedInfo>> fetchFeeds(DataFetchingEnvironment environment) {
         Bundle bundle = (Bundle) environment.getSource();
-
+        ExecutionContext context = (ExecutionContext) environment.getContext();
         return bundle.feeds.stream()
                 .map(summary -> {
                     String bundleScopedFeedId = summary.bundleScopedFeedId == null
-                        ? String.format("%s_%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
-                    FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
+                            ? String.format("%s-%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
 
-                    FeedInfo ret;
-                    if (fs != null && fs.feed.feedInfo.size() > 0) ret = fs.feed.feedInfo.values().iterator().next();
-                    else {
-                        ret = new FeedInfo();
+                    try {
+                        FeedSource fs = ApiMain.feedSources.get(bundleScopedFeedId);
+                        FeedInfo ret;
+                        if (fs != null && fs.feed.feedInfo.size() > 0)
+                            ret = fs.feed.feedInfo.values().iterator().next();
+                        else {
+                            ret = new FeedInfo();
+                        }
+
+                        if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
+                            ret = ret.clone();
+                            ret.feed_id = fs.feed.feedId;
+                        }
+
+                        return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
+                    } catch (UncheckedExecutionException nsee) {
+                        Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
+                        context.addError(new ExceptionWhileDataFetching(e));
+                        return null;
+                    } catch (Exception e) {
+                        context.addError(new ExceptionWhileDataFetching(e));
+                        return null;
                     }
-
-                    if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
-                        ret = ret.clone();
-                        ret.feed_id = fs.feed.feedId;
-                    }
-
-                    return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
                 })
                 .collect(Collectors.toList());
     }
@@ -170,7 +200,7 @@ public class GraphQLController {
     }
 
     /** Context for a graphql query. Currently contains auth info */
-    public static class QueryContext {
+    public static class QueryContext extends ExecutionContext {
         public String group;
     }
 }
