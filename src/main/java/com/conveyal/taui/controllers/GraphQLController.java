@@ -62,7 +62,7 @@ public class GraphQLController {
         List<GraphQLError> errs = er.getErrors();
         if (!errs.isEmpty()) {
             errs.forEach((err) -> {
-                LOG.error("Uncaught exception: ", err.toString());
+                LOG.error("Uncaught error: ", err.toString());
             });
             haltWithJson(400, errs.toString());
         }
@@ -169,7 +169,7 @@ public class GraphQLController {
                             ? String.format("%s-%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
 
                     try {
-                        FeedSource fs = ApiMain.feedSources.get(bundleScopedFeedId);
+                        FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
                         FeedInfo ret;
                         if (fs != null && fs.feed.feedInfo.size() > 0)
                             ret = fs.feed.feedInfo.values().iterator().next();

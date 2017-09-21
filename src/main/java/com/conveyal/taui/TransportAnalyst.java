@@ -1,8 +1,8 @@
 package com.conveyal.taui;
 
 import com.auth0.jwt.JWTVerifier;
-import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
+import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
@@ -50,8 +50,17 @@ public class TransportAnalyst {
         LOG.info("Initializing GTFS cache");
         File cacheDir = new File(AnalystConfig.localCache);
         cacheDir.mkdirs();
-        GTFSCache gtfsCache = new GTFSCache(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, new File(AnalystConfig.localCache));
-        ApiMain.initialize(gtfsCache);
+
+        if (AnalystConfig.offline) {
+          FeedSourceCache cache = ApiMain.initialize(null, AnalystConfig.localCache);
+
+          LOG.info("Starting local cluster");
+          // TODO port is hardwired here and also in SinglePointAnalysisController
+          // You have to make the worker machineId non-static if you want to launch more than one worker.
+          new LocalCluster(6001, cache, OSMPersistence.cache, 1);
+        } else {
+          ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
+        }
 
         LOG.info("Starting server");
         port(AnalystConfig.port);
@@ -59,9 +68,6 @@ public class TransportAnalyst {
         // initialize ImageIO
         // http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
-
-        // serve up index.html which pulls client code from S3
-
 
         // check if a user is authenticated
         before((req, res) -> {
@@ -133,14 +139,6 @@ public class TransportAnalyst {
         indexStream.close();
 
         get("/*", (req, res) -> { res.type("text/html"); return index; });
-
-        if (AnalystConfig.offline) {
-            LOG.info("Starting local cluster");
-            // TODO port is hardwired here and also in SinglePointAnalysisController
-            // You have to make the worker machineId non-static if you want to launch more than one worker.
-            new LocalCluster(6001, gtfsCache, OSMPersistence.cache, 1);
-        }
-
         LOG.info("Transport Analyst is ready");
     }
 }
