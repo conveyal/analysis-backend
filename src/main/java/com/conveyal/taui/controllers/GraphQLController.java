@@ -166,7 +166,7 @@ public class GraphQLController {
         return bundle.feeds.stream()
                 .map(summary -> {
                     String bundleScopedFeedId = summary.bundleScopedFeedId == null
-                            ? String.format("%s-%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
+                            ? String.format("%s_%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
 
                     try {
                         FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
