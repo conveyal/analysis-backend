@@ -5,7 +5,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.grids.GridExtractor;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
@@ -35,8 +34,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.get;
-import static spark.Spark.halt;
 import static spark.Spark.post;
 
 /**
@@ -119,6 +118,10 @@ public class GridController {
                     LOG.info("Detected grid stored as CSV");
                     grids = createGridsFromCsv(query, status);
                     break;
+                } else if (name.endsWith(".grid")) {
+                    LOG.info("Detected grid stored in Conveyal binary format.");
+                    grids = createGridsFromBinaryGridFiles(query, status);
+                    break;
                 } else if (name.endsWith(".shp")) {
                     LOG.info("Detected grid stored as shapefile");
                     grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
@@ -152,7 +155,7 @@ public class GridController {
 
         if (file.size() != 1) {
             LOG.warn("CSV upload only supports one file at a time");
-            halt(400);
+            haltWithJson(400, "CSV upload only supports one file at a time.");
         }
 
         // create a temp file because we have to loop over it twice
@@ -169,6 +172,22 @@ public class GridController {
         return grids;
     }
 
+    /**
+     * Create a grid from an input stream containing a binary grid file.
+     * For those in the know, we can upload manually created binary grid files.
+     */
+    private static Map<String, Grid> createGridsFromBinaryGridFiles (Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
+        Map<String, Grid> grids = new HashMap<>();
+        List<FileItem> uploadedFiles = query.get("files");
+        status.totalFeatures = uploadedFiles.size();
+        for (FileItem fileItem : uploadedFiles) {
+            Grid grid = Grid.read(fileItem.getInputStream());
+            grids.put(fileItem.getName(), grid);
+            status.completedFeatures += 1;
+        }
+        return grids;
+    }
+
     private static Map<String, Grid> createGridsFromShapefile (Map<String, List<FileItem>> query, String baseName, GridUploadStatus status) throws Exception {
         // extract relevant files: .shp, .prj, .dbf, and .shx.
         // We need the SHX even though we're looping over every feature as they might be sparse.
@@ -178,7 +197,7 @@ public class GridController {
         if (!filesByName.containsKey(baseName + ".shp") ||
                     !filesByName.containsKey(baseName + ".prj") ||
                     !filesByName.containsKey(baseName + ".dbf")) {
-            halt(400, "Shapefile upload must contain .shp, .prj, and .dbf");
+            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         File tempDir = Files.createTempDir();

@@ -25,8 +25,8 @@ after_success:
   # Upload a shaded jar to S3
   - pip install --user awscli && export PATH=$PATH:~/.local/bin/
   # TODO once we have tags use git describe
-  - if [[ "$TRAVIS_PULL_REQUEST" = false ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
-  - if [[ "$TRAVIS_PULL_REQUEST" = false ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-latest.jar; fi
+  - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
+  - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-latest.jar; fi
 
 cache:
   directories:

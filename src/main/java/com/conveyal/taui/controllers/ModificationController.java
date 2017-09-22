@@ -5,21 +5,19 @@ import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.models.Scenario;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.fasterxml.jackson.core.JsonParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
-import java.util.Collection;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.delete;
-import static spark.Spark.halt;
 import static spark.Spark.get;
+import static spark.Spark.options;
 import static spark.Spark.post;
 import static spark.Spark.put;
-import static spark.Spark.options;
 
 /**
  * Controller for persisting modifications.
@@ -38,7 +36,7 @@ public class ModificationController {
             mod = JsonUtilities.objectMapper.readValue(req.body(), Modification.class);
         } catch (IOException e) {
             LOG.info("Error parsing modification JSON from client", e);
-            halt(400, "Bad modification");
+            haltWithJson(400, "Error parsing modification JSON from client");
         }
 
         Persistence.modifications.put(mod.id, mod);
@@ -48,7 +46,9 @@ public class ModificationController {
 
     public static Modification deleteModification (Request req, Response res) {
         Modification m = Persistence.modifications.get(req.params("id"));
-        if (m == null) halt(404);
+        if (m == null) {
+            haltWithJson(404, "Unable to delete modification. Modification does not exist.");
+        }
 
         Scenario s = Persistence.scenarios.get(m.scenario);
 

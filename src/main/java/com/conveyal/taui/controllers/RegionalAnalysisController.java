@@ -5,18 +5,16 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.conveyal.r5.analyst.BootstrapPercentileHypothesisTestGridStatisticComputer;
-import com.conveyal.r5.analyst.DualGridStatisticComputer;
-import com.conveyal.r5.analyst.ExtractingGridStatisticComputer;
+import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.ImprovementProbabilityGridStatisticComputer;
-import com.conveyal.r5.analyst.scenario.AndrewOwenMeanGridStatisticComputer;
+import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.taui.AnalystConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
+import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
 import com.conveyal.taui.util.WrappedURL;
 import org.slf4j.Logger;
@@ -36,11 +34,10 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
+import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static java.lang.Boolean.parseBoolean;
-import static java.lang.Integer.parseInt;
-import static spark.Spark.get;
 import static spark.Spark.delete;
-import static spark.Spark.halt;
+import static spark.Spark.get;
 import static spark.Spark.post;
 
 /**
@@ -83,25 +80,31 @@ public class RegionalAnalysisController {
         return analysis;
     }
 
+    private static void haltWithIncorrectFormat (String format) {
+        haltWithJson(400, "Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+    }
+
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
         RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
 
-        if (analysis == null) halt(404);
+        if (analysis == null) {
+            haltWithJson(404, "Regional analysis does not exist for " + regionalAnalysisId + ".");
+        }
 
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
         String format = req.params("format").toLowerCase();
+        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
+            haltWithIncorrectFormat(format);
+        }
+
         String percentileGridKey;
 
         String redirectText = req.queryParams("redirect");
         boolean redirect;
         if (redirectText == null || "" .equals(redirectText)) redirect = true;
         else redirect = parseBoolean(redirectText);
-
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            halt(400);
-        }
 
 
         if (analysis.travelTimePercentile == -1) {
@@ -125,16 +128,15 @@ public class RegionalAnalysisController {
                 // Andrew Owen style average instantaneous accessibility
                 // The samples stored in the access grid are samples of instantaneous accessibility at different minutes
                 // and Monte Carlo draws, average them together
-                LOG.info("Mean for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new AndrewOwenMeanGridStatisticComputer().compute(AnalystConfig.resultsBucket, accessGridKey);
+                throw new IllegalArgumentException("Old-style instantaneous-accessibility regional analyses are no longer supported");
             } else {
                 // This is accessibility given x percentile travel time, the first sample is the point estimate
                 // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
                 // point estimate in the grids.
                 LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new ExtractingGridStatisticComputer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
+                grid = new SelectingGridReducer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
             }
-            LOG.info("Building grid took {}s", (computeStart - System.currentTimeMillis()) / 1000d);
+            LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -200,7 +202,7 @@ public class RegionalAnalysisController {
 
 
         if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            halt(400);
+            haltWithIncorrectFormat(format);
         }
 
         String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
@@ -216,9 +218,7 @@ public class RegionalAnalysisController {
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
-            DualGridStatisticComputer computer = analysis.travelTimePercentile == -1 ?
-                    new ImprovementProbabilityGridStatisticComputer() :
-                    new BootstrapPercentileHypothesisTestGridStatisticComputer();
+            BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
             Grid grid = computer.computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
 
@@ -272,6 +272,16 @@ public class RegionalAnalysisController {
         }
     }
 
+    public static int[] getSamplingDistribution (Request req, Response res) {
+        String regionalAnalysisId = req.params("regionalAnalysisId");
+        double lat = Double.parseDouble(req.params("lat"));
+        double lon = Double.parseDouble(req.params("lon"));
+
+        return TiledAccessGrid
+                .get(AnalystConfig.resultsBucket,  String.format("%s.access", regionalAnalysisId))
+                .getLatLon(lat, lon);
+    }
+
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
         RegionalAnalysis regionalAnalysis = JsonUtil.objectMapper.readValue(req.body(), RegionalAnalysis.class);
 
@@ -302,6 +312,7 @@ public class RegionalAnalysisController {
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:regionalAnalysisId/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:regionalAnalysisId/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
