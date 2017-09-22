@@ -165,9 +165,7 @@ public class GraphQLController {
         ExecutionContext context = (ExecutionContext) environment.getContext();
         return bundle.feeds.stream()
                 .map(summary -> {
-                    String bundleScopedFeedId = summary.bundleScopedFeedId == null
-                            ? String.format("%s_%s", summary.feedId, bundle.id) : summary.bundleScopedFeedId;
-
+                    String bundleScopedFeedId = String.format("%s_%s", summary.feedId, bundle.id); // : summary.bundleScopedFeedId;
                     try {
                         FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
                         FeedInfo ret;
