@@ -8,7 +8,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
@@ -120,7 +120,7 @@ public class RegionalAnalysisController {
 
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
 
-        if (!s3.doesObjectExist(AnalystConfig.resultsBucket, percentileGridKey)) {
+        if (!s3.doesObjectExist(AnalysisServerConfig.resultsBucket, percentileGridKey)) {
             // make the grid
             Grid grid;
             long computeStart = System.currentTimeMillis();
@@ -134,7 +134,7 @@ public class RegionalAnalysisController {
                 // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
                 // point estimate in the grids.
                 LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new SelectingGridReducer(0).compute(AnalystConfig.resultsBucket, accessGridKey);
+                grid = new SelectingGridReducer(0).compute(AnalysisServerConfig.resultsBucket, accessGridKey);
             }
             LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
 
@@ -168,13 +168,13 @@ public class RegionalAnalysisController {
 
             // not using S3Util.streamToS3 because we need to make sure the put completes before we return
             // the URL, as the client will go to it immediately.
-            s3.putObject(AnalystConfig.resultsBucket, percentileGridKey, pis, om);
+            s3.putObject(AnalysisServerConfig.resultsBucket, percentileGridKey, pis, om);
         }
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
 
-        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalystConfig.resultsBucket, percentileGridKey);
+        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.resultsBucket, percentileGridKey);
         presigned.setExpiration(expiration);
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
@@ -207,7 +207,7 @@ public class RegionalAnalysisController {
 
         String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
 
-        if (!s3.doesObjectExist(AnalystConfig.resultsBucket, probabilitySurfaceKey)) {
+        if (!s3.doesObjectExist(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
 
             String baseKey = String.format("%s.access", base);
@@ -220,7 +220,7 @@ public class RegionalAnalysisController {
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
-            Grid grid = computer.computeImprovementProbability(AnalystConfig.resultsBucket, baseKey, scenarioKey);
+            Grid grid = computer.computeImprovementProbability(AnalysisServerConfig.resultsBucket, baseKey, scenarioKey);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -251,13 +251,13 @@ public class RegionalAnalysisController {
 
             // not using S3Util.streamToS3 because we need to make sure the put completes before we return
             // the URL, as the client will go to it immediately.
-            s3.putObject(AnalystConfig.resultsBucket, probabilitySurfaceKey, pis, om);
+            s3.putObject(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey, pis, om);
         }
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
 
-        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalystConfig.resultsBucket, probabilitySurfaceKey);
+        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey);
         presigned.setExpiration(expiration);
         presigned.setMethod(HttpMethod.GET);
         URL url = s3.generatePresignedUrl(presigned);
@@ -278,7 +278,7 @@ public class RegionalAnalysisController {
         double lon = Double.parseDouble(req.params("lon"));
 
         return TiledAccessGrid
-                .get(AnalystConfig.resultsBucket,  String.format("%s.access", regionalAnalysisId))
+                .get(AnalysisServerConfig.resultsBucket,  String.format("%s.access", regionalAnalysisId))
                 .getLatLon(lat, lon);
     }
 

@@ -5,7 +5,7 @@ import com.conveyal.osmlib.OSMCache;
 import com.conveyal.r5.analyst.broker.BrokerMain;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.transit.TransportNetworkCache;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +47,8 @@ public class LocalCluster {
         workerConfig.setProperty("work-offline", "true");
         workerConfig.setProperty("broker-address", "localhost");
         workerConfig.setProperty("broker-port", "" + brokerPort);
-        workerConfig.setProperty("cache-dir", AnalystConfig.localCache);
-        workerConfig.setProperty("pointsets-bucket", AnalystConfig.gridBucket);
+        workerConfig.setProperty("cache-dir", AnalysisServerConfig.localCache);
+        workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
 
         TransportNetworkCache transportNetworkCache = new TransportNetworkCache(gtfsCache, osmCache);
         for (int i = 0; i < nWorkers; i++) {

@@ -5,7 +5,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.AccessGridWriter;
 import com.conveyal.r5.util.S3Util;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -29,7 +29,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.util.AbstractMap;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -72,7 +71,7 @@ public class TiledAccessGrid {
             });
 
 
-    private static File cacheDir = new File(AnalystConfig.localCache, "acccess-grids");
+    private static File cacheDir = new File(AnalysisServerConfig.localCache, "acccess-grids");
 
     /** Cache access grid tiles on local disk so we don't always have to pull from S3 */
     private static LoadingCache<Map.Entry<String, String>, File> tileCache = CacheBuilder.newBuilder()

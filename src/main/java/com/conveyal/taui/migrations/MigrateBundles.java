@@ -5,7 +5,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.gtfs.api.ApiMain;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.ByteStreams;
@@ -27,16 +27,16 @@ public class MigrateBundles {
     public static void main (String... args) throws Exception {
         AmazonS3 s3 = new AmazonS3Client();
 
-        File cacheDir = new File(AnalystConfig.localCache);
+        File cacheDir = new File(AnalysisServerConfig.localCache);
         cacheDir.mkdirs();
-        ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
+        ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
         Persistence.initialize();
 
         for (Bundle bundle : Persistence.bundles.values()) {
             // try to load bundle from S3
             S3Object obj;
             try {
-                obj = s3.getObject(AnalystConfig.bundleBucket, bundle.id + ".zip");
+                obj = s3.getObject(AnalysisServerConfig.bundleBucket, bundle.id + ".zip");
             } catch (AmazonServiceException e) {
                 LOG.warn("Could not retrieve bundle {}, perhaps it is already migrated?", bundle.id, e);
                 continue;

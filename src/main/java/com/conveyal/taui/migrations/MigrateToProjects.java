@@ -1,7 +1,7 @@
 package com.conveyal.taui.migrations;
 
 import com.conveyal.gtfs.api.ApiMain;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.Scenario;
@@ -23,9 +23,9 @@ public class MigrateToProjects {
     private static final Logger LOG = LoggerFactory.getLogger(MigrateToProjects.class);
 
     public static void main (String... args) {
-        File cacheDir = new File(AnalystConfig.localCache);
+        File cacheDir = new File(AnalysisServerConfig.localCache);
         cacheDir.mkdirs();
-        ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
+        ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
         Persistence.initialize();
 
         // we are going to create a project for each bundle

@@ -1,7 +1,7 @@
 package com.conveyal.taui.persistence;
 
 import com.conveyal.osmlib.OSMCache;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 
 import java.io.File;
 
@@ -10,5 +10,5 @@ import java.io.File;
  */
 public class OSMPersistence {
     public static final OSMCache cache =
-            new OSMCache(AnalystConfig.offline ? null : AnalystConfig.bundleBucket, new File(AnalystConfig.localCache));
+            new OSMCache(AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket, new File(AnalysisServerConfig.localCache));
 }

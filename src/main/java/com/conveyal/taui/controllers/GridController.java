@@ -5,7 +5,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.grids.GridExtractor;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
@@ -63,7 +63,7 @@ public class GridController {
 
         String key = String.format("%s/%s.grid", req.params("projectId"), req.params("gridId"));
 
-        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalystConfig.gridBucket, key);
+        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.gridBucket, key);
         presigned.setExpiration(expiration);
         presigned.setMethod(HttpMethod.GET);
 
@@ -237,8 +237,8 @@ public class GridController {
             String pngKey = String.format("%s/%s.png", projectId, key);
 
             try {
-                grid.write(GridExtractor.getOutputStream(AnalystConfig.gridBucket, gridKey));
-                grid.writePng(GridExtractor.getOutputStream(AnalystConfig.gridBucket, pngKey));
+                grid.write(GridExtractor.getOutputStream(AnalysisServerConfig.gridBucket, gridKey));
+                grid.writePng(GridExtractor.getOutputStream(AnalysisServerConfig.gridBucket, pngKey));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

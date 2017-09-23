@@ -1,6 +1,6 @@
 package com.conveyal.taui.persistence;
 
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bookmark;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.JsonViews;
@@ -42,10 +42,10 @@ public class Persistence {
     public static void initialize () {
         LOG.info("Connecting to MongoDB...");
         // allow configurable db connection params
-        if (AnalystConfig.databaseUri != null) {
+        if (AnalysisServerConfig.databaseUri != null) {
             MongoClientOptions.Builder builder = MongoClientOptions.builder()
                     .sslEnabled(true);
-            mongo = new MongoClient(new MongoClientURI(AnalystConfig.databaseUri, builder));
+            mongo = new MongoClient(new MongoClientURI(AnalysisServerConfig.databaseUri, builder));
             LOG.info("Connecting to remote MongoDB instance...");
         }
         else {
@@ -53,7 +53,7 @@ public class Persistence {
             mongo = new MongoClient();
         }
 
-        db = mongo.getDB(AnalystConfig.databaseName);
+        db = mongo.getDB(AnalysisServerConfig.databaseName);
 
         modifications = getTable("modifications", Modification.class);
         scenarios = getTable("scenarios", Scenario.class);

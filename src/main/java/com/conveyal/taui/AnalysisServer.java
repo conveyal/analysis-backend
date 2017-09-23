@@ -17,6 +17,7 @@ import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
 import org.apache.commons.codec.binary.Base64;
+import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +25,6 @@ import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
@@ -41,32 +41,32 @@ public class AnalysisServer {
 
     public static void main (String... args) throws Exception {
 
-        LOG.info("Starting Conveyal Analysis server, the time is now {}", LocalDateTime.now());
+        LOG.info("Starting Conveyal Analysis server, the time is now {}", DateTime.now());
 
-        byte[] auth0Secret = new Base64(true).decode(AnalystConfig.auth0Secret);
-        String auth0ClientId = AnalystConfig.auth0ClientId;
+        byte[] auth0Secret = new Base64(true).decode(AnalysisServerConfig.auth0Secret);
+        String auth0ClientId = AnalysisServerConfig.auth0ClientId;
 
         LOG.info("Connecting to database...");
         Persistence.initialize();
 
         LOG.info("Initializing GTFS cache...");
-        File cacheDir = new File(AnalystConfig.localCache);
+        File cacheDir = new File(AnalysisServerConfig.localCache);
         cacheDir.mkdirs();
 
-        if (AnalystConfig.offline) {
-          FeedSourceCache cache = ApiMain.initialize(null, AnalystConfig.localCache);
+        if (AnalysisServerConfig.offline) {
+          FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCache);
 
           LOG.info("Starting local cluster of Analysis workers...");
           // TODO port is hardwired here and also in SinglePointAnalysisController
           // You have to make the worker machineId non-static if you want to launch more than one worker.
-          new LocalCluster(6001, cache, OSMPersistence.cache, 1);
+          new LocalCluster(6001, feedSourceCache, OSMPersistence.cache, 1);
         } else {
-          ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
+          ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
         }
 
         // Set the port on which the HTTP server will listen for connections.
-        LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalystConfig.port);
-        port(AnalystConfig.port);
+        LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.port);
+        port(AnalysisServerConfig.port);
 
         // initialize ImageIO
         // http://stackoverflow.com/questions/20789546
@@ -76,7 +76,7 @@ public class AnalysisServer {
         before((req, res) -> {
             if (!req.pathInfo().startsWith("/api")) return; // don't need to be authenticated to view main page
 
-            if (!AnalystConfig.offline) {
+            if (!AnalysisServerConfig.offline) {
                 String auth = req.headers("Authorization");
 
                 // authorization required
@@ -139,7 +139,7 @@ public class AnalysisServer {
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
         String index = CharStreams.toString(
-                new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalystConfig.assetLocation);
+                new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.assetLocation);
         indexStream.close();
         get("/*", (req, res) -> { res.type("text/html"); return index; });
         LOG.info("Conveyal Analysis server is ready.");

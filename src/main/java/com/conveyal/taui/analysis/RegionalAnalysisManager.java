@@ -16,7 +16,7 @@ import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
@@ -57,14 +57,14 @@ public class RegionalAnalysisManager {
     public static final String resultsQueueUrl;
     private static final int REQUEST_CHUNK_SIZE = 1000;
 
-    public static final String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
+    public static final String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
 
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();
-        sqs.setRegion(Region.getRegion(Regions.fromName(AnalystConfig.region)));
-        resultsQueueUrl = sqs.getQueueUrl(AnalystConfig.resultsQueue).getQueueUrl();
-        consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalystConfig.resultsBucket);
+        sqs.setRegion(Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
+        resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
+        consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
 
         new Thread(consumer, "queue-consumer").start();
     }
@@ -78,16 +78,16 @@ public class RegionalAnalysisManager {
             request.scenario = null;
 
             String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
-            File cachedScenario = new File(AnalystConfig.localCache, fileName);
+            File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
             try {
                 JsonUtil.objectMapper.writeValue(cachedScenario, scenario);
             } catch (IOException e) {
                 LOG.error("Error saving scenario to disk", e);
             }
 
-            if (!AnalystConfig.offline) {
+            if (!AnalysisServerConfig.offline) {
                 // upload to S3
-                s3.putObject(AnalystConfig.bundleBucket, fileName, cachedScenario);
+                s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
             }
 
             Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
@@ -120,7 +120,7 @@ public class RegionalAnalysisManager {
             }
 
             AnalysisTask exemplar = requests.get(0);
-            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalystConfig.resultsBucket));
+            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalysisServerConfig.resultsBucket));
 
             try {
                 // cluster requests to broker so that we don't risk running out of memory for regional analyses

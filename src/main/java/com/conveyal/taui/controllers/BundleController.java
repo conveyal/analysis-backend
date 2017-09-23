@@ -6,7 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.r5.common.JsonUtilities;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -191,9 +191,9 @@ public class BundleController {
         // free memory
         //ApiMain.invalidate(bundle.id);
 
-        if (AnalystConfig.bundleBucket != null) {
+        if (AnalysisServerConfig.bundleBucket != null) {
             // remove from s3
-            s3.deleteObject(AnalystConfig.bundleBucket, bundle.id + ".zip");
+            s3.deleteObject(AnalysisServerConfig.bundleBucket, bundle.id + ".zip");
         }
 
         return bundle;

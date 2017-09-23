@@ -1,7 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.taui.util.HttpUtil;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
@@ -59,8 +59,8 @@ public class Project extends Model implements Cloneable {
 
     private static SeamlessCensusGridExtractor gridFetcher = new SeamlessCensusGridExtractor();
     static {
-        gridFetcher.sourceBucket = AnalystConfig.seamlessCensusBucket;
-        gridFetcher.name = AnalystConfig.seamlessCensusBucket;
+        gridFetcher.sourceBucket = AnalysisServerConfig.seamlessCensusBucket;
+        gridFetcher.name = AnalysisServerConfig.seamlessCensusBucket;
     }
 
     public LoadStatus getLoadStatus () {
@@ -104,7 +104,7 @@ public class Project extends Model implements Cloneable {
     public synchronized void fetchOsm () throws IOException {
         loadStatusForProject.put(id, LoadStatus.DOWNLOADING_OSM);
         File temporaryFile = File.createTempFile("osm", ".pbf");
-        String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalystConfig.vexUrl,
+        String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalysisServerConfig.vexUrl,
                 bounds.south,
                 bounds.west,
                 bounds.north,
@@ -136,7 +136,7 @@ public class Project extends Model implements Cloneable {
     }
 
     public synchronized void fetchCensus () {
-        this.indicators.addAll(gridFetcher.extractData(AnalystConfig.gridBucket, this.id,
+        this.indicators.addAll(gridFetcher.extractData(AnalysisServerConfig.gridBucket, this.id,
                 bounds.north,
                 bounds.east,
                 bounds.south,

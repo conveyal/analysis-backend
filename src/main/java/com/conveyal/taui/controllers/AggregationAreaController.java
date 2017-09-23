@@ -8,7 +8,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.S3Util;
 import com.conveyal.r5.util.ShapefileReader;
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.persistence.Persistence;
@@ -130,7 +130,7 @@ public class AggregationAreaController {
 
         InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
         // can't use putObject with File when we have metadata . . .
-        S3Util.s3.putObject(AnalystConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
+        S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
         is.close();
 
         Persistence.aggregationAreas.put(aggregationArea.id, aggregationArea);
@@ -156,7 +156,7 @@ public class AggregationAreaController {
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + 60 * 1000);
-        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(AnalystConfig.gridBucket, aggregationArea.getS3Key(), HttpMethod.GET);
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), HttpMethod.GET);
         request.setExpiration(expiration);
 
         URL url = s3.generatePresignedUrl(request);

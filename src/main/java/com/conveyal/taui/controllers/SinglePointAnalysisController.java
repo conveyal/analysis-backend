@@ -1,6 +1,6 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.taui.AnalystConfig;
+import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.util.HttpUtil;
 import com.google.common.io.ByteStreams;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -37,7 +37,7 @@ public class SinglePointAnalysisController {
         String path = req.pathInfo().replaceAll("^/api/analysis/", "");
         String method = req.requestMethod();
 
-        String brokerUrl = AnalystConfig.offline ? "http://localhost:6001" : AnalystConfig.brokerUrl;
+        String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
 
         CloseableHttpResponse brokerRes = null;
 

@@ -8,10 +8,12 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * Represents config information for Analyst.
+ * Represents config information for the Analysis backend server.
+ * FIXME Gets some info from a config file and some from environment variables.
+ * Everything should come from one place.
  */
-public class AnalystConfig {
-    private static final Logger LOG = LoggerFactory.getLogger(AnalystConfig.class);
+public class AnalysisServerConfig {
+    private static final Logger LOG = LoggerFactory.getLogger(AnalysisServerConfig.class);
     private static Properties config = new Properties();
 
     static {
