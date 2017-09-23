@@ -33,28 +33,30 @@ import static spark.Spark.get;
 import static spark.Spark.port;
 
 /**
- * Main entry point
+ * This is the main entry point for starting a Conveyal Analysis server.
  */
-public class TransportAnalyst {
-    private static final Logger LOG = LoggerFactory.getLogger(TransportAnalyst.class);
+public class AnalysisServer {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AnalysisServer.class);
 
     public static void main (String... args) throws Exception {
-        LOG.info("Starting TAUI server at {}", LocalDateTime.now());
+
+        LOG.info("Starting Conveyal Analysis server, the time is now {}", LocalDateTime.now());
 
         byte[] auth0Secret = new Base64(true).decode(AnalystConfig.auth0Secret);
         String auth0ClientId = AnalystConfig.auth0ClientId;
 
-        LOG.info("Connecting to database");
+        LOG.info("Connecting to database...");
         Persistence.initialize();
 
-        LOG.info("Initializing GTFS cache");
+        LOG.info("Initializing GTFS cache...");
         File cacheDir = new File(AnalystConfig.localCache);
         cacheDir.mkdirs();
 
         if (AnalystConfig.offline) {
           FeedSourceCache cache = ApiMain.initialize(null, AnalystConfig.localCache);
 
-          LOG.info("Starting local cluster");
+          LOG.info("Starting local cluster of Analysis workers...");
           // TODO port is hardwired here and also in SinglePointAnalysisController
           // You have to make the worker machineId non-static if you want to launch more than one worker.
           new LocalCluster(6001, cache, OSMPersistence.cache, 1);
@@ -62,7 +64,8 @@ public class TransportAnalyst {
           ApiMain.initialize(AnalystConfig.bundleBucket, AnalystConfig.localCache);
         }
 
-        LOG.info("Starting server");
+        // Set the port on which the HTTP server will listen for connections.
+        LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalystConfig.port);
         port(AnalystConfig.port);
 
         // initialize ImageIO
@@ -122,6 +125,7 @@ public class TransportAnalyst {
             res.type("application/json");
         });
 
+        // Register all our HTTP request handlers with the Spark HTTP framework.
         ProjectController.register();
         ModificationController.register();
         ScenarioController.register();
@@ -132,13 +136,12 @@ public class TransportAnalyst {
         RegionalAnalysisController.register();
         AggregationAreaController.register();
 
-        // load and serve index.html
-
-        InputStream indexStream = TransportAnalyst.class.getClassLoader().getResourceAsStream("public/index.html");
-        String index = CharStreams.toString(new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalystConfig.assetLocation);
+        // Load index.html and register a handler with Spark to serve it up.
+        InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
+        String index = CharStreams.toString(
+                new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalystConfig.assetLocation);
         indexStream.close();
-
         get("/*", (req, res) -> { res.type("text/html"); return index; });
-        LOG.info("Transport Analyst is ready");
+        LOG.info("Conveyal Analysis server is ready.");
     }
 }

@@ -40,16 +40,16 @@ public class Persistence {
     public static MongoMap<AggregationArea> aggregationAreas;
 
     public static void initialize () {
-        LOG.info("Connecting to MongoDB");
+        LOG.info("Connecting to MongoDB...");
         // allow configurable db connection params
         if (AnalystConfig.databaseUri != null) {
             MongoClientOptions.Builder builder = MongoClientOptions.builder()
                     .sslEnabled(true);
             mongo = new MongoClient(new MongoClientURI(AnalystConfig.databaseUri, builder));
-            LOG.info("Connecting to remote MongoDB instance");
+            LOG.info("Connecting to remote MongoDB instance...");
         }
         else {
-            LOG.info("Connecting to local MongoDB instance");
+            LOG.info("Connecting to local MongoDB instance...");
             mongo = new MongoClient();
         }
 

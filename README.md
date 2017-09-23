@@ -35,7 +35,7 @@ R5; add it as another module _in the same IntelliJ project_. Then, enter the pro
 the existing dependency on R5 (which will pull down a built JAR from Maven Central) and replace it with a module dependency 
 on your local R5. This way, any changes you make to R5 will also be reflected when you run it.
 
-You can then create a run configuration for `com.conveyal.taui.TransportAnalyst`, which is the main class. You will need to
+You can then create a run configuration for `com.conveyal.taui.AnalysisServer`, which is the main class. You will need to
 configure the options mentioned above; I recommend using environment variables in the run configuration rather than messing
 with config files for local development. If you set `OFFLINE=true`, you won't need to run the R5 `BrokerMain` and
 `AnalystWorker` classses separately. You will need to configure an `GRID_BUCKET`, `RESULTS_QUEUE` and `RESULTS_BUCKET`,
