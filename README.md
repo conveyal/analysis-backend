@@ -2,6 +2,10 @@
 
 This is the server component of Conveyal's analysis platform.
 
+**Please note:** At this time Conveyal does not provide support for third-party deployments of Analysis. We provide paid subscriptions to a hosted deployment of this system, as well as transportation planning consulting for subscribers.
+
+For now, the project is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in planning and decision making processes. It is likely that over time the system will become easier to deploy by third parties, but we do not plan to provide technical support for such deployments.
+
 ## Setup
 
 In production we use Auth0 for authentication and S3 for storage; set the following variables, either in application.conf
