@@ -2,8 +2,6 @@ package com.conveyal.taui.models;
 
 import com.conveyal.r5.profile.ProfileRequest;
 
-import java.time.LocalDate;
-
 /**
  * A bookmark represents "frozen" settings for single point results.
  */
@@ -16,7 +14,7 @@ public class Bookmark extends Model {
     public int isochroneCutoff;
 
     /** The destination grid */
-    public String destinationGrid;
+    public String opportunityDataset;
 
     /** The project ID of this bookmark */
     public String projectId;

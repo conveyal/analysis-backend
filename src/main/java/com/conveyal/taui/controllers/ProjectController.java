@@ -91,7 +91,7 @@ public class ProjectController {
                     if (existing == null || !existing.bounds.equals(finalProject.bounds, 1e-6)) {
                         // fetch census data
                         finalProject.fetchCensus();
-                        // save indicators
+                        // save opportunityDatasets
                         Persistence.projects.put(finalProject.id, finalProject);
                     }
                 } catch (Exception e) {
@@ -108,7 +108,7 @@ public class ProjectController {
                     finalProject.fetchOsm();
                     finalProject.fetchCensus();
                     Project.loadStatusForProject.remove(finalProject.id);
-                    // save indicators
+                    // save opportunityDatasets
                     Persistence.projects.put(finalProject.id, finalProject);
                 } catch (IOException e) {
                     LOG.error("Exception fetching OSM", e);

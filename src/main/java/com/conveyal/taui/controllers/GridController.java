@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
+import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
@@ -134,16 +135,36 @@ public class GridController {
                 return null;
             } else {
                 status.status = Status.DONE;
-                List<Project.Indicator> indicators = writeGridsToS3(grids, projectId, dataSet);
+                List<Project.OpportunityDataset> opportunities = writeGridsToS3(grids, projectId, dataSet);
                 Project project = Persistence.projects.get(projectId).clone();
-                project.indicators = new ArrayList<>(project.indicators);
-                project.indicators.addAll(indicators);
+                project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
+                project.opportunityDatasets.addAll(opportunities);
                 Persistence.projects.put(projectId, project);
-                return indicators;
+                return opportunities;
             }
         });
 
         return status;
+    }
+
+    public static Project.OpportunityDataset deleteGrid (Request request, Response response) throws Exception {
+        String projectId = request.params("projectId");
+        String gridId = request.params("gridId");
+        Project project = Persistence.projects.get(projectId).clone();
+        Project.OpportunityDataset opportunityDataset = null;
+        for (Project.OpportunityDataset i : project.opportunityDatasets) {
+            if (i.key.equals(gridId)) {
+                opportunityDataset = i;
+                break;
+            }
+        }
+        if (opportunityDataset == null) {
+            haltWithJson(404, "Opportunity dataset could not be found.");
+        } else {
+            project.opportunityDatasets.remove(opportunityDataset);
+            Persistence.projects.put(projectId, project);
+        }
+        return opportunityDataset;
     }
 
     /** Create a grid from WGS 84 points in a CSV file */
@@ -226,9 +247,9 @@ public class GridController {
         return grids;
     }
 
-    private static List<Project.Indicator> writeGridsToS3 (Map<String, Grid> grids, String projectId, String dataSourceName) {
+    private static List<Project.OpportunityDataset> writeGridsToS3 (Map<String, Grid> grids, String projectId, String dataSourceName) {
         // write all the grids to S3
-        List<Project.Indicator> ret = new ArrayList<>();
+        List<Project.OpportunityDataset> ret = new ArrayList<>();
         grids.forEach((field, grid) -> {
             String fieldKey = field.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
             String sourceKey = dataSourceName.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
@@ -243,11 +264,11 @@ public class GridController {
                 throw new RuntimeException(e);
             }
 
-            Project.Indicator indicator = new Project.Indicator();
-            indicator.key = key;
-            indicator.name = field;
-            indicator.dataSource = dataSourceName;
-            ret.add(indicator);
+            Project.OpportunityDataset opportunityDataset = new Project.OpportunityDataset();
+            opportunityDataset.key = key;
+            opportunityDataset.name = field;
+            opportunityDataset.dataSource = dataSourceName;
+            ret.add(opportunityDataset);
         });
 
         return ret;
@@ -265,6 +286,7 @@ public class GridController {
     }
 
     public static void register () {
+        delete("/api/grid/:projectId/:gridId", GridController::deleteGrid, JsonUtil.objectMapper::writeValueAsString);
         get("/api/grid/status/:handle", GridController::getUploadStatus, JsonUtil.objectMapper::writeValueAsString);
         get("/api/grid/:projectId/:gridId", GridController::getGrid, JsonUtil.objectMapper::writeValueAsString);
         post("/api/grid/:projectId", GridController::createGrid, JsonUtil.objectMapper::writeValueAsString);

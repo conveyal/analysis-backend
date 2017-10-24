@@ -40,9 +40,9 @@ public class SeamlessCensusGridExtractor extends GridExtractor {
      *
      * The status callback will be called periodically to return the status of the fetch to the API.
      */
-    public List<Project.Indicator> extractData (String targetBucket, String s3prefix,
-                                                double north, double east, double south, double west,
-                                                Consumer<Project.LoadStatus> statusCallback) {
+    public List<Project.OpportunityDataset> extractData (String targetBucket, String s3prefix,
+                                                         double north, double east, double south, double west,
+                                                         Consumer<Project.LoadStatus> statusCallback) {
         long startTime = System.currentTimeMillis();
 
         statusCallback.accept(Project.LoadStatus.DOWNLOADING_CENSUS);
@@ -106,7 +106,7 @@ public class SeamlessCensusGridExtractor extends GridExtractor {
         statusCallback.accept(Project.LoadStatus.STORING_CENSUS);
 
         // Write all the resulting grids out to gzipped objects on S3, and make a list of model objects for them.
-        List<Project.Indicator> indicators = new ArrayList<>();
+        List<Project.OpportunityDataset> opportunityDatasets = new ArrayList<>();
         gridForAttribute.forEach((attribute, grid) -> {
             String cleanedAttributeName = attribute
                     .replaceAll(" ", "_")
@@ -129,17 +129,17 @@ public class SeamlessCensusGridExtractor extends GridExtractor {
             }
 
             // Create an object representing this new destination density grid in the Analysis backend internal model.
-            Project.Indicator indicator = new Project.Indicator();
-            indicator.dataSource = this.name;
-            indicator.name = attribute;
-            indicator.key = cleanedAttributeName;
-            indicators.add(indicator);
+            Project.OpportunityDataset opportunityDataset = new Project.OpportunityDataset();
+            opportunityDataset.dataSource = this.name;
+            opportunityDataset.name = attribute;
+            opportunityDataset.key = cleanedAttributeName;
+            opportunityDatasets.add(opportunityDataset);
         });
 
         long endTime = System.currentTimeMillis();
         LOG.info("Extracting Census data took {} seconds", (endTime - startTime) / 1000);
 
         // Return an internal model object for each census grid that was created.
-        return indicators;
+        return opportunityDatasets;
     }
 }
