@@ -4,9 +4,10 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.grids.GridExtractor;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
@@ -20,12 +21,16 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import spark.HaltException;
 import spark.Request;
 import spark.Response;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -33,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.delete;
@@ -49,13 +55,23 @@ public class GridController {
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
-    /** Store upload status objects */
-    private static Map<String, GridUploadStatus> uploadStati = new HashMap<>();
+    /**
+     * Store upload status objects
+     */
+    private static List<GridUploadStatus> uploadStatuses = new ArrayList<>();
 
-    /** How long request URLs are good for */
+    private static void addStatusAndRemoveOldStatuses(GridUploadStatus status) {
+        uploadStatuses.add(status);
+        LocalDateTime now = LocalDateTime.now();
+        uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt).isBefore(now.minusDays(7)));
+    }
+
+    /**
+     * How long request URLs are good for
+     */
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
-    public static Object getGrid (Request req, Response res) {
+    public static Object getGrid(Request req, Response res) {
         // TODO handle offline mode
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
@@ -89,65 +105,100 @@ public class GridController {
         }
     }
 
-    public static GridUploadStatus getUploadStatus (Request req, Response res) {
-        String handle = req.params("handle");
-        // no need for security, the UUID provides plenty
-        return uploadStati.get(handle);
+    public static List<GridUploadStatus> getProjectUploadStatuses(Request req, Response res) {
+        String projectId = req.params("projectId");
+        return uploadStatuses
+                .stream()
+                .filter(status -> {
+                    Boolean b = status.projectId.equals(projectId);
+                    return b;
+                })
+                .collect(Collectors.toList());
     }
 
-    /** Handle many types of file upload. Returns a GridUploadStatus which has a handle to request status. */
-    public static GridUploadStatus createGrid (Request req, Response res) throws Exception {
+    public static boolean clearStatus(Request req, Response res) {
+        String statusId = req.params("statusId");
+        return uploadStatuses.removeIf(s -> s.id.equals(statusId));
+    }
+
+    /**
+     * Handle many types of file upload. Returns a GridUploadStatus which has a handle to request status.
+     */
+    public static GridUploadStatus createGrid(Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
-        Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
-        String projectId = req.params("projectId");
-
-        // TODO check project membership
-
-        String dataSet = query.get("Name").get(0).getString("UTF-8");
+        String dataSet;
+        Map<String, List<FileItem>> query;
+        try {
+            query = sfu.parseParameterMap(req.raw());
+            dataSet = query.get("Name").get(0).getString("UTF-8");
+        } catch (Exception e) {
+            haltWithJson(400, e.getMessage());
+            return null;
+        }
 
         GridUploadStatus status = new GridUploadStatus();
+        String projectId = req.params("projectId");
+        status.projectId = projectId;
         status.status = Status.PROCESSING;
-        status.handle = UUID.randomUUID().toString();
-        uploadStati.put(status.handle, status);
+        status.name = dataSet;
+        status.createdAt = LocalDateTime.now().toString();
+
+        addStatusAndRemoveOldStatuses(status);
 
         Jobs.service.submit(() -> {
-            Map<String, Grid> grids = null;
+            try {
+                Map<String, Grid> grids = null;
 
-            for (FileItem fi : query.get("files")) {
-                String name = fi.getName();
-                if (name.endsWith(".csv")) {
-                    LOG.info("Detected grid stored as CSV");
-                    grids = createGridsFromCsv(query, status);
-                    break;
-                } else if (name.endsWith(".grid")) {
-                    LOG.info("Detected grid stored in Conveyal binary format.");
-                    grids = createGridsFromBinaryGridFiles(query, status);
-                    break;
-                } else if (name.endsWith(".shp")) {
-                    LOG.info("Detected grid stored as shapefile");
-                    grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
-                    break;
+                for (FileItem fi : query.get("files")) {
+                    String name = fi.getName();
+                    if (name.endsWith(".csv")) {
+                        LOG.info("Detected grid stored as CSV");
+                        grids = createGridsFromCsv(query, status);
+                        break;
+                    } else if (name.endsWith(".grid")) {
+                        LOG.info("Detected grid stored in Conveyal binary format.");
+                        grids = createGridsFromBinaryGridFiles(query, status);
+                        break;
+                    } else if (name.endsWith(".shp")) {
+                        LOG.info("Detected grid stored as shapefile");
+                        grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
+                        break;
+                    }
                 }
-            }
 
-            if (grids == null) {
+                if (grids == null) {
+                    status.status = Status.ERROR;
+                    status.message = "Unable to create grids from the files uploaded.";
+                    status.completedAt = LocalDateTime.now().toString();
+                    return null;
+                } else {
+                    status.status = Status.UPLOADING;
+                    status.totalGrids = grids.size();
+                    LOG.info("Uploading grids to S3");
+                    List<Project.OpportunityDataset> opportunities = writeGridsToS3(grids, projectId, dataSet, status);
+                    Project project = Persistence.projects.get(projectId).clone();
+                    project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
+                    project.opportunityDatasets.addAll(opportunities);
+                    Persistence.projects.put(projectId, project);
+                    return opportunities;
+                }
+            } catch (HaltException e) {
                 status.status = Status.ERROR;
+                status.message = e.getBody();
+                status.completedAt = LocalDateTime.now().toString();
                 return null;
-            } else {
-                status.status = Status.DONE;
-                List<Project.OpportunityDataset> opportunities = writeGridsToS3(grids, projectId, dataSet);
-                Project project = Persistence.projects.get(projectId).clone();
-                project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
-                project.opportunityDatasets.addAll(opportunities);
-                Persistence.projects.put(projectId, project);
-                return opportunities;
+            } catch (Exception e) {
+                status.status = Status.ERROR;
+                status.message = e.getMessage();
+                status.completedAt = LocalDateTime.now().toString();
+                return null;
             }
         });
 
         return status;
     }
 
-    public static Project.OpportunityDataset deleteGrid (Request request, Response response) throws Exception {
+    public static Project.OpportunityDataset deleteGrid(Request request, Response response) throws Exception {
         String projectId = request.params("projectId");
         String gridId = request.params("gridId");
         Project project = Persistence.projects.get(projectId).clone();
@@ -162,12 +213,15 @@ public class GridController {
             haltWithJson(404, "Opportunity dataset could not be found.");
         } else {
             project.opportunityDatasets.remove(opportunityDataset);
+            s3.deleteObject(AnalysisServerConfig.gridBucket, opportunityDataset.key);
             Persistence.projects.put(projectId, project);
         }
         return opportunityDataset;
     }
 
-    /** Create a grid from WGS 84 points in a CSV file */
+    /**
+     * Create a grid from WGS 84 points in a CSV file
+     */
     private static Map<String, Grid> createGridsFromCsv(Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
         String latField = query.get("latField").get(0).getString("UTF-8");
         String lonField = query.get("lonField").get(0).getString("UTF-8");
@@ -197,27 +251,27 @@ public class GridController {
      * Create a grid from an input stream containing a binary grid file.
      * For those in the know, we can upload manually created binary grid files.
      */
-    private static Map<String, Grid> createGridsFromBinaryGridFiles (Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
+    private static Map<String, Grid> createGridsFromBinaryGridFiles(Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
         Map<String, Grid> grids = new HashMap<>();
         List<FileItem> uploadedFiles = query.get("files");
         status.totalFeatures = uploadedFiles.size();
         for (FileItem fileItem : uploadedFiles) {
             Grid grid = Grid.read(fileItem.getInputStream());
             grids.put(fileItem.getName(), grid);
-            status.completedFeatures += 1;
         }
+        status.completedFeatures = status.totalFeatures;
         return grids;
     }
 
-    private static Map<String, Grid> createGridsFromShapefile (Map<String, List<FileItem>> query, String baseName, GridUploadStatus status) throws Exception {
+    private static Map<String, Grid> createGridsFromShapefile(Map<String, List<FileItem>> query, String baseName, GridUploadStatus status) throws Exception {
         // extract relevant files: .shp, .prj, .dbf, and .shx.
         // We need the SHX even though we're looping over every feature as they might be sparse.
         Map<String, FileItem> filesByName = query.get("files").stream()
                 .collect(Collectors.toMap(FileItem::getName, f -> f));
 
         if (!filesByName.containsKey(baseName + ".shp") ||
-                    !filesByName.containsKey(baseName + ".prj") ||
-                    !filesByName.containsKey(baseName + ".dbf")) {
+                !filesByName.containsKey(baseName + ".prj") ||
+                !filesByName.containsKey(baseName + ".dbf")) {
             haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
@@ -247,7 +301,7 @@ public class GridController {
         return grids;
     }
 
-    private static List<Project.OpportunityDataset> writeGridsToS3 (Map<String, Grid> grids, String projectId, String dataSourceName) {
+    private static List<Project.OpportunityDataset> writeGridsToS3(Map<String, Grid> grids, String projectId, String dataSourceName, GridUploadStatus status) {
         // write all the grids to S3
         List<Project.OpportunityDataset> ret = new ArrayList<>();
         grids.forEach((field, grid) -> {
@@ -255,12 +309,29 @@ public class GridController {
             String sourceKey = dataSourceName.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
             String key = String.format("%s_%s", fieldKey, sourceKey);
             String gridKey = String.format("%s/%s.grid", projectId, key);
-            String pngKey = String.format("%s/%s.png", projectId, key);
 
             try {
-                grid.write(GridExtractor.getOutputStream(AnalysisServerConfig.gridBucket, gridKey));
-                grid.writePng(GridExtractor.getOutputStream(AnalysisServerConfig.gridBucket, pngKey));
+                ByteArrayOutputStream gridByteStream = new ByteArrayOutputStream();
+                grid.write(new GZIPOutputStream(gridByteStream));
+                byte[] gridBytes = gridByteStream.toByteArray();
+                ObjectMetadata gridMetadata = new ObjectMetadata();
+                gridMetadata.setContentType("application/octet-stream");
+                gridMetadata.setContentEncoding("gzip");
+                gridMetadata.setContentLength(gridBytes.length);
+                PutObjectRequest gridRequest = new PutObjectRequest(AnalysisServerConfig.gridBucket, gridKey, new ByteArrayInputStream(gridBytes), gridMetadata);
+                LOG.info("Uploading to {}", gridKey);
+                s3.putObject(gridRequest);
+
+                status.uploadedGrids += 1;
+                if (status.uploadedGrids == status.totalGrids) {
+                    status.status = Status.DONE;
+                    status.completedAt = LocalDateTime.now().toString();
+                }
+                LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
             } catch (IOException e) {
+                status.status = Status.ERROR;
+                status.message = e.getMessage();
+                status.completedAt = LocalDateTime.now().toString();
                 throw new RuntimeException(e);
             }
 
@@ -275,19 +346,31 @@ public class GridController {
     }
 
     private static class GridUploadStatus {
-        public int totalFeatures = -1;
-        public int completedFeatures = -1;
-        public String handle;
+        public String id;
+        public int totalFeatures = 0;
+        public int completedFeatures = 0;
+        public int totalGrids = 0;
+        public int uploadedGrids = 0;
+        public String projectId;
         public Status status;
+        public String name;
+        public String message;
+        public String createdAt;
+        public String completedAt;
+
+        public GridUploadStatus () {
+            this.id = UUID.randomUUID().toString();
+        }
     }
 
-    private static enum Status {
-        PROCESSING, ERROR, DONE;
+    private enum Status {
+        UPLOADING, PROCESSING, ERROR, DONE;
     }
 
-    public static void register () {
+    public static void register() {
         delete("/api/grid/:projectId/:gridId", GridController::deleteGrid, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/grid/status/:handle", GridController::getUploadStatus, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/grid/:projectId/status/:statusId", GridController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/grid/:projectId/status", GridController::getProjectUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
         get("/api/grid/:projectId/:gridId", GridController::getGrid, JsonUtil.objectMapper::writeValueAsString);
         post("/api/grid/:projectId", GridController::createGrid, JsonUtil.objectMapper::writeValueAsString);
     }

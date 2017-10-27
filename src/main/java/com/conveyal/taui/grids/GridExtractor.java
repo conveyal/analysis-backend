@@ -23,9 +23,9 @@ public abstract class GridExtractor {
     // A pool of threads that upload newly created grids to S3. The pool is shared between all GridFetchers.
     // The default policy when the pool's work queue is full is to abort with an exception.
     // We shouldn't use the caller-runs policy because that will cause deadlocks.
-    private static ThreadPoolExecutor s3Upload = new ThreadPoolExecutor(4, 8, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1024));
+    public static ThreadPoolExecutor s3Upload = new ThreadPoolExecutor(4, 8, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1024));
 
-    private static AmazonS3 s3 = new AmazonS3Client();
+    public static AmazonS3 s3 = new AmazonS3Client();
 
     /** Human readable name for this source of grids. */
     public String name;
