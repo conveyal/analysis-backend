@@ -6,7 +6,6 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.Grid.PixelWeight;
 import com.conveyal.r5.util.S3Util;
 import com.conveyal.r5.util.ShapefileReader;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -37,7 +36,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.util.Date;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -109,10 +107,7 @@ public class AggregationAreaController {
         Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
 
         // Store the percentage each cell overlaps the mask, scaled as 0 to 100,000
-        ArrayList<PixelWeight> weights = maskGrid.getPixelWeights(merged, true);
-        weights.forEach((pixel) -> {
-            maskGrid.grid[pixel.getX()][pixel.getY()] = pixel.getWeight() * 100_000;
-        });
+        maskGrid.streamPixelWeights(merged, true, (int x, int y, double weight) -> maskGrid.grid[x][y] = weight);
 
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentEncoding("gzip");
