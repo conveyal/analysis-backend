@@ -48,8 +48,8 @@ import static spark.Spark.post;
 /**
  * Controller that handles fetching grids.
  */
-public class GridController {
-    private static final Logger LOG = LoggerFactory.getLogger(GridController.class);
+public class OpportunityDatasetsController {
+    private static final Logger LOG = LoggerFactory.getLogger(OpportunityDatasetsController.class);
 
     private static final AmazonS3 s3 = new AmazonS3Client();
 
@@ -58,9 +58,9 @@ public class GridController {
     /**
      * Store upload status objects
      */
-    private static List<GridUploadStatus> uploadStatuses = new ArrayList<>();
+    private static List<OpportunityDatasetUploadStatus> uploadStatuses = new ArrayList<>();
 
-    private static void addStatusAndRemoveOldStatuses(GridUploadStatus status) {
+    private static void addStatusAndRemoveOldStatuses(OpportunityDatasetUploadStatus status) {
         uploadStatuses.add(status);
         LocalDateTime now = LocalDateTime.now();
         uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt).isBefore(now.minusDays(7)));
@@ -71,7 +71,7 @@ public class GridController {
      */
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
-    public static Object getGrid(Request req, Response res) {
+    public static Object getOpportunityDataset(Request req, Response res) {
         // TODO handle offline mode
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
@@ -105,7 +105,7 @@ public class GridController {
         }
     }
 
-    public static List<GridUploadStatus> getProjectUploadStatuses(Request req, Response res) {
+    public static List<OpportunityDatasetUploadStatus> getProjectUploadStatuses(Request req, Response res) {
         String projectId = req.params("projectId");
         return uploadStatuses
                 .stream()
@@ -122,9 +122,9 @@ public class GridController {
     }
 
     /**
-     * Handle many types of file upload. Returns a GridUploadStatus which has a handle to request status.
+     * Handle many types of file upload. Returns a OpportunityDatasetUploadStatus which has a handle to request status.
      */
-    public static GridUploadStatus createGrid(Request req, Response res) {
+    public static OpportunityDatasetUploadStatus createOpportunityDataset(Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         String dataSet;
         Map<String, List<FileItem>> query;
@@ -137,7 +137,7 @@ public class GridController {
         }
 
         String projectId = req.params("projectId");
-        GridUploadStatus status = new GridUploadStatus(projectId, dataSet);
+        OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(projectId, dataSet);
 
         addStatusAndRemoveOldStatuses(status);
 
@@ -148,15 +148,15 @@ public class GridController {
                 for (FileItem fi : query.get("files")) {
                     String name = fi.getName();
                     if (name.endsWith(".csv")) {
-                        LOG.info("Detected grid stored as CSV");
+                        LOG.info("Detected opportunity dataset stored as CSV");
                         grids = createGridsFromCsv(query, status);
                         break;
                     } else if (name.endsWith(".grid")) {
-                        LOG.info("Detected grid stored in Conveyal binary format.");
+                        LOG.info("Detected opportunity dataset stored in Conveyal binary format.");
                         grids = createGridsFromBinaryGridFiles(query, status);
                         break;
                     } else if (name.endsWith(".shp")) {
-                        LOG.info("Detected grid stored as shapefile");
+                        LOG.info("Detected opportunity dataset stored as shapefile");
                         grids = createGridsFromShapefile(query, fi.getName().substring(0, name.length() - 4), status);
                         break;
                     }
@@ -164,14 +164,14 @@ public class GridController {
 
                 if (grids == null) {
                     status.status = Status.ERROR;
-                    status.message = "Unable to create grids from the files uploaded.";
+                    status.message = "Unable to create opportunity dataset from the files uploaded.";
                     status.completed();
                     return null;
                 } else {
                     status.status = Status.UPLOADING;
                     status.totalGrids = grids.size();
-                    LOG.info("Uploading grids to S3");
-                    List<Project.OpportunityDataset> opportunities = writeGridsToS3(grids, projectId, dataSet, status);
+                    LOG.info("Uploading opportunity dataset to S3");
+                    List<Project.OpportunityDataset> opportunities = writeOpportunityDatasetToS3(grids, projectId, dataSet, status);
                     Project project = Persistence.projects.get(projectId).clone();
                     project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
                     project.opportunityDatasets.addAll(opportunities);
@@ -194,7 +194,7 @@ public class GridController {
         return status;
     }
 
-    public static Project.OpportunityDataset deleteGrid(Request request, Response response) throws Exception {
+    public static Project.OpportunityDataset deleteOpportunityDataset(Request request, Response response) throws Exception {
         String projectId = request.params("projectId");
         String gridId = request.params("gridId");
         Project project = Persistence.projects.get(projectId).clone();
@@ -218,7 +218,7 @@ public class GridController {
     /**
      * Create a grid from WGS 84 points in a CSV file
      */
-    private static Map<String, Grid> createGridsFromCsv(Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
+    private static Map<String, Grid> createGridsFromCsv(Map<String, List<FileItem>> query, OpportunityDatasetUploadStatus status) throws Exception {
         String latField = query.get("latField").get(0).getString("UTF-8");
         String lonField = query.get("lonField").get(0).getString("UTF-8");
 
@@ -247,7 +247,7 @@ public class GridController {
      * Create a grid from an input stream containing a binary grid file.
      * For those in the know, we can upload manually created binary grid files.
      */
-    private static Map<String, Grid> createGridsFromBinaryGridFiles(Map<String, List<FileItem>> query, GridUploadStatus status) throws Exception {
+    private static Map<String, Grid> createGridsFromBinaryGridFiles(Map<String, List<FileItem>> query, OpportunityDatasetUploadStatus status) throws Exception {
         Map<String, Grid> grids = new HashMap<>();
         List<FileItem> uploadedFiles = query.get("files");
         status.totalFeatures = uploadedFiles.size();
@@ -259,7 +259,7 @@ public class GridController {
         return grids;
     }
 
-    private static Map<String, Grid> createGridsFromShapefile(Map<String, List<FileItem>> query, String baseName, GridUploadStatus status) throws Exception {
+    private static Map<String, Grid> createGridsFromShapefile(Map<String, List<FileItem>> query, String baseName, OpportunityDatasetUploadStatus status) throws Exception {
         // extract relevant files: .shp, .prj, .dbf, and .shx.
         // We need the SHX even though we're looping over every feature as they might be sparse.
         Map<String, FileItem> filesByName = query.get("files").stream()
@@ -297,7 +297,7 @@ public class GridController {
         return grids;
     }
 
-    private static List<Project.OpportunityDataset> writeGridsToS3(Map<String, Grid> grids, String projectId, String dataSourceName, GridUploadStatus status) {
+    private static List<Project.OpportunityDataset> writeOpportunityDatasetToS3(Map<String, Grid> grids, String projectId, String dataSourceName, OpportunityDatasetUploadStatus status) {
         // write all the grids to S3
         List<Project.OpportunityDataset> ret = new ArrayList<>();
         grids.forEach((field, grid) -> {
@@ -353,7 +353,7 @@ public class GridController {
         return ret;
     }
 
-    private static class GridUploadStatus {
+    private static class OpportunityDatasetUploadStatus {
         public String id;
         public int totalFeatures = 0;
         public int completedFeatures = 0;
@@ -366,7 +366,7 @@ public class GridController {
         public String createdAt;
         public String completedAt;
 
-        public GridUploadStatus (String projectId, String name) {
+        public OpportunityDatasetUploadStatus(String projectId, String name) {
             this.id = UUID.randomUUID().toString();
             this.projectId = projectId;
             this.name = name;
@@ -383,10 +383,10 @@ public class GridController {
     }
 
     public static void register() {
-        delete("/api/grid/:projectId/:gridId", GridController::deleteGrid, JsonUtil.objectMapper::writeValueAsString);
-        delete("/api/grid/:projectId/status/:statusId", GridController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/grid/:projectId/status", GridController::getProjectUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/grid/:projectId/:gridId", GridController::getGrid, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/grid/:projectId", GridController::createGrid, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/opportunities/:projectId/:gridId", OpportunityDatasetsController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/opportunities/:projectId/status/:statusId", OpportunityDatasetsController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/opportunities/:projectId/status", OpportunityDatasetsController::getProjectUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/opportunities/:projectId/:gridId", OpportunityDatasetsController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/opportunities/:projectId", OpportunityDatasetsController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
     }
 }

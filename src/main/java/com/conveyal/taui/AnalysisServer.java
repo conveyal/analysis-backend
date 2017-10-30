@@ -7,7 +7,7 @@ import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
-import com.conveyal.taui.controllers.GridController;
+import com.conveyal.taui.controllers.OpportunityDatasetsController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
@@ -132,7 +132,7 @@ public class AnalysisServer {
         GraphQLController.register();
         BundleController.register();
         SinglePointAnalysisController.register();
-        GridController.register();
+        OpportunityDatasetsController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
 
