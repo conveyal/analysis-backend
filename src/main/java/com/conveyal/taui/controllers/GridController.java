@@ -136,12 +136,8 @@ public class GridController {
             return null;
         }
 
-        GridUploadStatus status = new GridUploadStatus();
         String projectId = req.params("projectId");
-        status.projectId = projectId;
-        status.status = Status.PROCESSING;
-        status.name = dataSet;
-        status.createdAt = LocalDateTime.now().toString();
+        GridUploadStatus status = new GridUploadStatus(projectId, dataSet);
 
         addStatusAndRemoveOldStatuses(status);
 
@@ -169,7 +165,7 @@ public class GridController {
                 if (grids == null) {
                     status.status = Status.ERROR;
                     status.message = "Unable to create grids from the files uploaded.";
-                    status.completedAt = LocalDateTime.now().toString();
+                    status.completed();
                     return null;
                 } else {
                     status.status = Status.UPLOADING;
@@ -185,12 +181,12 @@ public class GridController {
             } catch (HaltException e) {
                 status.status = Status.ERROR;
                 status.message = e.getBody();
-                status.completedAt = LocalDateTime.now().toString();
+                status.completed();
                 return null;
             } catch (Exception e) {
                 status.status = Status.ERROR;
                 status.message = e.getMessage();
-                status.completedAt = LocalDateTime.now().toString();
+                status.completed();
                 return null;
             }
         });
@@ -309,10 +305,11 @@ public class GridController {
             String sourceKey = dataSourceName.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
             String key = String.format("%s_%s", fieldKey, sourceKey);
             String gridKey = String.format("%s/%s.grid", projectId, key);
+            String pngKey = String.format("%s/%s.png", projectId, key);
 
             try {
                 ByteArrayOutputStream gridByteStream = new ByteArrayOutputStream();
-                grid.write(new GZIPOutputStream(gridByteStream));
+                grid.write(new GZIPOutputStream(gridByteStream)); // write to Stream -> LittleEndian -> Gzip -> Byte
                 byte[] gridBytes = gridByteStream.toByteArray();
                 ObjectMetadata gridMetadata = new ObjectMetadata();
                 gridMetadata.setContentType("application/octet-stream");
@@ -322,16 +319,27 @@ public class GridController {
                 LOG.info("Uploading to {}", gridKey);
                 s3.putObject(gridRequest);
 
+                ByteArrayOutputStream pngByteStream = new ByteArrayOutputStream();
+                grid.writePng(new GZIPOutputStream(pngByteStream));
+                byte[] pngBytes = pngByteStream.toByteArray();
+                ObjectMetadata pngMetadata = new ObjectMetadata();
+                gridMetadata.setContentType("application/octet-stream");
+                gridMetadata.setContentEncoding("gzip");
+                gridMetadata.setContentLength(pngBytes.length);
+                PutObjectRequest pngRequest = new PutObjectRequest(AnalysisServerConfig.gridBucket, pngKey, new ByteArrayInputStream(pngBytes), pngMetadata);
+                LOG.info("Uploading to {}", pngKey);
+                s3.putObject(pngRequest);
+
                 status.uploadedGrids += 1;
                 if (status.uploadedGrids == status.totalGrids) {
                     status.status = Status.DONE;
-                    status.completedAt = LocalDateTime.now().toString();
+                    status.completed();
                 }
                 LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
             } catch (IOException e) {
                 status.status = Status.ERROR;
                 status.message = e.getMessage();
-                status.completedAt = LocalDateTime.now().toString();
+                status.completed();
                 throw new RuntimeException(e);
             }
 
@@ -352,14 +360,21 @@ public class GridController {
         public int totalGrids = 0;
         public int uploadedGrids = 0;
         public String projectId;
-        public Status status;
+        public Status status = Status.PROCESSING;
         public String name;
         public String message;
         public String createdAt;
         public String completedAt;
 
-        public GridUploadStatus () {
+        public GridUploadStatus (String projectId, String name) {
             this.id = UUID.randomUUID().toString();
+            this.projectId = projectId;
+            this.name = name;
+            this.createdAt = LocalDateTime.now().toString();
+        }
+
+        public void completed () {
+            this.completedAt = LocalDateTime.now().toString();
         }
     }
 
