@@ -13,6 +13,6 @@ public class AggregationArea extends Model {
 
     @JsonIgnore
     public String getS3Key () {
-        return String.format("%s/mask/%s.grid", projectId, id);
+        return String.format("%s/mask/%s.grid", projectId, _id);
     }
 }

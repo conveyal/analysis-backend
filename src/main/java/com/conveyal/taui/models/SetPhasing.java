@@ -4,6 +4,10 @@ package com.conveyal.taui.models;
  * Created by matthewc on 2/12/16.
  */
 public class SetPhasing extends Modification {
+    public String getType() {
+        return "set-trip-phasing";
+    }
+
     public int phaseSeconds;
 
     public int sourceStopSequence;
@@ -13,9 +17,4 @@ public class SetPhasing extends Modification {
     public String sourceTripId;
 
     public String targetTripId;
-
-    @Override
-    public String getType() {
-        return "set-trip-phasing";
-    }
 }

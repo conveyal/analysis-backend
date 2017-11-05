@@ -12,17 +12,15 @@ import java.util.List;
  * Add a trip pattern.
  */
 public class AddTripPattern extends Modification {
-    public String name;
+    public String getType() {
+        return "add-trip-pattern";
+    }
 
     public List<Segment> segments;
 
     public boolean bidirectional;
 
     public List<Timetable> timetables;
-
-    public String getType() {
-        return "add-trip-pattern";
-    }
 
     /** represents a single segment of an added trip pattern (between two user-specified points) */
     public static class Segment {
@@ -54,7 +52,7 @@ public class AddTripPattern extends Modification {
     }
 
     public static class Timetable {
-        public String id;
+        public String timetableId;
         
         /** Days of the week on which this service is active */
         public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
@@ -62,21 +60,11 @@ public class AddTripPattern extends Modification {
         /** allow naming timetables so it's easier to see what's going on */
         public String name;
 
-        /** Speed, kilometers per hour, for each segment */
-        public int[] segmentSpeeds;
-        
         /** start time (seconds since GTFS midnight) */
         public int startTime;
 
         /** end time for frequency-based trips (seconds since GTFS midnight) */
         public int endTime;
-
-        /** Dwell time at each stop, seconds */
-        public int dwellTime;
-
-        /** Dwell times at specific stops, seconds */
-        // using Integer not int because dwell times can be null
-        public Integer[] dwellTimes;
 
         /** headway for frequency-based patterns */
         public int headwaySecs;
@@ -89,7 +77,7 @@ public class AddTripPattern extends Modification {
 
         /**
          * Phase from a timetable (frequency entry) on another modification.
-         * Syntax is `${modification.id}:${timetable.id}`
+         * Syntax is `${modification._id}:${timetable._id}`
          */
         public String phaseFromTimetable;
 
@@ -98,5 +86,15 @@ public class AddTripPattern extends Modification {
 
         /** Amount of time to phase from the other lines frequency */
         public int phaseSeconds;
+
+        /** Dwell time at each stop, seconds */
+        public int dwellTime;
+
+        /** Speed, kilometers per hour, for each segment */
+        public int[] segmentSpeeds;
+
+        /** Dwell times at specific stops, seconds */
+        // using Integer not int because dwell times can be null
+        public Integer[] dwellTimes;
     }
 }

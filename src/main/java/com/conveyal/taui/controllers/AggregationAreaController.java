@@ -9,6 +9,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.S3Util;
 import com.conveyal.r5.util.ShapefileReader;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.persistence.Persistence;
@@ -39,11 +40,9 @@ import java.net.URL;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
@@ -68,14 +67,14 @@ public class AggregationAreaController {
 
         String fileName = filesByName.keySet().stream().filter(f -> f.endsWith(".shp")).findAny().orElse(null);
         if (fileName == null) {
-            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
+            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
         String baseName = fileName.substring(0, fileName.length() - 4);
 
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
+            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         String projectId = req.params("projectId");
@@ -120,8 +119,11 @@ public class AggregationAreaController {
 
         AggregationArea aggregationArea = new AggregationArea();
         aggregationArea.name = maskName;
-        aggregationArea.id = UUID.randomUUID().toString();
         aggregationArea.projectId = projectId;
+
+        // Set `createdBy` and `accessGroup`
+        aggregationArea.accessGroup = req.attribute("accessGroup");
+        aggregationArea.createdBy = req.attribute("email");
 
         File gridFile = new File(tempDir, "weights.grid");
         OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
@@ -133,11 +135,9 @@ public class AggregationAreaController {
         S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
         is.close();
 
-        Persistence.aggregationAreas.put(aggregationArea.id, aggregationArea);
-
         tempDir.delete();
 
-        return aggregationArea;
+        return Persistence.aggregationAreas.create(aggregationArea);
     }
 
     public static Object getAggregationArea (Request req, Response res) {
@@ -152,7 +152,7 @@ public class AggregationAreaController {
             // do nothing
         }
 
-        AggregationArea aggregationArea = Persistence.aggregationAreas.get(maskId);
+        AggregationArea aggregationArea = Persistence.aggregationAreas.findByIdIfPermitted(maskId, req.attribute("accessGroup"));
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + 60 * 1000);

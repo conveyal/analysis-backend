@@ -1,7 +1,6 @@
 package com.conveyal.taui.util;
 
 import com.conveyal.geojson.GeoJsonModule;
-import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.r5.model.json_serialization.JavaLocalDateSerializer;
 import com.conveyal.taui.models.JsonViews;
 import com.fasterxml.jackson.databind.DeserializationFeature;

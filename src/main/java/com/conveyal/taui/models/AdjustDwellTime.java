@@ -4,7 +4,10 @@ package com.conveyal.taui.models;
  * Created by matthewc on 3/3/16.
  */
 public class AdjustDwellTime extends Modification {
-    public String name;
+    @Override
+    public String getType() {
+        return "adjust-dwell-time";
+    }
 
     public String feed;
 
@@ -19,9 +22,4 @@ public class AdjustDwellTime extends Modification {
 
     /** the factor by which to scale, OR the new time, depending on the value of above */
     public double value;
-
-    @Override
-    public String getType() {
-        return "adjust-dwell-time";
-    }
 }

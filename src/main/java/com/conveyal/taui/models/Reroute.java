@@ -6,7 +6,9 @@ import java.util.List;
  * Created by matthewc on 3/28/16.
  */
 public class Reroute extends Modification {
-    public String name;
+    public String getType() {
+        return "reroute";
+    }
 
     public String feed;
     public String[] routes;
@@ -25,9 +27,4 @@ public class Reroute extends Modification {
 
     // using Integer not int because Integers can be null
     public Integer[] dwellTimes;
-
-    @Override
-    public String getType() {
-        return "reroute";
-    }
 }

@@ -8,6 +8,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
@@ -40,7 +41,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -132,8 +132,7 @@ public class OpportunityDatasetsController {
             query = sfu.parseParameterMap(req.raw());
             dataSet = query.get("Name").get(0).getString("UTF-8");
         } catch (Exception e) {
-            haltWithJson(400, e.getMessage());
-            return null;
+            throw AnalysisServerException.FileUpload("Unable to create opportunity dataset. " + e.getMessage());
         }
 
         String projectId = req.params("projectId");
@@ -175,7 +174,7 @@ public class OpportunityDatasetsController {
                     Project project = Persistence.projects.get(projectId).clone();
                     project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
                     project.opportunityDatasets.addAll(opportunities);
-                    Persistence.projects.put(projectId, project);
+                    Persistence.projects.updateByUserIfPermitted(project, req.attribute("email"), req.attribute("accessGroup"));
                     return opportunities;
                 }
             } catch (HaltException e) {
@@ -194,25 +193,19 @@ public class OpportunityDatasetsController {
         return status;
     }
 
-    public static Project.OpportunityDataset deleteOpportunityDataset(Request request, Response response) throws Exception {
+    public static Project.OpportunityDataset deleteOpportunityDataset(Request request, Response response) {
         String projectId = request.params("projectId");
         String gridId = request.params("gridId");
-        Project project = Persistence.projects.get(projectId).clone();
-        Project.OpportunityDataset opportunityDataset = null;
-        for (Project.OpportunityDataset i : project.opportunityDatasets) {
-            if (i.key.equals(gridId)) {
-                opportunityDataset = i;
-                break;
-            }
-        }
-        if (opportunityDataset == null) {
-            haltWithJson(404, "Opportunity dataset could not be found.");
+        Project project = Persistence.projects.get(projectId);
+        boolean removed = project.opportunityDatasets.removeIf((od) -> od.key.equals(gridId));
+
+        if (!removed) {
+            throw AnalysisServerException.NotFound("Opportunity dataset could not be found.");
         } else {
-            project.opportunityDatasets.remove(opportunityDataset);
-            s3.deleteObject(AnalysisServerConfig.gridBucket, opportunityDataset.key);
-            Persistence.projects.put(projectId, project);
+            Persistence.projects.updateByUserIfPermitted(project, request.attribute("email"), request.attribute("accessGroup"));
+            s3.deleteObject(AnalysisServerConfig.gridBucket, gridId);
+            return null;
         }
-        return opportunityDataset;
     }
 
     /**
@@ -225,8 +218,7 @@ public class OpportunityDatasetsController {
         List<FileItem> file = query.get("files");
 
         if (file.size() != 1) {
-            LOG.warn("CSV upload only supports one file at a time");
-            haltWithJson(400, "CSV upload only supports one file at a time.");
+            throw AnalysisServerException.FileUpload("CSV upload only supports one file at a time.");
         }
 
         // create a temp file because we have to loop over it twice
@@ -268,7 +260,7 @@ public class OpportunityDatasetsController {
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf");
+            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         File tempDir = Files.createTempDir();

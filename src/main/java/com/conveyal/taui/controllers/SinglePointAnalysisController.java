@@ -1,6 +1,7 @@
 package com.conveyal.taui.controllers;
 
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.util.HttpUtil;
 import com.google.common.io.ByteStreams;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -20,7 +21,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -41,6 +41,8 @@ public class SinglePointAnalysisController {
 
         CloseableHttpResponse brokerRes = null;
 
+        LOG.info("Single point request by {} made {} {}", (String) req.attribute("email"), method, path);
+
         try {
             if ("GET".equals(method)) {
                 HttpGet get = new HttpGet(brokerUrl + "/" + path);
@@ -56,7 +58,7 @@ public class SinglePointAnalysisController {
                 HttpDelete delete = new HttpDelete(brokerUrl + "/" + path);
                 brokerRes = HttpUtil.httpClient.execute(delete);
             } else {
-                throw new RuntimeException("Unsupported HTTP method on request, not proxying to the broker.");
+                throw AnalysisServerException.Broker("Unsupported HTTP method on request, not proxying to the broker.");
             }
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
@@ -69,21 +71,14 @@ public class SinglePointAnalysisController {
                 is.close();
                 EntityUtils.consume(brokerRes.getEntity());
             } catch (Exception e) {
-                reportException(e);
+                throw AnalysisServerException.Broker(e.getMessage());
             }
             return baos.toByteArray();
         } catch (Exception e) {
-            reportException(e);
+            throw AnalysisServerException.Broker(e.getMessage());
         } finally {
             if (brokerRes != null) brokerRes.close();
         }
-        return null;
-    }
-
-    private static void reportException (Exception exception) {
-        LOG.error("Uncaught exception: ", exception.toString());
-        exception.printStackTrace();
-        haltWithJson(500, exception);
     }
 
     public static void register () {

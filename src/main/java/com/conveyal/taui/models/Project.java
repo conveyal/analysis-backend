@@ -49,9 +49,6 @@ public class Project extends Model implements Cloneable {
     /** Bounds of this project */
     public Bounds bounds;
 
-    /** Group this project is associated with */
-    public String group;
-
     /** Does this project use custom OSM */
     public boolean customOsm;
 
@@ -64,7 +61,7 @@ public class Project extends Model implements Cloneable {
     }
 
     public LoadStatus getLoadStatus () {
-        return loadStatusForProject.getOrDefault(id, LoadStatus.DONE);
+        return loadStatusForProject.getOrDefault(_id, LoadStatus.DONE);
     }
 
     public void setLoadStatus (LoadStatus status) {
@@ -77,7 +74,7 @@ public class Project extends Model implements Cloneable {
     public List<Bundle> getBundles () {
         return Persistence.bundles.values()
                 .stream()
-                .filter(b -> id.equals(b.projectId))
+                .filter(b -> _id.equals(b.projectId))
                 .collect(Collectors.toList());
     }
 
@@ -85,24 +82,24 @@ public class Project extends Model implements Cloneable {
     public List<Scenario> getScenarios () {
         return Persistence.scenarios.values()
                 .stream()
-                .filter(s -> id.equals(s.projectId))
+                .filter(s -> _id.equals(s.projectId))
                 .collect(Collectors.toList());
     }
 
     @JsonView(JsonViews.Api.class)
     public Collection<Bookmark> getBookmarks () {
-        return Persistence.bookmarks.getByProperty("projectId", id);
+        return Persistence.bookmarks.getByProperty("projectId", _id);
     }
 
     @JsonView(JsonViews.Api.class)
     public Collection<AggregationArea> getAggregationAreas () {
-        return Persistence.aggregationAreas.getByProperty("projectId", id);
+        return Persistence.aggregationAreas.getByProperty("projectId", _id);
     }
 
     public List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
 
     public synchronized void fetchOsm () throws IOException {
-        loadStatusForProject.put(id, LoadStatus.DOWNLOADING_OSM);
+        loadStatusForProject.put(_id, LoadStatus.DOWNLOADING_OSM);
         File temporaryFile = File.createTempFile("osm", ".pbf");
         String url = String.format(Locale.US, "%s/%f,%f,%f,%f.pbf", AnalysisServerConfig.vexUrl,
                 bounds.south,
@@ -126,7 +123,7 @@ public class Project extends Model implements Cloneable {
             is.close();
             EntityUtils.consume(res.getEntity());
 
-            OSMPersistence.cache.put(this.id, temporaryFile);
+            OSMPersistence.cache.put(this._id, temporaryFile);
             temporaryFile.delete();
         } finally {
             if (res != null) res.close();
@@ -136,12 +133,12 @@ public class Project extends Model implements Cloneable {
     }
 
     public synchronized void fetchCensus () {
-        this.opportunityDatasets.addAll(gridFetcher.extractData(AnalysisServerConfig.gridBucket, this.id,
+        this.opportunityDatasets.addAll(gridFetcher.extractData(AnalysisServerConfig.gridBucket, this._id,
                 bounds.north,
                 bounds.east,
                 bounds.south,
                 bounds.west,
-                status -> loadStatusForProject.put(id, status)
+                status -> loadStatusForProject.put(_id, status)
                 ));
     }
 
@@ -193,11 +190,16 @@ public class Project extends Model implements Cloneable {
         /** Figuring out which census columns are numeric */
         EXTRACTING_CENSUS_COLUMNS,
 
+        /** Error while doing any of these operations */
+        ERROR,
+
         /** Projecting census features into grids */
         PROJECTING_CENSUS,
 
         /** Storing census data on S3 */
         STORING_CENSUS,
+
+        /** Done **/
         DONE
     }
 }

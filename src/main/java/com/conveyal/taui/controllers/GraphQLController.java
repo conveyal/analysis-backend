@@ -6,11 +6,13 @@ import com.conveyal.gtfs.api.graphql.fetchers.RouteFetcher;
 import com.conveyal.gtfs.api.graphql.fetchers.StopFetcher;
 import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.gtfs.model.FeedInfo;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.mongodb.QueryBuilder;
 import graphql.ExceptionWhileDataFetching;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
@@ -27,6 +29,7 @@ import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,7 +39,6 @@ import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stopType;
 import static com.conveyal.gtfs.api.util.GraphQLUtil.doublee;
 import static com.conveyal.gtfs.api.util.GraphQLUtil.multiStringArg;
 import static com.conveyal.gtfs.api.util.GraphQLUtil.string;
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static graphql.Scalars.GraphQLLong;
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
@@ -56,25 +58,14 @@ public class GraphQLController {
         });
 
         QueryContext context = new QueryContext();
-        context.group = req.attribute("group");
+        context.accessGroup = req.attribute("accessGroup");
 
         ExecutionResult er = graphql.execute(req.queryParams("query"), null, context, variables);
-        List<GraphQLError> errs = er.getErrors();
-        if (!errs.isEmpty()) {
-            errs.forEach((err) -> {
-                LOG.error("Uncaught error: ", err.toString());
-            });
-            haltWithJson(400, errs.toString());
-        }
 
-        errs = context.getErrors();
+        List<GraphQLError> errs = er.getErrors();
+        errs.addAll(context.getErrors());
         if (!errs.isEmpty()) {
-            errs.forEach((err) -> {
-                Exception e = ((ExceptionWhileDataFetching) err).getException();
-                e.printStackTrace();
-                LOG.error("Uncaught exception: ", e);
-            });
-            haltWithJson(400, ((ExceptionWhileDataFetching) errs.get(0)).getException());
+            throw AnalysisServerException.GraphQL(errs);
         }
 
         return er.getData();
@@ -120,7 +111,7 @@ public class GraphQLController {
 
     static GraphQLObjectType bundleType = newObject()
             .name("bundle")
-            .field(string("id"))
+            .field(string("_id"))
             .field(string("name"))
             .field(newFieldDefinition()
                     .name("status")
@@ -152,12 +143,12 @@ public class GraphQLController {
     public static GraphQLSchema schema = GraphQLSchema.newSchema().query(bundleQuery).build();
     private static GraphQL graphql = new GraphQL(schema);
 
-    private static List<Bundle> fetchBundle(DataFetchingEnvironment environment) {
-        List<String> id = environment.getArgument("bundle_id");
+    private static Collection<Bundle> fetchBundle(DataFetchingEnvironment environment) {
         QueryContext context = (QueryContext) environment.getContext();
-        return Persistence.bundles.values().stream()
-                .filter(b -> id.contains(b.id))
-                .collect(Collectors.toList());
+        return Persistence.bundles.findPermitted(
+                QueryBuilder.start("_id").in(environment.getArgument("bundle_id")).get(),
+                context.accessGroup
+        );
     }
 
     private static List<WrappedGTFSEntity<FeedInfo>> fetchFeeds(DataFetchingEnvironment environment) {
@@ -165,7 +156,7 @@ public class GraphQLController {
         ExecutionContext context = (ExecutionContext) environment.getContext();
         return bundle.feeds.stream()
                 .map(summary -> {
-                    String bundleScopedFeedId = String.format("%s_%s", summary.feedId, bundle.id); // : summary.bundleScopedFeedId;
+                    String bundleScopedFeedId = String.format("%s_%s", summary.feedId, bundle._id); // : summary.bundleScopedFeedId;
                     try {
                         FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
                         FeedInfo ret;
@@ -199,6 +190,6 @@ public class GraphQLController {
 
     /** Context for a graphql query. Currently contains auth info */
     public static class QueryContext extends ExecutionContext {
-        public String group;
+        public String accessGroup;
     }
 }

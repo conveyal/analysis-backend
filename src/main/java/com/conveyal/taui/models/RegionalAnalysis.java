@@ -1,9 +1,6 @@
 package com.conveyal.taui.models;
 
-import com.amazonaws.partitions.model.Region;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.r5.common.SphericalDistanceLibrary;
-import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.vividsolutions.jts.geom.Envelope;
@@ -53,7 +50,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
 
     @JsonView(JsonViews.Api.class)
     public RegionalAnalysisManager.RegionalAnalysisStatus getStatus () {
-        return RegionalAnalysisManager.getStatus(this.id);
+        return RegionalAnalysisManager.getStatus(this._id);
     }
 
     /**

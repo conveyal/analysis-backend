@@ -99,7 +99,7 @@ public class RegionalAnalysisManager {
             for (int x = 0; x < regionalAnalysis.width; x++) {
                 for (int y = 0; y < regionalAnalysis.height; y++) {
                     RegionalTask req = regionalAnalysis.request.clone();
-                    req.jobId = regionalAnalysis.id;
+                    req.jobId = regionalAnalysis._id;
                     req.graphId = regionalAnalysis.bundleId;
                     req.workerVersion = regionalAnalysis.workerVersion;
                     req.height = regionalAnalysis.height;
@@ -114,7 +114,7 @@ public class RegionalAnalysisManager {
                     req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
                     req.x = x;
                     req.y = y;
-                    req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
+                    req.grid = String.format("%s/%s.grid", project._id, regionalAnalysis.grid);
                     requests.add(req);
                 }
             }

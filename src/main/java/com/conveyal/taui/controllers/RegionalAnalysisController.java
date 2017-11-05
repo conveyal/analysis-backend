@@ -9,14 +9,15 @@ import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReduce
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
-import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
 import com.conveyal.taui.util.WrappedURL;
+import com.mongodb.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -26,15 +27,12 @@ import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URL;
+import java.util.Collection;
 import java.util.Date;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static java.lang.Boolean.parseBoolean;
 import static spark.Spark.delete;
 import static spark.Spark.get;
@@ -54,50 +52,46 @@ public class RegionalAnalysisController {
     /** How long request URLs are good for */
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
-    public static List<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
-        String projectId = req.params("projectId");
-        // exclude deleted regional analyses by default. if these should be included,
-        // request should include query param deleted=true
-        boolean includeDeleted = "true".equals(req.queryParams("deleted"));
-        return Persistence.regionalAnalyses.values().stream()
-                .filter(q -> projectId.equals(q.projectId))
-                .filter(q -> includeDeleted || !q.deleted)
-                .collect(Collectors.toList());
+    public static Collection<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
+        return Persistence.regionalAnalyses.findPermitted(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("projectId").is(req.params("projectId")).get(),
+                        QueryBuilder.start("deleted").is(false).get()
+                ).get(),
+                req.attribute("accessGroup")
+        );
     }
 
     public static RegionalAnalysis deleteRegionalAnalysis (Request req, Response res) {
-        // NB no need for security, UUID provides sufficient security
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(req.params("regionalAnalysisId"));
-        analysis.clone();
+        String accessGroup = req.attribute("accessGroup");
+        String email = req.attribute("email");
+
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
         analysis.deleted = true;
-        Persistence.regionalAnalyses.put(analysis.id, analysis);
+        Persistence.regionalAnalyses.updateByUserIfPermitted(analysis, email, accessGroup);
 
         // clear it from the broker
         if (!analysis.complete) {
-            RegionalAnalysisManager.deleteJob(analysis.id);
+            RegionalAnalysisManager.deleteJob(analysis._id);
         }
 
         return analysis;
     }
 
-    private static void haltWithIncorrectFormat (String format) {
-        haltWithJson(400, "Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+    private static void validateFormat(String format) {
+        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
+            throw AnalysisServerException.BadRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+        }
     }
 
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
-
-        if (analysis == null) {
-            haltWithJson(404, "Regional analysis does not exist for " + regionalAnalysisId + ".");
-        }
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
 
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
         String format = req.params("format").toLowerCase();
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            haltWithIncorrectFormat(format);
-        }
+        validateFormat(format);
 
         String percentileGridKey;
 
@@ -194,16 +188,12 @@ public class RegionalAnalysisController {
         String base = req.params("baseId");
         String scenario = req.params("scenarioId");
         String format = req.params("format").toLowerCase();
+        validateFormat(format);
 
         String redirectText = req.queryParams("redirect");
         boolean redirect;
         if (redirectText == null || "" .equals(redirectText)) redirect = true;
         else redirect = parseBoolean(redirectText);
-
-
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            haltWithIncorrectFormat(format);
-        }
 
         String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
 
@@ -212,8 +202,6 @@ public class RegionalAnalysisController {
 
             String baseKey = String.format("%s.access", base);
             String scenarioKey = String.format("%s.access", scenario);
-
-            RegionalAnalysis analysis = Persistence.regionalAnalyses.get(base);
 
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
@@ -283,27 +271,20 @@ public class RegionalAnalysisController {
     }
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
-        RegionalAnalysis regionalAnalysis = JsonUtil.objectMapper.readValue(req.body(), RegionalAnalysis.class);
+        RegionalAnalysis regionalAnalysis = Persistence.regionalAnalyses.createFromJSONRequest(req, RegionalAnalysis.class);
+        Project project = Persistence.projects.findByIdIfPermitted(regionalAnalysis.projectId, req.attribute("accessGroup"));
 
-        Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-        Project project = Persistence.projects.get(bundle.projectId);
-
-        // fill in the fields
-        regionalAnalysis.id = UUID.randomUUID().toString();
-        regionalAnalysis.projectId = project.id;
-
+        // TODO coordinate parameters that go to broker/r5
         // this scenario is specific to this job
         regionalAnalysis.request.scenarioId = null;
-        regionalAnalysis.request.scenario.id = regionalAnalysis.id;
-
+        regionalAnalysis.request.scenario.id = regionalAnalysis._id;
         regionalAnalysis.creationTime = System.currentTimeMillis();
-
         regionalAnalysis.zoom = 9;
 
         if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
         else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromProject(project);
 
-        Persistence.regionalAnalyses.put(regionalAnalysis.id, regionalAnalysis);
+        Persistence.regionalAnalyses.put(regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);
 
         return regionalAnalysis;
@@ -311,10 +292,10 @@ public class RegionalAnalysisController {
 
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:regionalAnalysisId/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
-        delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 

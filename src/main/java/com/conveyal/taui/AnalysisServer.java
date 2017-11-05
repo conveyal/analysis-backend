@@ -7,8 +7,8 @@ import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
-import com.conveyal.taui.controllers.OpportunityDatasetsController;
 import com.conveyal.taui.controllers.ModificationController;
+import com.conveyal.taui.controllers.OpportunityDatasetsController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ScenarioController;
@@ -17,18 +17,23 @@ import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.joda.time.DateTime;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import spark.Response;
 
 import javax.imageio.ImageIO;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Map;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.before;
+import static spark.Spark.exception;
 import static spark.Spark.get;
 import static spark.Spark.port;
 
@@ -81,14 +86,14 @@ public class AnalysisServer {
 
                 // authorization required
                 if (auth == null || auth.isEmpty()) {
-                    haltWithJson(401, "You must be logged in.");
+                    AnalysisServerException.Unauthorized("You must be logged in.");
                 }
 
                 // make sure it's properly formed
                 String[] authComponents = auth.split(" ");
 
                 if (authComponents.length != 2 || !"bearer".equals(authComponents[0].toLowerCase())) {
-                    haltWithJson(400, "Authorization header is malformed: " + auth);
+                    AnalysisServerException.Unknown("Authorization header is malformed: " + auth);
                 }
 
                 // validate the JWT
@@ -98,27 +103,31 @@ public class AnalysisServer {
                 try {
                     jwt = verifier.verify(authComponents[1]);
                 } catch (Exception e) {
-                    LOG.info("Login failed", e);
-                    haltWithJson(403, "Login failed to verify with our authorization provider.");
+                    AnalysisServerException.Forbidden("Login failed to verify with our authorization provider. " + e.getMessage());
                 }
 
                 if (!jwt.containsKey("analyst")) {
-                    haltWithJson(403, "Access denied. User does not have access to Analysis.");
+                    AnalysisServerException.Forbidden("Access denied. User does not have access to Analysis.");
                 }
 
                 String group = null;
                 try {
                     group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
                 } catch (Exception e) {
-                    haltWithJson(403, "Access denied. User is not associated with any group.");
+                    AnalysisServerException.Forbidden("Access denied. User is not associated with any group. " + e.getMessage());
                 }
 
-                if (group == null) haltWithJson(403, "Access denied. User is not associated with any group.");
+                if (group == null) {
+                    AnalysisServerException.Forbidden("Access denied. User is not associated with any group.");
+                }
 
-                req.attribute("group", group);
+                // attributes to be used on models
+                req.attribute("accessGroup", group);
+                req.attribute("email", jwt.get("email"));
             } else {
                 // hardwire group name if we're working offline
-                req.attribute("group", "OFFLINE");
+                req.attribute("accessGroup", "OFFLINE");
+                req.attribute("email", "analysis@conveyal.com");
             }
 
             // Default is JSON, will be overridden by the few controllers that do not return JSON
@@ -141,7 +150,44 @@ public class AnalysisServer {
         String index = CharStreams.toString(
                 new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.assetLocation);
         indexStream.close();
-        get("/*", (req, res) -> { res.type("text/html"); return index; });
+        get("/*", (req, res) -> {
+            res.type("text/html");
+            return index;
+        });
+
+        exception(AnalysisServerException.class, (e, request, response) -> {
+            AnalysisServerException ase = ((AnalysisServerException) e);
+            AnalysisServer.respondToException(response, ase, ase.type.name(), ase.message, ase.httpCode);
+        });
+
+        exception(IOException.class, (e, request, response) -> {
+            AnalysisServer.respondToException(response, e, "BAD_REQUEST", e.getMessage(), 400);
+        });
+
+        exception(FileUploadException.class, (e, request, response) -> {
+            AnalysisServer.respondToException(response, e, "BAD_REQUEST", e.getMessage(), 400);
+        });
+
+        exception(RuntimeException.class, (e, request, response) -> {
+            AnalysisServer.respondToException(response, e, "RUNTIME", e.getMessage(), 400);
+        });
+
         LOG.info("Conveyal Analysis server is ready.");
+    }
+
+    public static void respondToException(Response response, Exception e, String type, String message, int code) {
+        String stack = ExceptionUtils.getStackTrace(e);
+
+        LOG.error("Server exception thrown, type: {}, message: {}", type, message);
+        LOG.error(stack);
+
+        JSONObject body = new JSONObject();
+        body.put("type", type);
+        body.put("message", message);
+        body.put("stackTrace", stack);
+
+        response.status(code);
+        response.type("application/json");
+        response.body(body.toJSONString());
     }
 }
