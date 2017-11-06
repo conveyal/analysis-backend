@@ -4,8 +4,6 @@ package com.conveyal.taui.models;
  * Represents a TAUI scenario
  */
 public class Scenario extends Model implements Cloneable {
-    public String name;
-
     /** Names of the variants of this scenario */
     public String[] variants;
 

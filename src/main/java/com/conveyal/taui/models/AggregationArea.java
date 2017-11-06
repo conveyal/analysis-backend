@@ -9,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  */
 public class AggregationArea extends Model {
     public String projectId;
-    public String name;
 
     @JsonIgnore
     public String getS3Key () {

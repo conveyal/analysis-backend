@@ -37,9 +37,6 @@ public class Project extends Model implements Cloneable {
     // not a memory leak, since when projects are done they are removed from the map.
     public static Map<String, LoadStatus> loadStatusForProject = new ConcurrentHashMap<>();
 
-    /** Project name */
-    public String name;
-
     /** Project description */
     public String description;
 

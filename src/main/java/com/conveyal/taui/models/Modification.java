@@ -21,9 +21,6 @@ public abstract class Modification extends Model {
     /** the type of this modification, see JsonSubTypes annotation above */
     public abstract String getType ();
 
-    /** Name of the modification */
-    public String name;
-
     /** What scenario is this modification a part of? */
     public String scenarioId;
 

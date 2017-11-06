@@ -12,6 +12,8 @@ public abstract class Model {
     @Id
     public String _id;
 
+    public String name;
+
     public String nonce;
 
     public String createdAt;

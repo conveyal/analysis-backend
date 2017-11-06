@@ -22,8 +22,6 @@ import java.util.stream.Collectors;
 public class Bundle extends Model implements Cloneable {
     public String projectId;
 
-    public String name;
-
     public double north;
     public double south;
     public double east;

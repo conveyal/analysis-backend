@@ -20,7 +20,6 @@ public class RegionalAnalysis extends Model implements Cloneable {
     public int west;
     public RegionalTask request;
     public boolean complete;
-    public String name;
     public String workerVersion;
     public long creationTime;
 
