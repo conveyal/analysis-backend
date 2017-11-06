@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.Properties;
 
 /**
@@ -21,8 +20,8 @@ public class AnalysisServerConfig {
             FileInputStream is = new FileInputStream("application.conf");
             config.load(is);
             is.close();
-        } catch (IOException e) {
-            LOG.info("Could not read config file. If all variables are in the environment, ignore this message", e);
+        } catch (Exception e) {
+            LOG.warn("Could not read config file. If all variables are in the environment, ignore this message.");
         }
     }
 
@@ -51,5 +50,11 @@ public class AnalysisServerConfig {
         }
 
         return val != null ? val : defaultValue;
+    }
+
+    static {
+        if (!offline && (bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || resultsQueue == null)) {
+            LOG.error("Application is missing config variables needed in online mode.");
+        }
     }
 }
