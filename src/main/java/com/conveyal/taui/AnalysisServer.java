@@ -81,6 +81,9 @@ public class AnalysisServer {
         before((req, res) -> {
             if (!req.pathInfo().startsWith("/api")) return; // don't need to be authenticated to view main page
 
+            // Log each API request
+            LOG.info("{} {}", req.requestMethod(), req.pathInfo());
+
             if (!AnalysisServerConfig.offline) {
                 String auth = req.headers("Authorization");
 
@@ -166,6 +169,10 @@ public class AnalysisServer {
 
         exception(FileUploadException.class, (e, request, response) -> {
             AnalysisServer.respondToException(response, e, "BAD_REQUEST", e.getMessage(), 400);
+        });
+
+        exception(NullPointerException.class, (e, request, response) -> {
+            AnalysisServer.respondToException(response, e, "UNKNOWN", e.getMessage(), 400);
         });
 
         exception(RuntimeException.class, (e, request, response) -> {
