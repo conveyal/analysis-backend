@@ -35,6 +35,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -107,7 +108,8 @@ public class AggregationAreaController {
         Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
 
         // Store the percentage each cell overlaps the mask, scaled as 0 to 100,000
-        maskGrid.streamPixelWeights(merged, true, (int x, int y, double weight) -> maskGrid.grid[x][y] = weight);
+        List<Grid.PixelWeight> weights = maskGrid.getPixelWeights(merged, true);
+        weights.forEach(pixel -> maskGrid.grid[pixel.x][pixel.y] = pixel.weight * 100_000);
 
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentEncoding("gzip");
