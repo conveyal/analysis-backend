@@ -42,7 +42,7 @@ public class ScenarioController {
 
     public static Collection<Modification> modifications (Request req, Response res) {
         return Persistence.modifications.findPermitted(
-                QueryBuilder.start("scenario").is((req.params("_id"))).get(),
+                QueryBuilder.start("scenarioId").is((req.params("_id"))).get(),
                 req.attribute("accessGroup")
         );
     }
