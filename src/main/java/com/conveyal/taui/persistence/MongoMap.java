@@ -157,22 +157,28 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         // Update the locking variables
         value.updateLock();
 
-        // Set `createdAt` if it has never been set
+        // Set `createdAt` and `createdBy` if they have never been set
         if (value.createdAt == null) value.createdAt = value.updatedAt;
         if (value.createdBy == null) value.createdBy = value.updatedBy;
 
+        // Convert the model into a db object
+        BasicDBObject dbObject = JsonUtilities.objectMapper.convertValue(value, BasicDBObject.class);
+
         // Update
-        V result = wrappedCollection.findAndModify(query.get(), JsonUtilities.objectMapper.convertValue(value, BasicDBObject.class));
+        V result = wrappedCollection.findAndModify(query.get(), null, null, false, dbObject, true, false);
+
+        // If it doesn't result in an update, probably throw an error
+        if (result == null) {
+            result = wrappedCollection.findOneById(value._id);
+            if (result == null) {
+                throw AnalysisServerException.NotFound("The data you attempted to update could not be found. ");
+            } else if (!currentNonce.equals(result.nonce)) {
+                throw AnalysisServerException.Nonce();
+            }
+        }
 
         // Log the result
-        LOG.info(result.toString());
-
-        // If it doesn't result in an update, throw an error
-        if (result == null) {
-            throw AnalysisServerException.NotFound("The data you attempted to update could not be found.");
-        } else if (!currentNonce.equals(result.nonce)) {
-            throw AnalysisServerException.Nonce();
-        }
+        LOG.info("{} {} updated by {} ({})", result.toString(), result.name, result.updatedBy, result.accessGroup);
 
         // Return the object that was updated
         return result;

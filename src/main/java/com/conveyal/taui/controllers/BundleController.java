@@ -46,14 +46,20 @@ public class BundleController {
 
     private static final AmazonS3 s3 = new AmazonS3Client();
 
-    public static Bundle create (Request req, Response res) throws Exception {
+    public static Bundle create (Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
-        Map<String, List<FileItem>> files = sfu.parseParameterMap(req.raw());
 
         // create the bundle
+        Map<String, List<FileItem>> files = null;
         final Bundle bundle = new Bundle();
-        bundle.name = files.get("Name").get(0).getString("UTF-8");
-        bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
+        try {
+            files = sfu.parseParameterMap(req.raw());
+
+            bundle.name = files.get("Name").get(0).getString("UTF-8");
+            bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
+        } catch (Exception e) {
+            throw AnalysisServerException.BadRequest(e.getMessage());
+        }
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
 
