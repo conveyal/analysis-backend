@@ -12,6 +12,8 @@ public class RemoveTrips extends Modification {
 
     public String[] trips;
 
+    public String[] patterns;
+
     public String getType () {
         return "remove-trips";
     }
