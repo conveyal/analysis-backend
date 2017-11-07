@@ -8,7 +8,7 @@ import java.time.Instant;
 /**
  * Created by matthewc on 2/9/16.
  */
-public abstract class Model {
+public abstract class Model implements Cloneable {
     @Id
     public String _id;
 

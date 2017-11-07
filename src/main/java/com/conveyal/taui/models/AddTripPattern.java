@@ -12,8 +12,9 @@ import java.util.List;
  * Add a trip pattern.
  */
 public class AddTripPattern extends Modification {
+    public static final String type = "add-trip-pattern";
     public String getType() {
-        return "add-trip-pattern";
+        return type;
     }
 
     public List<Segment> segments;
@@ -51,42 +52,7 @@ public class AddTripPattern extends Modification {
         public Geometry geometry;
     }
 
-    public static class Timetable {
-        public String timetableId;
-        
-        /** Days of the week on which this service is active */
-        public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
-
-        /** allow naming timetables so it's easier to see what's going on */
-        public String name;
-
-        /** start time (seconds since GTFS midnight) */
-        public int startTime;
-
-        /** end time for frequency-based trips (seconds since GTFS midnight) */
-        public int endTime;
-
-        /** headway for frequency-based patterns */
-        public int headwaySecs;
-
-        /** should this be specified as an exact schedule */
-        public boolean exactTimes;
-
-        /** Phase at a stop that is in this modification */
-        public String phaseAtStop;
-
-        /**
-         * Phase from a timetable (frequency entry) on another modification.
-         * Syntax is `${modification._id}:${timetable._id}`
-         */
-        public String phaseFromTimetable;
-
-        /** Phase from a stop that can be found in the phased from modification's stops */
-        public String phaseFromStop;
-
-        /** Amount of time to phase from the other lines frequency */
-        public int phaseSeconds;
-
+    public static class Timetable extends TimetableInterface {
         /** Dwell time at each stop, seconds */
         public int dwellTime;
 

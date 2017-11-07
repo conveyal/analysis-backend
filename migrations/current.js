@@ -37,16 +37,18 @@ db.projects.find({}).forEach(function (p) {
 db.modifications.find({}).forEach(function (m) {
 	if (m.timetables && m.timetables.length > 0) {
 		m.timetables.forEach(function (tt) {
-			tt.timetableId = tt.id;
+			tt._id = tt.id || tt.timetableId || ObjectId().valueOf();
 			delete tt.id;
+			delete tt.timetableId;
 		});
 		db.modifications.save(m);
 	}
 
 	if (m.entries && m.entries.length > 0) {
 		m.entries.forEach(function (e) {
-			e.entryId = e.id;
+			e._id = e.id || e.entryId || ObjectId().valueOf();
 			delete e.id;
+			delete e.entryId;
 		});
 		db.modifications.save(m);
 	}

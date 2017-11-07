@@ -17,9 +17,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class),
         @JsonSubTypes.Type(name = "reroute", value = Reroute.class)
 })
-public abstract class Modification extends Model {
+public abstract class Modification extends Model implements Cloneable {
     /** the type of this modification, see JsonSubTypes annotation above */
     public abstract String getType ();
+
+    public Modification clone () throws CloneNotSupportedException {
+        return (Modification) super.clone();
+    }
 
     /** What scenario is this modification a part of? */
     public String scenarioId;
