@@ -47,6 +47,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
     /** Has this analysis been (soft) deleted? */
     public boolean deleted;
 
+    // TODO do statuses differently
     @JsonView(JsonViews.Api.class)
     public RegionalAnalysisManager.RegionalAnalysisStatus getStatus () {
         return RegionalAnalysisManager.getStatus(this._id);

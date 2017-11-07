@@ -281,6 +281,7 @@ public class RegionalAnalysisController {
         regionalAnalysis.creationTime = System.currentTimeMillis();
         regionalAnalysis.zoom = 9;
 
+        // TODO do statuses differently
         if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
         else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromProject(project);
 

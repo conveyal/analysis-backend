@@ -57,8 +57,7 @@ public class RegionalAnalysisManager {
     public static final String resultsQueueUrl;
     private static final int REQUEST_CHUNK_SIZE = 1000;
 
-    public static final String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
-
+    public static final String brokerUrl = AnalysisServerConfig.brokerUrl;
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();

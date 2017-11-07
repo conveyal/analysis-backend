@@ -36,8 +36,7 @@ public class SinglePointAnalysisController {
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
         String path = req.pathInfo().replaceAll("^/api/analysis/", "");
         String method = req.requestMethod();
-
-        String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:9001" : AnalysisServerConfig.brokerUrl;
+        String brokerUrl = AnalysisServerConfig.brokerUrl;
 
         CloseableHttpResponse brokerRes = null;
 
