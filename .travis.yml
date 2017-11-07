@@ -22,6 +22,8 @@ env:
 script: mvn package
 
 after_success:
+  # Upload coverage results to codecov
+  - bash <(curl -s https://codecov.io/bash)
   # Upload a shaded jar to S3
   - pip install --user awscli && export PATH=$PATH:~/.local/bin/
   # TODO once we have tags use git describe
