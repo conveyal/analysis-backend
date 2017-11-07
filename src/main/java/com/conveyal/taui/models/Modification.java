@@ -30,6 +30,7 @@ public abstract class Modification extends Model {
     /** is this modification shown on the map in the UI at the moment? */
     public boolean showOnMap = true;
 
+    // TODO remove this, it is no longer used
     /** is this modification expanded in the UI at the moment? */
     public boolean expanded = true;
 

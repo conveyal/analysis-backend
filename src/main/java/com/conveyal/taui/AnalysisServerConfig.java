@@ -1,5 +1,6 @@
 package com.conveyal.taui;
 
+import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,7 @@ public class AnalysisServerConfig {
     public static final String databaseName = getEnv("DATABASE_NAME", "scenario-editor");
     public static final String databaseUri = getEnv("MONGOLAB_URI", null);
     public static final String auth0ClientId = getEnv("AUTH0_CLIENT_ID", null);
-    public static final String auth0Secret = getEnv("AUTH0_SECRET", null);
+    public static final byte[] auth0Secret = new Base64(true).decode(getEnv("AUTH0_SECRET", null));
     public static final String localCache = getEnv("LOCAL_CACHE", "cache");
     public static final String assetLocation = getEnv("ASSET_LOCATION", "https://d1uqjuy3laovxb.cloudfront.net");
     public static final int port = Integer.parseInt(getEnv("PORT", "7070"));
@@ -53,7 +54,7 @@ public class AnalysisServerConfig {
     }
 
     static {
-        if (!offline && (bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || resultsQueue == null)) {
+        if (!offline && (brokerUrl == null || bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || resultsQueue == null)) {
             LOG.error("Application is missing config variables needed in online mode.");
         }
     }

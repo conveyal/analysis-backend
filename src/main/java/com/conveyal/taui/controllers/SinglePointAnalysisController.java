@@ -37,7 +37,7 @@ public class SinglePointAnalysisController {
         String path = req.pathInfo().replaceAll("^/api/analysis/", "");
         String method = req.requestMethod();
 
-        String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
+        String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:9001" : AnalysisServerConfig.brokerUrl;
 
         CloseableHttpResponse brokerRes = null;
 
@@ -65,14 +65,11 @@ public class SinglePointAnalysisController {
             // TODO set encoding?
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
-            try {
-                long l = ByteStreams.copy(is, baos);
-                LOG.info("Returning {} bytes to scenario editor frontend", l);
-                is.close();
-                EntityUtils.consume(brokerRes.getEntity());
-            } catch (Exception e) {
-                throw AnalysisServerException.Broker(e.getMessage());
-            }
+            long l = ByteStreams.copy(is, baos);
+            is.close();
+            EntityUtils.consume(brokerRes.getEntity());
+
+            LOG.info("Returning {} bytes to scenario editor frontend", l);
             return baos.toByteArray();
         } catch (Exception e) {
             throw AnalysisServerException.Broker(e.getMessage());
