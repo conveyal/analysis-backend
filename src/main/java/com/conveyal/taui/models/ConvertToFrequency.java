@@ -20,7 +20,7 @@ public class ConvertToFrequency extends Modification {
 
     public List<FrequencyEntry> entries;
 
-    public static class FrequencyEntry extends TimetableInterface {
+    public static class FrequencyEntry extends AbstractTimetable {
         /** start times of this trip (seconds since midnight), when non-null scheduled trips will be created */
         @Deprecated
         public int[] startTimes;

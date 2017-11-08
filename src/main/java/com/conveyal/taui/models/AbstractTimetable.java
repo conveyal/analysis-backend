@@ -1,6 +1,6 @@
 package com.conveyal.taui.models;
 
-public abstract class TimetableInterface {
+public abstract class AbstractTimetable {
     public String _id;
 
     /** Days of the week on which this service is active, 0 is Monday */

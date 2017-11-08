@@ -52,7 +52,7 @@ public class AddTripPattern extends Modification {
         public Geometry geometry;
     }
 
-    public static class Timetable extends TimetableInterface {
+    public static class Timetable extends AbstractTimetable {
         /** Dwell time at each stop, seconds */
         public int dwellTime;
 
