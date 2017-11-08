@@ -92,7 +92,7 @@ public class ProjectController {
                 }
                 project.fetchCensus();
                 Persistence.projects.put(project);
-                Project.loadStatusForProject.remove(project._id);
+                Project.loadStatusForProject.put(project._id, Project.LoadStatus.DONE);
             } catch (Exception e) {
                 Project.loadStatusForProject.put(project._id, Project.LoadStatus.ERROR);
                 LOG.error("Error while fetching OSM. " + e.getMessage());
@@ -124,6 +124,7 @@ public class ProjectController {
                         project.fetchCensus();
                     }
                     Persistence.projects.updateByUserIfPermitted(project, req.attribute("email"), req.attribute("accessGroup"));
+                    Project.loadStatusForProject.put(project._id, Project.LoadStatus.DONE);
                 } catch (Exception e) {
                     Project.loadStatusForProject.put(project._id, Project.LoadStatus.ERROR);
                     LOG.error("Error while fetching OSM. " + e.getMessage());

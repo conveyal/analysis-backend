@@ -1,9 +1,9 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.taui.models.AbstractTimetable;
 import com.conveyal.taui.models.AddTripPattern;
 import com.conveyal.taui.models.ConvertToFrequency;
 import com.conveyal.taui.models.Modification;
-import com.conveyal.taui.models.TimetableInterface;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import org.bson.types.ObjectId;
@@ -41,7 +41,7 @@ public class ModificationController {
         return Persistence.modifications.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
     }
 
-    public static void mapPhaseIds (List<TimetableInterface> timetables, String oldModificationId, String newModificationId) {
+    public static void mapPhaseIds (List<AbstractTimetable> timetables, String oldModificationId, String newModificationId) {
         Map<String, String> idPairs = new HashMap<String, String>();
         timetables.forEach(tt -> {
             String newId = ObjectId.get().toString();
@@ -67,9 +67,9 @@ public class ModificationController {
 
         // Matched up the phased entries and timetables
         if (modification.getType().equals(AddTripPattern.type)) {
-            mapPhaseIds((List<TimetableInterface>)(List<?>)((AddTripPattern) clone).timetables, oldId, clone._id);
+            mapPhaseIds((List<AbstractTimetable>)(List<?>)((AddTripPattern) clone).timetables, oldId, clone._id);
         } else if (modification.getType().equals(ConvertToFrequency.type)) {
-            mapPhaseIds((List<TimetableInterface>)(List<?>)((ConvertToFrequency) clone).entries, oldId, clone._id);
+            mapPhaseIds((List<AbstractTimetable>)(List<?>)((ConvertToFrequency) clone).entries, oldId, clone._id);
         }
 
         // Set `name` to include "(copy)"

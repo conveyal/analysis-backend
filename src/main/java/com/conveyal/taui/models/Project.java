@@ -58,7 +58,7 @@ public class Project extends Model implements Cloneable {
     }
 
     public LoadStatus getLoadStatus () {
-        return loadStatusForProject.getOrDefault(_id, LoadStatus.DONE);
+        return loadStatusForProject.getOrDefault(_id, LoadStatus.STARTED);
     }
 
     public void setLoadStatus (LoadStatus status) {
@@ -178,6 +178,9 @@ public class Project extends Model implements Cloneable {
 
     /** Represents the status of OSM and Census loading */
     public enum LoadStatus {
+        /** Started **/
+        STARTED,
+
         /** Downloading OpenStreetMap data */
         DOWNLOADING_OSM,
 
