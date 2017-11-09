@@ -99,7 +99,7 @@ public class Project extends Model implements Cloneable {
         return Persistence.aggregationAreas.getByProperty("projectId", id);
     }
 
-    public List<Indicator> indicators = new ArrayList<>();
+    public List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
 
     public synchronized void fetchOsm () throws IOException {
         loadStatusForProject.put(id, LoadStatus.DOWNLOADING_OSM);
@@ -136,7 +136,7 @@ public class Project extends Model implements Cloneable {
     }
 
     public synchronized void fetchCensus () {
-        this.indicators.addAll(gridFetcher.extractData(AnalysisServerConfig.gridBucket, this.id,
+        this.opportunityDatasets.addAll(gridFetcher.extractData(AnalysisServerConfig.gridBucket, this.id,
                 bounds.north,
                 bounds.east,
                 bounds.south,
@@ -170,12 +170,12 @@ public class Project extends Model implements Cloneable {
         }
     }
 
-    /** Represents an indicator */
-    public static class Indicator {
+    /** Represents an Opportunity Dataset */
+    public static class OpportunityDataset {
         /** The human-readable name of the data source from which this came */
         public String dataSource;
 
-        /** The human readable name of the indicator */
+        /** The human readable name of the dataset */
         public String name;
 
         /** The key on S3 */
