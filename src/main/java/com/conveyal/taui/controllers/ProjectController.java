@@ -1,6 +1,8 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.osmlib.OSM;
 import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
@@ -32,8 +34,7 @@ import static spark.Spark.put;
  */
 public class ProjectController {
     private static final Logger LOG = LoggerFactory.getLogger(ProjectController.class);
-
-    private static FileItemFactory fileItemFactory = new DiskFileItemFactory();
+    private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
     public static Project getProject (Request req, Response res) {
         return Persistence.projects.findByIdFromRequestIfPermitted(req);
@@ -64,6 +65,23 @@ public class ProjectController {
         }
     }
 
+    private static synchronized OSM fetchOsm (Project project) throws Exception {
+        // Set the project status
+        project.statusCode = Project.StatusCode.DOWNLOADING_OSM;
+        project = Persistence.projects.put(project);
+
+        // Retrieve and save the OSM for the project bounds at the given _id
+        return OSMPersistence.retrieveOSMFromVexForBounds(project.bounds, project._id);
+        // TODO remove all cached transport networks for this project
+    }
+
+    private static synchronized List<Project.OpportunityDataset> fetchCensus (Project project) throws Exception {
+        // Set the project status
+        project.statusCode = Project.StatusCode.DOWNLOADING_CENSUS;
+        project = Persistence.projects.put(project);
+        return SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(project.bounds, project._id);
+    }
+
     public static void saveCustomOSM(Project project, Map<String, List<FileItem>> files) throws Exception {
         project.customOsm = true;
         File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
@@ -72,33 +90,50 @@ public class ProjectController {
         customOsmData.delete();
     }
 
+    public static void fetchOsmAndCensusDataInThread (String _id, Map<String, List<FileItem>> files, boolean newBounds) {
+        boolean customOsm = files.containsKey("customOpenStreetMapData");
+        new Thread(() -> {
+            Project project = Persistence.projects.get(_id);
+
+            try {
+                if (customOsm) {
+                    saveCustomOSM(project, files);
+                }
+
+                if (newBounds) {
+                    if (!customOsm) fetchOsm(project);
+                    fetchCensus(project);
+                }
+
+                project.statusCode = Project.StatusCode.DONE;
+                Persistence.projects.put(project);
+            } catch (Exception e) {
+                project.statusCode = Project.StatusCode.ERROR;
+                project.statusMessage = "Error while fetching data. " + e.getMessage();
+                Persistence.projects.put(project);
+
+                LOG.error("Error while fetching OSM. " + e.getMessage());
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
     public static Project create(Request req, Response res) {
         final Map<String, List<FileItem>> files = getFilesFromRequest(req);
-        final Project project = getProjectFromFiles(files);
+        Project project = getProjectFromFiles(files);
 
         // Set the `accessGroup` and `createdBy`
         project.accessGroup = req.attribute("accessGroup");
         project.createdBy = req.attribute("email");
 
+        // Set the status to Started
+        project.statusCode = Project.StatusCode.STARTED;
+
         // Create the project
         Persistence.projects.create(project);
 
-        new Thread(() -> {
-            try {
-                if (files.containsKey("customOpenStreetMapData")) {
-                    saveCustomOSM(project, files);
-                } else {
-                    project.fetchOsm();
-                }
-                project.fetchCensus();
-                Persistence.projects.put(project);
-                Project.loadStatusForProject.put(project._id, Project.LoadStatus.DONE);
-            } catch (Exception e) {
-                Project.loadStatusForProject.put(project._id, Project.LoadStatus.ERROR);
-                LOG.error("Error while fetching OSM. " + e.getMessage());
-                e.printStackTrace();
-            }
-        }).start();
+        // Fetch data and update the statuses separately
+        fetchOsmAndCensusDataInThread(project._id, files, true);
 
         return project;
     }
@@ -106,34 +141,23 @@ public class ProjectController {
     public static Project update(Request req, Response res) {
         final Project existingProject = Persistence.projects.findByIdFromRequestIfPermitted(req);
         final Map<String, List<FileItem>> files = getFilesFromRequest(req);
-        final Project project = getProjectFromFiles(files);
+        Project project = getProjectFromFiles(files);
 
         boolean boundsChanged = !existingProject.bounds.equals(project.bounds, 1e-6);
         boolean customOSM = files.containsKey("customOpenStreetMapData");
 
+        // Set updatedBy
+        project.updatedBy = req.attribute("email");
+
         if (boundsChanged || customOSM) {
-            new Thread(() -> {
-                try {
-                    if (customOSM) {
-                        saveCustomOSM(project, files);
-                        if (boundsChanged) {
-                            project.fetchCensus();
-                        }
-                    } else {
-                        project.fetchOsm();
-                        project.fetchCensus();
-                    }
-                    Persistence.projects.updateByUserIfPermitted(project, req.attribute("email"), req.attribute("accessGroup"));
-                    Project.loadStatusForProject.put(project._id, Project.LoadStatus.DONE);
-                } catch (Exception e) {
-                    Project.loadStatusForProject.put(project._id, Project.LoadStatus.ERROR);
-                    LOG.error("Error while fetching OSM. " + e.getMessage());
-                    e.printStackTrace();
-                }
-            }).start();
+            project.statusCode = Project.StatusCode.STARTED;
+            project = Persistence.projects.put(project);
+
+            // Fetch data and update the statuses separately
+            fetchOsmAndCensusDataInThread(project._id, files, boundsChanged);
         }
 
-        return Persistence.projects.updateByUserIfPermitted(project, req.attribute("email"), req.attribute("accessGroup"));
+        return project;
     }
 
     public static Project deleteProject (Request req, Response res) {

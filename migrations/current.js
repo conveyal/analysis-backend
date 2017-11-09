@@ -1,5 +1,8 @@
-// 1 Rename project.group to project.accessGroup
-db.projects.update({},{$rename:{"group":"accessGroup"}},{multi:true});
+// 1 Rename project.group to project.accessGroup and set all project.statusCode to DONE
+db.projects.update({},{
+	$rename:{"group":"accessGroup"},
+	$set:{"statusCode":"DONE"}
+},{multi:true});
 
 // 2 Rename `modifications.scenario` to `modifications.scenarioId`
 db.modifications.update({},{$rename:{"scenario":"scenarioId"}},{multi:true});
