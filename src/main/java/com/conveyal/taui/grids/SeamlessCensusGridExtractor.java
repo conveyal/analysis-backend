@@ -85,7 +85,7 @@ public class SeamlessCensusGridExtractor extends GridExtractor {
         for (GeobufFeature feature : features.values()) {
             if (++featIdx % 1000 == 0) LOG.info("{} / {} features read", featIdx, features.size());
 
-            TObjectDoubleMap<int[]> weights = null;
+            List weights = null;
 
             for (String attribute : attributes) {
 
