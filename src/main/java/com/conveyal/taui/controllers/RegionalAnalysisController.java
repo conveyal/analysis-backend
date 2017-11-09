@@ -86,7 +86,7 @@ public class RegionalAnalysisController {
 
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
-        String regionalAnalysisId = req.params("regionalAnalysisId");
+        String regionalAnalysisId = req.params("_id");
         RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
 
         // while we can do non-integer percentiles, don't allow that here to prevent cache misses
@@ -261,7 +261,7 @@ public class RegionalAnalysisController {
     }
 
     public static int[] getSamplingDistribution (Request req, Response res) {
-        String regionalAnalysisId = req.params("regionalAnalysisId");
+        String regionalAnalysisId = req.params("_id");
         double lat = Double.parseDouble(req.params("lat"));
         double lon = Double.parseDouble(req.params("lon"));
 
@@ -294,7 +294,7 @@ public class RegionalAnalysisController {
     public static void register () {
         get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:_id/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
