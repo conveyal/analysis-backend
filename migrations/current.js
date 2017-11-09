@@ -60,7 +60,7 @@ db.modifications.find({}).forEach(function (m) {
 // 5 Add nonces to all models that do not have them
 // It's fine to set all items to have the same nonce as it just checks for the version within the specific item
 function addNonceToCollection (collection) {
-	collection.update({"nonce":null},{$set:{"nonce":ObjectId().valueOf()}},{multi:true});
+	collection.update({},{$set:{"nonce":ObjectId().valueOf()}},{multi:true});
 }
 if (db.aggregationAreas) addNonceToCollection(db.aggregationAreas);
 addNonceToCollection(db.bookmarks);
