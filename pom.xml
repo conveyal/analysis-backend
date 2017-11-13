@@ -6,7 +6,7 @@
 
     <groupId>com.conveyal</groupId>
     <artifactId>analyst</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+    <version>3.0.0</version>
 
     <build>
         <plugins>
@@ -152,7 +152,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>r5</artifactId>
-            <version>4.0.0-SNAPSHOT</version>
+            <version>4.0.0-20171109.183530-3</version>
         </dependency>
 
         <dependency>
@@ -176,7 +176,7 @@
         <dependency>
             <groupId>com.conveyal.data.census</groupId>
             <artifactId>seamless-census</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0-20170720.160719-2</version>
         </dependency>
 
         <dependency>
