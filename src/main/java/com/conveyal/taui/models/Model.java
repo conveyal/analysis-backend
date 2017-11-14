@@ -3,7 +3,7 @@ package com.conveyal.taui.models;
 import org.bson.types.ObjectId;
 
 import javax.persistence.Id;
-import java.time.Instant;
+import java.util.Date;
 
 /**
  * Created by matthewc on 2/9/16.
@@ -16,12 +16,12 @@ public abstract class Model implements Cloneable {
 
     public String nonce;
 
-    public String createdAt;
-    public String updatedAt;
+    public Date createdAt;
+    public Date updatedAt;
 
     public void updateLock() {
         this.nonce = new ObjectId().toString();
-        this.updatedAt = Instant.now().toString();
+        this.updatedAt = new Date();
     }
 
     public String accessGroup;

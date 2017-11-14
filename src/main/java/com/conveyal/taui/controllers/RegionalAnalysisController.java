@@ -278,7 +278,6 @@ public class RegionalAnalysisController {
         // this scenario is specific to this job
         regionalAnalysis.request.scenarioId = null;
         regionalAnalysis.request.scenario.id = regionalAnalysis._id;
-        regionalAnalysis.creationTime = System.currentTimeMillis();
         regionalAnalysis.zoom = 9;
 
         // TODO do statuses differently

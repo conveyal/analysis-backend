@@ -63,7 +63,7 @@ public class OpportunityDatasetsController {
     private static void addStatusAndRemoveOldStatuses(OpportunityDatasetUploadStatus status) {
         uploadStatuses.add(status);
         LocalDateTime now = LocalDateTime.now();
-        uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt).isBefore(now.minusDays(7)));
+        uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt.toString()).isBefore(now.minusDays(7)));
     }
 
     /**
@@ -355,18 +355,18 @@ public class OpportunityDatasetsController {
         public Status status = Status.PROCESSING;
         public String name;
         public String message;
-        public String createdAt;
-        public String completedAt;
+        public Date createdAt;
+        public Date completedAt;
 
         public OpportunityDatasetUploadStatus(String projectId, String name) {
             this.id = UUID.randomUUID().toString();
             this.projectId = projectId;
             this.name = name;
-            this.createdAt = LocalDateTime.now().toString();
+            this.createdAt = new Date();
         }
 
         public void completed () {
-            this.completedAt = LocalDateTime.now().toString();
+            this.completedAt = new Date();
         }
     }
 

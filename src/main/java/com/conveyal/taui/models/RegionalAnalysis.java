@@ -13,26 +13,25 @@ import static com.conveyal.r5.analyst.Grid.lonToPixel;
  * Represents a query.
  */
 public class RegionalAnalysis extends Model implements Cloneable {
+    public String projectId;
+    public String bundleId;
+
+    /** Scenario ID, null if the bundle was used directly */
+    public String scenarioId;
+    public int variant;
+
+    public String workerVersion;
+
     public int zoom;
     public int width;
     public int height;
     public int north;
     public int west;
     public RegionalTask request;
-    public boolean complete;
-    public String workerVersion;
-    public long creationTime;
-
-    public String bundleId;
-
-    /** Scenario ID, null if the bundle was used directly */
-    public String scenarioId;
 
     /** Percentile this analysis is using, or -1 if it is pre-percentiles and is using Andrew Owen-style accessibility */
     public int travelTimePercentile = -1;
 
-    public int variant;
-    public String projectId;
     public String grid;
     public int cutoffMinutes;
 
@@ -43,6 +42,9 @@ public class RegionalAnalysis extends Model implements Cloneable {
      * See also: https://commons.wikimedia.org/wiki/File:The_Gerry-Mander_Edit.png
      */
     public Geometry bounds;
+
+    /** Is this Analysis complete? */
+    public boolean complete;
 
     /** Has this analysis been (soft) deleted? */
     public boolean deleted;
