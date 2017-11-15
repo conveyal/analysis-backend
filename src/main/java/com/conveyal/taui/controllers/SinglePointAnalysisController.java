@@ -68,7 +68,7 @@ public class SinglePointAnalysisController {
             is.close();
             EntityUtils.consume(brokerRes.getEntity());
 
-            LOG.info("Returning {} bytes to scenario editor frontend", l);
+            LOG.info("Returning {} bytes to the frontend", l);
             return baos.toByteArray();
         } catch (Exception e) {
             throw AnalysisServerException.Broker(e.getMessage());

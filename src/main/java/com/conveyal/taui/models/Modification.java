@@ -25,8 +25,8 @@ public abstract class Modification extends Model implements Cloneable {
         return (Modification) super.clone();
     }
 
-    /** What scenario is this modification a part of? */
-    public String scenarioId;
+    /** What project is this modification a part of? */
+    public String projectId;
 
     /** what variants is this modification a part of? */
     public boolean[] variants;

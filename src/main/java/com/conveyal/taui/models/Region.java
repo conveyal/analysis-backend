@@ -29,6 +29,7 @@ public class Region extends Model implements Cloneable {
     public String statusMessage;
 
     // don't persist to DB but do expose to API
+    // TODO Don't use "values"
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
         return Persistence.bundles.values()
@@ -37,9 +38,10 @@ public class Region extends Model implements Cloneable {
                 .collect(Collectors.toList());
     }
 
+    // TODO Don't use "values"
     @JsonView(JsonViews.Api.class)
-    public List<Scenario> getScenarios () {
-        return Persistence.scenarios.values()
+    public List<Project> getProjects () {
+        return Persistence.projects.values()
                 .stream()
                 .filter(s -> _id.equals(s.regionId))
                 .collect(Collectors.toList());

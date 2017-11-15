@@ -3,7 +3,7 @@ package com.conveyal.taui.controllers;
 import com.conveyal.taui.models.AddTripPattern;
 import com.conveyal.taui.models.ConvertToFrequency;
 import com.conveyal.taui.models.Modification;
-import com.conveyal.taui.models.Scenario;
+import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.mongodb.QueryBuilder;
@@ -24,31 +24,31 @@ import static spark.Spark.post;
 import static spark.Spark.put;
 
 /**
- * Controller for scenarios.
+ * Controller for projects.
  */
-public class ScenarioController {
-    public static Scenario findById(Request req, Response res) {
-        return Persistence.scenarios.findByIdFromRequestIfPermitted(req);
+public class ProjectController {
+    public static Project findById(Request req, Response res) {
+        return Persistence.projects.findByIdFromRequestIfPermitted(req);
     }
 
-    public static Collection<Scenario> getAllScenarios (Request req, Response res) {
-        return Persistence.scenarios.findPermitted(
+    public static Collection<Project> getAllProjects (Request req, Response res) {
+        return Persistence.projects.findPermitted(
                 QueryBuilder.start("regionId").is(req.params("region")).get(),
                 req.attribute("accessGroup")
         );
     }
 
-    public static Scenario create(Request req, Response res) throws IOException {
-        return Persistence.scenarios.createFromJSONRequest(req, Scenario.class);
+    public static Project create(Request req, Response res) throws IOException {
+        return Persistence.projects.createFromJSONRequest(req, Project.class);
     }
 
-    public static Scenario update(Request req, Response res) throws IOException {
-        return Persistence.scenarios.updateFromJSONRequest(req, Scenario.class);
+    public static Project update(Request req, Response res) throws IOException {
+        return Persistence.projects.updateFromJSONRequest(req, Project.class);
     }
 
     public static Collection<Modification> modifications (Request req, Response res) {
         return Persistence.modifications.findPermitted(
-                QueryBuilder.start("scenarioId").is(req.params("_id")).get(),
+                QueryBuilder.start("projectId").is(req.params("_id")).get(),
                 req.attribute("accessGroup")
         );
     }
@@ -57,7 +57,7 @@ public class ScenarioController {
         String importId = req.params("_importId");
         String newId = req.params("_id");
         Collection<Modification> modifications = Persistence.modifications.findPermitted(
-                QueryBuilder.start("scenarioId").is(importId).get(),
+                QueryBuilder.start("projectId").is(importId).get(),
                 req.attribute("accessGroup")
         );
 
@@ -74,8 +74,8 @@ public class ScenarioController {
                     Modification clone = Persistence.modifications.create(modification);
                     modificationIdPairs.put(oldModificationId, clone._id);
 
-                    // Change the scenarioId, most important part!
-                    clone.scenarioId = newId;
+                    // Change the projectId, most important part!
+                    clone.projectId = newId;
 
                     // Set `name` to include "(import)"
                     clone.name = clone.name + " (import)";
@@ -126,18 +126,18 @@ public class ScenarioController {
                 .collect(Collectors.toList());
     }
 
-    public static Scenario deleteScenario (Request req, Response res) {
-        return Persistence.scenarios.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
+    public static Project deleteProject (Request req, Response res) {
+        return Persistence.projects.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
     }
 
     public static void register () {
-        get("/api/scenario/:_id", ScenarioController::findById, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/scenario/:_id/modifications", ScenarioController::modifications, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/scenario/:_id/import/:_importId", ScenarioController::importModifications, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/scenario", ScenarioController::create, JsonUtil.objectMapper::writeValueAsString);
-        options("/api/scenario", (q, s) -> "");
-        put("/api/scenario/:_id", ScenarioController::update, JsonUtil.objectMapper::writeValueAsString);
-        delete("/api/scenario/:_id", ScenarioController::deleteScenario, JsonUtil.objectMapper::writeValueAsString);
-        options("/api/scenario/:_id", (q, s) -> "");
+        get("/api/project/:_id", ProjectController::findById, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/project/:_id/modifications", ProjectController::modifications, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/project/:_id/import/:_importId", ProjectController::importModifications, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/project", ProjectController::create, JsonUtil.objectMapper::writeValueAsString);
+        options("/api/project", (q, s) -> "");
+        put("/api/project/:_id", ProjectController::update, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/project/:_id", ProjectController::deleteProject, JsonUtil.objectMapper::writeValueAsString);
+        options("/api/project/:_id", (q, s) -> "");
     }
 }

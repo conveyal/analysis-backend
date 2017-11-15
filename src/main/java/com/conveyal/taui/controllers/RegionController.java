@@ -167,7 +167,7 @@ public class RegionController {
     public static void register () {
         get("/api/region", RegionController::getAllRegions, JsonUtil.objectMapper::writeValueAsString);
         get("/api/region/:_id", RegionController::getRegion, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/region/:region/scenarios", ScenarioController::getAllScenarios, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/region/:region/projects", ProjectController::getAllProjects, JsonUtil.objectMapper::writeValueAsString);
         get("/api/region/:region/bookmark", BookmarkController::getAllBookmarks, JsonUtil.objectMapper::writeValueAsString);
         post("/api/region/:region/bookmark", BookmarkController::createBookmark, JsonUtil.objectMapper::writeValueAsString);
         post("/api/region", RegionController::create, JsonUtil.objectMapper::writeValueAsString);

@@ -1,19 +1,19 @@
 package com.conveyal.taui.models;
 
 /**
- * Represents a TAUI scenario
+ * Represents a TAUI project
  */
-public class Scenario extends Model implements Cloneable {
-    /** Names of the variants of this scenario */
+public class Project extends Model implements Cloneable {
+    /** Names of the variants of this project */
     public String[] variants;
 
     public String regionId;
 
     public String bundleId;
 
-    public Scenario clone () {
+    public Project clone () {
         try {
-            return (Scenario) super.clone();
+            return (Project) super.clone();
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }

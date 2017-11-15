@@ -183,10 +183,10 @@ public class RegionalAnalysisController {
         }
     }
 
-    /** Get a probability of improvement from a baseline to a scenario */
+    /** Get a probability of improvement from a baseline to a project */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String base = req.params("baseId");
-        String scenario = req.params("scenarioId");
+        String project = req.params("projectId");
         String format = req.params("format").toLowerCase();
         validateFormat(format);
 
@@ -195,20 +195,20 @@ public class RegionalAnalysisController {
         if (redirectText == null || "" .equals(redirectText)) redirect = true;
         else redirect = parseBoolean(redirectText);
 
-        String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
+        String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, project, format);
 
         if (!s3.doesObjectExist(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey)) {
-            LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
+            LOG.info("Probability surface for {} -> {} not found, building it", base, project);
 
             String baseKey = String.format("%s.access", base);
-            String scenarioKey = String.format("%s.access", scenario);
+            String projectKey = String.format("%s.access", project);
 
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
-            Grid grid = computer.computeImprovementProbability(AnalysisServerConfig.resultsBucket, baseKey, scenarioKey);
+            Grid grid = computer.computeImprovementProbability(AnalysisServerConfig.resultsBucket, baseKey, projectKey);
 
             PipedInputStream pis = new PipedInputStream();
             PipedOutputStream pos = new PipedOutputStream(pis);
@@ -294,7 +294,7 @@ public class RegionalAnalysisController {
         get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:baseId/:projectId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }

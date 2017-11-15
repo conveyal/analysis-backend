@@ -15,9 +15,8 @@ import static com.conveyal.r5.analyst.Grid.lonToPixel;
 public class RegionalAnalysis extends Model implements Cloneable {
     public String regionId;
     public String bundleId;
+    public String projectId;
 
-    /** Scenario ID, null if the bundle was used directly */
-    public String scenarioId;
     public int variant;
 
     public String workerVersion;
