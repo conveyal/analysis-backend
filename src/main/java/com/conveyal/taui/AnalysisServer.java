@@ -9,7 +9,7 @@ import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
 import com.conveyal.taui.controllers.OpportunityDatasetsController;
-import com.conveyal.taui.controllers.ProjectController;
+import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ScenarioController;
 import com.conveyal.taui.controllers.SinglePointAnalysisController;
@@ -94,7 +94,7 @@ public class AnalysisServer {
         });
 
         // Register all our HTTP request handlers with the Spark HTTP framework.
-        ProjectController.register();
+        RegionController.register();
         ModificationController.register();
         ScenarioController.register();
         GraphQLController.register();

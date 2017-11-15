@@ -15,7 +15,7 @@ import java.util.Collection;
 public class BookmarkController {
     public static Collection<Bookmark> getAllBookmarks (Request request, Response response) {
         return Persistence.bookmarks.findPermitted(
-                QueryBuilder.start("projectId").is(request.params("project")).get(),
+                QueryBuilder.start("regionId").is(request.params("region")).get(),
                 request.attribute("accessGroup")
         );
     }

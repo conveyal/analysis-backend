@@ -9,22 +9,22 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Represents a project, which is a set of GTFS, OSM, and land use data for a particular location.
+ * Represents a region, which is a set of GTFS, OSM, and land use data for a particular location.
  */
-public class Project extends Model implements Cloneable {
-    /** Project description */
+public class Region extends Model implements Cloneable {
+    /** Region description */
     public String description;
 
     /** R5 version used for analysis */
     public String r5Version;
 
-    /** Bounds of this project */
+    /** Bounds of this region */
     public Bounds bounds;
 
-    /** Does this project use custom OSM */
+    /** Does this region use custom OSM */
     public boolean customOsm;
 
-    /** Load status of this project */
+    /** Load status of this region */
     public StatusCode statusCode;
     public String statusMessage;
 
@@ -33,7 +33,7 @@ public class Project extends Model implements Cloneable {
     public List<Bundle> getBundles () {
         return Persistence.bundles.values()
                 .stream()
-                .filter(b -> _id.equals(b.projectId))
+                .filter(b -> _id.equals(b.regionId))
                 .collect(Collectors.toList());
     }
 
@@ -41,25 +41,25 @@ public class Project extends Model implements Cloneable {
     public List<Scenario> getScenarios () {
         return Persistence.scenarios.values()
                 .stream()
-                .filter(s -> _id.equals(s.projectId))
+                .filter(s -> _id.equals(s.regionId))
                 .collect(Collectors.toList());
     }
 
     @JsonView(JsonViews.Api.class)
     public Collection<Bookmark> getBookmarks () {
-        return Persistence.bookmarks.getByProperty("projectId", _id);
+        return Persistence.bookmarks.getByProperty("regionId", _id);
     }
 
     @JsonView(JsonViews.Api.class)
     public Collection<AggregationArea> getAggregationAreas () {
-        return Persistence.aggregationAreas.getByProperty("projectId", _id);
+        return Persistence.aggregationAreas.getByProperty("regionId", _id);
     }
 
     public List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
 
-    public Project clone () {
+    public Region clone () {
         try {
-            return (Project) super.clone();
+            return (Region) super.clone();
         } catch (CloneNotSupportedException e) {
             // can't happen.
             throw new RuntimeException(e);

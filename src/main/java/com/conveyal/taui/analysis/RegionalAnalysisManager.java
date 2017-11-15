@@ -1,6 +1,5 @@
 package com.conveyal.taui.analysis;
 
-import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -14,11 +13,11 @@ import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bundle;
-import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -61,7 +60,7 @@ public class RegionalAnalysisManager {
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();
-        sqs.setRegion(Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
+        sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
         consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
 
@@ -90,7 +89,7 @@ public class RegionalAnalysisManager {
             }
 
             Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-            Project project = Persistence.projects.get(bundle.projectId);
+            Region region = Persistence.regions.get(bundle.regionId);
 
             // now that that's done, make the requests to the broker
             List<AnalysisTask> requests = new ArrayList<>();
@@ -113,7 +112,7 @@ public class RegionalAnalysisManager {
                     req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
                     req.x = x;
                     req.y = y;
-                    req.grid = String.format("%s/%s.grid", project._id, regionalAnalysis.grid);
+                    req.grid = String.format("%s/%s.grid", region._id, regionalAnalysis.grid);
                     requests.add(req);
                 }
             }

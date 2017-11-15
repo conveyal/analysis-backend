@@ -11,7 +11,7 @@ import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
-import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.persistence.TiledAccessGrid;
@@ -55,7 +55,7 @@ public class RegionalAnalysisController {
     public static Collection<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
         return Persistence.regionalAnalyses.findPermitted(
                 QueryBuilder.start().and(
-                        QueryBuilder.start("projectId").is(req.params("projectId")).get(),
+                        QueryBuilder.start("regionId").is(req.params("regionId")).get(),
                         QueryBuilder.start("deleted").is(false).get()
                 ).get(),
                 req.attribute("accessGroup")
@@ -272,7 +272,7 @@ public class RegionalAnalysisController {
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
         RegionalAnalysis regionalAnalysis = Persistence.regionalAnalyses.createFromJSONRequest(req, RegionalAnalysis.class);
-        Project project = Persistence.projects.findByIdIfPermitted(regionalAnalysis.projectId, req.attribute("accessGroup"));
+        Region region = Persistence.regions.findByIdIfPermitted(regionalAnalysis.regionId, req.attribute("accessGroup"));
 
         // TODO coordinate parameters that go to broker/r5
         // this scenario is specific to this job
@@ -282,7 +282,7 @@ public class RegionalAnalysisController {
 
         // TODO do statuses differently
         if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
-        else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromProject(project);
+        else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromRegion(region);
 
         Persistence.regionalAnalyses.put(regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);
@@ -291,7 +291,7 @@ public class RegionalAnalysisController {
     }
 
     public static void register () {
-        get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);

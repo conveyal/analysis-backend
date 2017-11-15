@@ -77,7 +77,7 @@ public class AggregationAreaController {
             throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
-        String projectId = req.params("projectId");
+        String regionId = req.params("regionId");
         String maskName = query.get("name").get(0).getString("UTF-8");
 
         File tempDir = Files.createTempDir();
@@ -119,7 +119,7 @@ public class AggregationAreaController {
 
         AggregationArea aggregationArea = new AggregationArea();
         aggregationArea.name = maskName;
-        aggregationArea.projectId = projectId;
+        aggregationArea.regionId = regionId;
 
         // Set `createdBy` and `accessGroup`
         aggregationArea.accessGroup = req.attribute("accessGroup");
@@ -142,7 +142,7 @@ public class AggregationAreaController {
 
     public static Object getAggregationArea (Request req, Response res) {
         String maskId = req.params("maskId");
-        String projectId = req.params("projectId");
+        String regionId = req.params("regionId");
         boolean redirect = true;
 
         try {
@@ -172,7 +172,7 @@ public class AggregationAreaController {
     }
 
     public static void register () {
-        get("/api/project/:projectId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/project/:projectId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/region/:regionId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/region/:regionId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
     }
 }

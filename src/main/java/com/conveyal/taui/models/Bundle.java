@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * All of the data is stored in S3, however some information is cached here.
  */
 public class Bundle extends Model implements Cloneable {
-    public String projectId;
+    public String regionId;
 
     public double north;
     public double south;
@@ -45,7 +45,7 @@ public class Bundle extends Model implements Cloneable {
 
     public void writeManifestToCache () throws IOException {
         BundleManifest manifest = new BundleManifest();
-        manifest.osmId = this.projectId;
+        manifest.osmId = this.regionId;
         manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
         File cacheDir = new File(AnalysisServerConfig.localCache);
         String manifestFileName = GTFSCache.cleanId(this._id) + ".json";

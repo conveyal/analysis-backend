@@ -8,10 +8,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * depending on how much of that pixel is overlapped by the mask.
  */
 public class AggregationArea extends Model {
-    public String projectId;
+    public String regionId;
 
     @JsonIgnore
     public String getS3Key () {
-        return String.format("%s/mask/%s.grid", projectId, _id);
+        return String.format("%s/mask/%s.grid", regionId, _id);
     }
 }

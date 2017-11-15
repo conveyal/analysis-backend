@@ -7,7 +7,7 @@ import com.conveyal.taui.models.JsonViews;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
-import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.models.Scenario;
 import com.conveyal.taui.util.JsonUtil;
@@ -34,7 +34,7 @@ public class Persistence {
     public static MongoMap<Modification> modifications;
     public static MongoMap<Scenario> scenarios;
     public static MongoMap<Bundle> bundles;
-    public static MongoMap<Project> projects;
+    public static MongoMap<Region> regions;
     public static MongoMap<RegionalAnalysis> regionalAnalyses;
     public static MongoMap<Bookmark> bookmarks;
     public static MongoMap<AggregationArea> aggregationAreas;
@@ -58,7 +58,7 @@ public class Persistence {
         modifications = getTable("modifications", Modification.class);
         scenarios = getTable("scenarios", Scenario.class);
         bundles = getTable("bundles", Bundle.class);
-        projects = getTable("projects", Project.class);
+        regions = getTable("regions", Region.class);
         regionalAnalyses = getTable("regional-analyses", RegionalAnalysis.class);
         bookmarks = getTable("bookmarks", Bookmark.class);
         aggregationAreas = getTable("aggregationAreas", AggregationArea.class);

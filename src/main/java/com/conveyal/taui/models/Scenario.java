@@ -7,7 +7,7 @@ public class Scenario extends Model implements Cloneable {
     /** Names of the variants of this scenario */
     public String[] variants;
 
-    public String projectId;
+    public String regionId;
 
     public String bundleId;
 

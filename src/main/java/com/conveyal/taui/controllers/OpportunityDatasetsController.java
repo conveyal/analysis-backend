@@ -10,7 +10,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
-import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.Jobs;
 import com.conveyal.taui.util.JsonUtil;
@@ -76,9 +76,9 @@ public class OpportunityDatasetsController {
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
 
-        // TODO check project membership
+        // TODO check region membership
 
-        String key = String.format("%s/%s.grid", req.params("projectId"), req.params("gridId"));
+        String key = String.format("%s/%s.grid", req.params("regionId"), req.params("gridId"));
 
         GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.gridBucket, key);
         presigned.setExpiration(expiration);
@@ -105,12 +105,12 @@ public class OpportunityDatasetsController {
         }
     }
 
-    public static List<OpportunityDatasetUploadStatus> getProjectUploadStatuses(Request req, Response res) {
-        String projectId = req.params("projectId");
+    public static List<OpportunityDatasetUploadStatus> getRegionUploadStatuses(Request req, Response res) {
+        String regionId = req.params("regionId");
         return uploadStatuses
                 .stream()
                 .filter(status -> {
-                    Boolean b = status.projectId.equals(projectId);
+                    Boolean b = status.regionId.equals(regionId);
                     return b;
                 })
                 .collect(Collectors.toList());
@@ -135,8 +135,8 @@ public class OpportunityDatasetsController {
             throw AnalysisServerException.FileUpload("Unable to create opportunity dataset. " + e.getMessage());
         }
 
-        String projectId = req.params("projectId");
-        OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(projectId, dataSet);
+        String regionId = req.params("regionId");
+        OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, dataSet);
 
         addStatusAndRemoveOldStatuses(status);
 
@@ -170,11 +170,11 @@ public class OpportunityDatasetsController {
                     status.status = Status.UPLOADING;
                     status.totalGrids = grids.size();
                     LOG.info("Uploading opportunity dataset to S3");
-                    List<Project.OpportunityDataset> opportunities = writeOpportunityDatasetToS3(grids, projectId, dataSet, status);
-                    Project project = Persistence.projects.get(projectId).clone();
-                    project.opportunityDatasets = new ArrayList<>(project.opportunityDatasets);
-                    project.opportunityDatasets.addAll(opportunities);
-                    Persistence.projects.updateByUserIfPermitted(project, req.attribute("email"), req.attribute("accessGroup"));
+                    List<Region.OpportunityDataset> opportunities = writeOpportunityDatasetToS3(grids, regionId, dataSet, status);
+                    Region region = Persistence.regions.get(regionId).clone();
+                    region.opportunityDatasets = new ArrayList<>(region.opportunityDatasets);
+                    region.opportunityDatasets.addAll(opportunities);
+                    Persistence.regions.updateByUserIfPermitted(region, req.attribute("email"), req.attribute("accessGroup"));
                     return opportunities;
                 }
             } catch (HaltException e) {
@@ -193,16 +193,16 @@ public class OpportunityDatasetsController {
         return status;
     }
 
-    public static Project.OpportunityDataset deleteOpportunityDataset(Request request, Response response) {
-        String projectId = request.params("projectId");
+    public static Region.OpportunityDataset deleteOpportunityDataset(Request request, Response response) {
+        String regionId = request.params("regionId");
         String gridId = request.params("gridId");
-        Project project = Persistence.projects.get(projectId);
-        boolean removed = project.opportunityDatasets.removeIf((od) -> od.key.equals(gridId));
+        Region region = Persistence.regions.get(regionId);
+        boolean removed = region.opportunityDatasets.removeIf((od) -> od.key.equals(gridId));
 
         if (!removed) {
             throw AnalysisServerException.NotFound("Opportunity dataset could not be found.");
         } else {
-            Persistence.projects.updateByUserIfPermitted(project, request.attribute("email"), request.attribute("accessGroup"));
+            Persistence.regions.updateByUserIfPermitted(region, request.attribute("email"), request.attribute("accessGroup"));
             s3.deleteObject(AnalysisServerConfig.gridBucket, gridId);
             return null;
         }
@@ -289,15 +289,15 @@ public class OpportunityDatasetsController {
         return grids;
     }
 
-    private static List<Project.OpportunityDataset> writeOpportunityDatasetToS3(Map<String, Grid> grids, String projectId, String dataSourceName, OpportunityDatasetUploadStatus status) {
+    private static List<Region.OpportunityDataset> writeOpportunityDatasetToS3(Map<String, Grid> grids, String regionId, String dataSourceName, OpportunityDatasetUploadStatus status) {
         // write all the grids to S3
-        List<Project.OpportunityDataset> ret = new ArrayList<>();
+        List<Region.OpportunityDataset> ret = new ArrayList<>();
         grids.forEach((field, grid) -> {
             String fieldKey = field.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
             String sourceKey = dataSourceName.replaceAll(" ", "_").replaceAll("[^a-zA-Z0-9_\\-]+", "");
             String key = String.format("%s_%s", fieldKey, sourceKey);
-            String gridKey = String.format("%s/%s.grid", projectId, key);
-            String pngKey = String.format("%s/%s.png", projectId, key);
+            String gridKey = String.format("%s/%s.grid", regionId, key);
+            String pngKey = String.format("%s/%s.png", regionId, key);
 
             try {
                 ByteArrayOutputStream gridByteStream = new ByteArrayOutputStream();
@@ -335,7 +335,7 @@ public class OpportunityDatasetsController {
                 throw new RuntimeException(e);
             }
 
-            Project.OpportunityDataset opportunityDataset = new Project.OpportunityDataset();
+            Region.OpportunityDataset opportunityDataset = new Region.OpportunityDataset();
             opportunityDataset.key = key;
             opportunityDataset.name = field;
             opportunityDataset.dataSource = dataSourceName;
@@ -351,16 +351,16 @@ public class OpportunityDatasetsController {
         public int completedFeatures = 0;
         public int totalGrids = 0;
         public int uploadedGrids = 0;
-        public String projectId;
+        public String regionId;
         public Status status = Status.PROCESSING;
         public String name;
         public String message;
         public Date createdAt;
         public Date completedAt;
 
-        public OpportunityDatasetUploadStatus(String projectId, String name) {
+        public OpportunityDatasetUploadStatus(String regionId, String name) {
             this.id = UUID.randomUUID().toString();
-            this.projectId = projectId;
+            this.regionId = regionId;
             this.name = name;
             this.createdAt = new Date();
         }
@@ -375,10 +375,10 @@ public class OpportunityDatasetsController {
     }
 
     public static void register() {
-        delete("/api/opportunities/:projectId/:gridId", OpportunityDatasetsController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
-        delete("/api/opportunities/:projectId/status/:statusId", OpportunityDatasetsController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/opportunities/:projectId/status", OpportunityDatasetsController::getProjectUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/opportunities/:projectId/:gridId", OpportunityDatasetsController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/opportunities/:projectId", OpportunityDatasetsController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/opportunities/:regionId/:gridId", OpportunityDatasetsController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/opportunities/:regionId/status/:statusId", OpportunityDatasetsController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/opportunities/:regionId/status", OpportunityDatasetsController::getRegionUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/opportunities/:regionId/:gridId", OpportunityDatasetsController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/opportunities/:regionId", OpportunityDatasetsController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
     }
 }

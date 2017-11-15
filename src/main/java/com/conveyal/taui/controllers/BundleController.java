@@ -56,7 +56,7 @@ public class BundleController {
             files = sfu.parseParameterMap(req.raw());
 
             bundle.name = files.get("Name").get(0).getString("UTF-8");
-            bundle.projectId = files.get("projectId").get(0).getString("UTF-8");
+            bundle.regionId = files.get("regionId").get(0).getString("UTF-8");
         } catch (Exception e) {
             throw AnalysisServerException.BadRequest(e.getMessage());
         }

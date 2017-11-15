@@ -33,7 +33,7 @@ public class ScenarioController {
 
     public static Collection<Scenario> getAllScenarios (Request req, Response res) {
         return Persistence.scenarios.findPermitted(
-                QueryBuilder.start("projectId").is(req.params("project")).get(),
+                QueryBuilder.start("regionId").is(req.params("region")).get(),
                 req.attribute("accessGroup")
         );
     }
