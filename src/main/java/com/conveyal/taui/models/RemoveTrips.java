@@ -13,4 +13,6 @@ public class RemoveTrips extends Modification {
     public String[] routes;
 
     public String[] trips;
+
+    public String[] patterns;
 }
