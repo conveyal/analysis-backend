@@ -13,7 +13,6 @@ import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
-import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -22,7 +21,6 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.google.common.collect.Lists;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
@@ -123,39 +121,49 @@ public class RegionalAnalysisManager {
                     singleTask.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
                     singleTask.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
                     requests.add(singleTask);
+                    sendTasksInChunks(requests, false);
                 }
             }
-
+            sendTasksInChunks(requests, true);
             consumer.registerJob(templateTask,
                     new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
 
-            try {
-                // Send the tasks to the broker in small batches so that we don't risk running out of memory
-                // for regional analyses with very large grids.
-                // see https://github.com/conveyal/analysis-backend/issues/38
-                // FIXME we actually don't need to send all these separate tasks, we could convert one task into all of them on the broker side
-                LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
-                for (List<AnalysisTask> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    JsonUtil.objectMapper.writeValue(baos, chunkOfTasks);
-
-                    HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
-                    post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-                    CloseableHttpResponse res = null;
-
-                    try {
-                        res = HttpUtil.httpClient.execute(post);
-                        LOG.info("Enqueuing {} tasks to broker. Response status: {}", chunkOfTasks.size(), res.getStatusLine().getStatusCode());
-                        EntityUtils.consume(res.getEntity());
-                    } finally {
-                        if (res != null) res.close();
-                    }
-                }
-
-            } catch (IOException e) {
-                LOG.error("error enqueueing requests", e);
-            }
         });
+    }
+
+    /**
+     * Send the tasks to the broker in small batches so that we don't risk running out of memory on regional
+     * analyses with very large grids. See https://github.com/conveyal/analysis-backend/issues/38
+     * FIXME we actually don't need to send all these separate tasks, we could convert one task into all of them on the broker side
+     * @param flush send the tasks even if the number of accumulated tasks is below the chunk size
+     */
+    private static void sendTasksInChunks(List<AnalysisTask> tasks, boolean flush) {
+        if ((!flush && tasks.size() < REQUEST_CHUNK_SIZE) || tasks.isEmpty()) {
+            // Not enough tasks accumulated yet, don't do anything.
+            return;
+        }
+        try {
+            LOG.info("Enqueuing {} tasks for job {}", tasks.size(), tasks.get(0).jobId);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            JsonUtil.objectMapper.writeValue(baos, tasks);
+
+            HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+            post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+            CloseableHttpResponse res = null;
+
+            try {
+                res = HttpUtil.httpClient.execute(post);
+                LOG.info("Enqueuing {} tasks to broker. Response status: {}", tasks.size(), res.getStatusLine().getStatusCode());
+                EntityUtils.consume(res.getEntity());
+            } finally {
+                if (res != null) res.close();
+            }
+            // Start accumulating a new batch of tasks.
+            tasks.clear();
+        } catch (IOException e) {
+            LOG.error("error enqueueing requests", e);
+            throw new RuntimeException("error enqueueing requests", e);
+        }
     }
 
     public static void deleteJob(String jobId) {
