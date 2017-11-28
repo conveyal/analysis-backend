@@ -1,41 +1,30 @@
 package com.conveyal.taui.controllers;
 
-import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
+import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
-import com.conveyal.taui.util.WrappedURL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
-import java.net.URL;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.taui.util.SparkUtil.haltWithJson;
-import static java.lang.Boolean.parseBoolean;
 import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -45,14 +34,8 @@ import static spark.Spark.post;
  */
 public class RegionalAnalysisController {
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-
-    public static AmazonS3 s3 = new AmazonS3Client();
-
-    /** use a single thread executor so that the writing thread does not die before the S3 upload is finished */
-    private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
-
-    /** How long request URLs are good for */
-    public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
+    private static AmazonS3 s3 = new AmazonS3Client();
+    private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
     public static List<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
         String projectId = req.params("projectId");
@@ -80,32 +63,20 @@ public class RegionalAnalysisController {
         return analysis;
     }
 
-    private static void haltWithIncorrectFormat (String format) {
-        haltWithJson(400, "Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
-    }
-
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("regionalAnalysisId");
+        String format = req.params("format").toLowerCase();
+        String redirectText = req.queryParams("redirect");
         RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
 
         if (analysis == null) {
             haltWithJson(404, "Regional analysis does not exist for " + regionalAnalysisId + ".");
         }
 
-        // while we can do non-integer percentiles, don't allow that here to prevent cache misses
-        String format = req.params("format").toLowerCase();
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            haltWithIncorrectFormat(format);
-        }
+        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
         String percentileGridKey;
-
-        String redirectText = req.queryParams("redirect");
-        boolean redirect;
-        if (redirectText == null || "" .equals(redirectText)) redirect = true;
-        else redirect = parseBoolean(redirectText);
-
 
         if (analysis.travelTimePercentile == -1) {
             // Andrew Owen style average instantaneous accessibility
@@ -120,7 +91,7 @@ public class RegionalAnalysisController {
 
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
 
-        if (!s3.doesObjectExist(AnalysisServerConfig.resultsBucket, percentileGridKey)) {
+        if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
             // make the grid
             Grid grid;
             long computeStart = System.currentTimeMillis();
@@ -134,142 +105,46 @@ public class RegionalAnalysisController {
                 // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
                 // point estimate in the grids.
                 LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new SelectingGridReducer(0).compute(AnalysisServerConfig.resultsBucket, accessGridKey);
+                grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
             }
             LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
 
-            PipedInputStream pis = new PipedInputStream();
-            PipedOutputStream pos = new PipedOutputStream(pis);
-
-            ObjectMetadata om = new ObjectMetadata();
-
-            if ("grid".equals(format)) {
-                om.setContentType("application/octet-stream");
-                om.setContentEncoding("gzip");
-            } else if ("png".equals(format)) {
-                om.setContentType("image/png");
-            } else if ("tiff".equals(format)) {
-                om.setContentType("image/tiff");
-            }
-
-            executorService.execute(() -> {
-                try {
-                    if ("grid".equals(format)) {
-                        grid.write(new GZIPOutputStream(pos));
-                    } else if ("png".equals("format")) {
-                        grid.writePng(pos);
-                    } else if ("tiff".equals(format)) {
-                        grid.writeGeotiff(pos);
-                    }
-                } catch (IOException e) {
-                    LOG.info("Error writing percentile to S3", e);
-                }
-            });
-
-            // not using S3Util.streamToS3 because we need to make sure the put completes before we return
-            // the URL, as the client will go to it immediately.
-            s3.putObject(AnalysisServerConfig.resultsBucket, percentileGridKey, pis, om);
+            GridExporter.writeToS3(grid, s3, BUCKET, String.format("%s_given_percentile_travel_time", regionalAnalysisId), format);
         }
 
-        Date expiration = new Date();
-        expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
+        return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
 
-        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.resultsBucket, percentileGridKey);
-        presigned.setExpiration(expiration);
-        presigned.setMethod(HttpMethod.GET);
-        URL url = s3.generatePresignedUrl(presigned);
-
-        if (redirect) {
-            res.type("text/plain"); // override application/json
-            res.redirect(url.toString());
-            res.status(302); // temporary redirect, this URL will soon expire
-            return null;
-        } else {
-            return new WrappedURL(url.toString());
-        }
     }
 
     /** Get a probability of improvement from a baseline to a scenario */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String base = req.params("baseId");
         String scenario = req.params("scenarioId");
+        String comparisonId = String.format("%s_%s_probability", base, scenario);
         String format = req.params("format").toLowerCase();
-
         String redirectText = req.queryParams("redirect");
-        boolean redirect;
-        if (redirectText == null || "" .equals(redirectText)) redirect = true;
-        else redirect = parseBoolean(redirectText);
 
+        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            haltWithIncorrectFormat(format);
-        }
+        String probabilitySurfaceKey = String.format("%s.%s", comparisonId, format);
 
-        String probabilitySurfaceKey = String.format("%s_%s_probability.%s", base, scenario, format);
-
-        if (!s3.doesObjectExist(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey)) {
+        if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
 
             String baseKey = String.format("%s.access", base);
             String scenarioKey = String.format("%s.access", scenario);
-
-            RegionalAnalysis analysis = Persistence.regionalAnalyses.get(base);
 
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
-            Grid grid = computer.computeImprovementProbability(AnalysisServerConfig.resultsBucket, baseKey, scenarioKey);
+            Grid grid = computer.computeImprovementProbability(BUCKET, baseKey, scenarioKey);
 
-            PipedInputStream pis = new PipedInputStream();
-            PipedOutputStream pos = new PipedOutputStream(pis);
-
-            ObjectMetadata om = new ObjectMetadata();
-            if ("grid".equals(format)) {
-                om.setContentType("application/octet-stream");
-                om.setContentEncoding("gzip");
-            } else if ("png".equals(format)) {
-                om.setContentType("image/png");
-            } else if ("tiff".equals(format)) {
-                om.setContentType("image/tiff");
-            }
-
-            executorService.execute(() -> {
-                try {
-                    if ("grid".equals(format)) {
-                        grid.write(new GZIPOutputStream(pos));
-                    } else if ("png".equals("format")) {
-                        grid.writePng(pos);
-                    } else if ("tiff".equals(format)) {
-                        grid.writeGeotiff(pos);
-                    }
-                } catch (IOException e) {
-                    LOG.info("Error writing probability surface to S3", e);
-                }
-            });
-
-            // not using S3Util.streamToS3 because we need to make sure the put completes before we return
-            // the URL, as the client will go to it immediately.
-            s3.putObject(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey, pis, om);
+            GridExporter.writeToS3(grid, s3, BUCKET, comparisonId, format);
         }
 
-        Date expiration = new Date();
-        expiration.setTime(expiration.getTime() + REQUEST_TIMEOUT_MSEC);
-
-        GeneratePresignedUrlRequest presigned = new GeneratePresignedUrlRequest(AnalysisServerConfig.resultsBucket, probabilitySurfaceKey);
-        presigned.setExpiration(expiration);
-        presigned.setMethod(HttpMethod.GET);
-        URL url = s3.generatePresignedUrl(presigned);
-
-        if (redirect) {
-            res.type("text/plain"); // override default application/json
-            res.redirect(url.toString());
-            res.status(302); // temporary redirect, this URL will soon expire
-            return null;
-        } else {
-            return new WrappedURL(url.toString());
-        }
+        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
     }
 
     public static int[] getSamplingDistribution (Request req, Response res) {
@@ -278,7 +153,7 @@ public class RegionalAnalysisController {
         double lon = Double.parseDouble(req.params("lon"));
 
         return TiledAccessGrid
-                .get(AnalysisServerConfig.resultsBucket,  String.format("%s.access", regionalAnalysisId))
+                .get(BUCKET,  String.format("%s.access", regionalAnalysisId))
                 .getLatLon(lat, lon);
     }
 
