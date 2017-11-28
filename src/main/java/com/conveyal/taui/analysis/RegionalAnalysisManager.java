@@ -71,11 +71,13 @@ public class RegionalAnalysisManager {
 
     public static void enqueue (RegionalAnalysis regionalAnalysis) {
         executor.execute(() -> {
-            // first save the scenario
-            ProfileRequest request = regionalAnalysis.request.clone();
-            Scenario scenario = request.scenario;
-            request.scenarioId = scenario.id;
-            request.scenario = null;
+            // Replace the scenario with only its ID, and save the scenario to be fetched by the workers.
+            // This avoids having 2 million identical copies of the same scenario going over the wire, and being
+            // saved in memory on the broker.
+            RegionalTask templateTask = regionalAnalysis.request.clone();
+            Scenario scenario = templateTask.scenario;
+            templateTask.scenarioId = scenario.id;
+            templateTask.scenario = null;
 
             String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
             File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
@@ -86,45 +88,52 @@ public class RegionalAnalysisManager {
             }
 
             if (!AnalysisServerConfig.offline) {
-                // upload to S3
+                // Upload the scenario to S3 where workers can fetch it by ID.
                 s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
             }
 
             Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
             Project project = Persistence.projects.get(bundle.projectId);
 
-            // now that that's done, make the requests to the broker
-            List<AnalysisTask> requests = new ArrayList<>();
+            // Fill in all the fields that will remain the same across all tasks in a job.
+            // Re-setting all these fields may not be necessary (they might already be set by the caller),
+            // but we can't eliminate these lines without thoroughly checking that assumption.
+            templateTask.jobId = regionalAnalysis.id;
+            templateTask.graphId = regionalAnalysis.bundleId;
+            templateTask.workerVersion = regionalAnalysis.workerVersion;
+            templateTask.height = regionalAnalysis.height;
+            templateTask.width = regionalAnalysis.width;
+            templateTask.north = regionalAnalysis.north;
+            templateTask.west = regionalAnalysis.west;
+            templateTask.zoom = regionalAnalysis.zoom;
+            templateTask.outputQueue = resultsQueueUrl;
+            templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
+            templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
+            templateTask.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
 
+            // Now that that's done, send all the requests for the job to the broker.
+            // Iterate over all cells in the grid and make one cloned task per cell.
+            // FIXME: this iteration depends only on grid variables in the task itself and could be done on the broker side.
+            List<AnalysisTask> requests = new ArrayList<>();
             for (int x = 0; x < regionalAnalysis.width; x++) {
                 for (int y = 0; y < regionalAnalysis.height; y++) {
-                    RegionalTask req = regionalAnalysis.request.clone();
-                    req.jobId = regionalAnalysis.id;
-                    req.graphId = regionalAnalysis.bundleId;
-                    req.workerVersion = regionalAnalysis.workerVersion;
-                    req.height = regionalAnalysis.height;
-                    req.width = regionalAnalysis.width;
-                    req.north = regionalAnalysis.north;
-                    req.west = regionalAnalysis.west;
-                    req.zoom = regionalAnalysis.zoom;
-                    req.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
-                    req.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
-                    req.outputQueue = resultsQueueUrl;
-                    req.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
-                    req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-                    req.x = x;
-                    req.y = y;
-                    req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
-                    requests.add(req);
+                    RegionalTask singleTask = templateTask.clone();
+                    singleTask.x = x;
+                    singleTask.y = y;
+                    singleTask.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
+                    singleTask.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
+                    requests.add(singleTask);
                 }
             }
 
-            AnalysisTask exemplar = requests.get(0);
-            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalysisServerConfig.resultsBucket));
+            consumer.registerJob(templateTask,
+                    new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
 
             try {
-                // cluster requests to broker so that we don't risk running out of memory for regional analyses
-                // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
+                // Send the tasks to the broker in small batches so that we don't risk running out of memory
+                // for regional analyses with very large grids.
+                // see https://github.com/conveyal/analysis-backend/issues/38
+                // FIXME we actually don't need to send all these separate tasks, we could convert one task into all of them on the broker side
                 LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
                 for (List<AnalysisTask> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
