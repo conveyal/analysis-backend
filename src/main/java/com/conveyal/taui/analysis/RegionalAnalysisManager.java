@@ -109,61 +109,31 @@ public class RegionalAnalysisManager {
             templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
             templateTask.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
 
-            // Now that that's done, send all the requests for the job to the broker.
-            // Iterate over all cells in the grid and make one cloned task per cell.
-            // FIXME: this iteration depends only on grid variables in the task itself and could be done on the broker side.
-            List<AnalysisTask> requests = new ArrayList<>();
-            for (int x = 0; x < regionalAnalysis.width; x++) {
-                for (int y = 0; y < regionalAnalysis.height; y++) {
-                    RegionalTask singleTask = templateTask.clone();
-                    singleTask.x = x;
-                    singleTask.y = y;
-                    singleTask.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
-                    singleTask.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
-                    requests.add(singleTask);
-                    sendTasksInChunks(requests, false);
+            try {
+                LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                JsonUtil.objectMapper.writeValue(baos, templateTask);
+
+                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+                CloseableHttpResponse res = null;
+
+                try {
+                    res = HttpUtil.httpClient.execute(post);
+                    LOG.info("Enqueued job {} to broker. Response status: {}", templateTask.jobId, res.getStatusLine().getStatusCode());
+                    EntityUtils.consume(res.getEntity());
+                } finally {
+                    if (res != null) res.close();
                 }
+            } catch (IOException e) {
+                LOG.error("error enqueueing requests", e);
+                throw new RuntimeException("error enqueueing requests", e);
             }
-            sendTasksInChunks(requests, true);
+
             consumer.registerJob(templateTask,
                     new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
 
         });
-    }
-
-    /**
-     * Send the tasks to the broker in small batches so that we don't risk running out of memory on regional
-     * analyses with very large grids. See https://github.com/conveyal/analysis-backend/issues/38
-     * FIXME we actually don't need to send all these separate tasks, we could convert one task into all of them on the broker side
-     * @param flush send the tasks even if the number of accumulated tasks is below the chunk size
-     */
-    private static void sendTasksInChunks(List<AnalysisTask> tasks, boolean flush) {
-        if ((!flush && tasks.size() < REQUEST_CHUNK_SIZE) || tasks.isEmpty()) {
-            // Not enough tasks accumulated yet, don't do anything.
-            return;
-        }
-        try {
-            LOG.info("Enqueuing {} tasks for job {}", tasks.size(), tasks.get(0).jobId);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            JsonUtil.objectMapper.writeValue(baos, tasks);
-
-            HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
-            post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-            CloseableHttpResponse res = null;
-
-            try {
-                res = HttpUtil.httpClient.execute(post);
-                LOG.info("Enqueuing {} tasks to broker. Response status: {}", tasks.size(), res.getStatusLine().getStatusCode());
-                EntityUtils.consume(res.getEntity());
-            } finally {
-                if (res != null) res.close();
-            }
-            // Start accumulating a new batch of tasks.
-            tasks.clear();
-        } catch (IOException e) {
-            LOG.error("error enqueueing requests", e);
-            throw new RuntimeException("error enqueueing requests", e);
-        }
     }
 
     public static void deleteJob(String jobId) {
