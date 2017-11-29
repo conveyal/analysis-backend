@@ -84,7 +84,10 @@ public abstract class GridExporter {
         } else if ("tiff".equals(format)) {
             om.setContentType("image/tiff");
         }
-
+        
+        // We run the write task in an executor that runs it in a separate thread mostly because the S3 library requires
+        // an inputstream in putObject, and the geotiff writer library requires an outputstream, so we need to pipe
+        // between threads.
         executorService.execute(() -> {
             try {
                 if ("grid".equals(format)) {
