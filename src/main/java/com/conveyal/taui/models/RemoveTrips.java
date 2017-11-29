@@ -12,6 +12,8 @@ public class RemoveTrips extends Modification {
 
     public String[] routes;
 
+    public String[] patterns;
+
     public String[] trips;
 
     public com.conveyal.r5.analyst.scenario.RemoveTrips toR5 () {
