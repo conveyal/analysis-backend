@@ -283,35 +283,15 @@ public class OpportunityDatasetsController {
         boolean redirect;
         redirect = redirectText == null || "".equals(redirectText) || parseBoolean(redirectText);
 
-        Grid grid;
-
         if (!s3.doesObjectExist(BUCKET, String.format("%s.%s", gridPath, format))) {
             // if this grid is not on S3 in the requested format, try to get the .grid format
             if (!s3.doesObjectExist(BUCKET, String.format("%s.grid", gridPath))) {
                 throw new IllegalArgumentException("This grid does not exist.");
             } else {
                 // get the grid and convert it to the requested format
-
                 S3Object s3Grid = s3.getObject(BUCKET, String.format("%s.grid", gridPath));
                 InputStream rawInput = s3Grid.getObjectContent();
-                LittleEndianDataInputStream input = new LittleEndianDataInputStream(new GZIPInputStream(rawInput));
-
-                int zoom = input.readInt();
-                int north = input.readInt();
-                int west = input.readInt();
-                int width = input.readInt();
-                int height = input.readInt();
-
-                grid = new Grid(zoom, width, height, north, west);
-
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        grid.grid[x][y] = input.readInt();
-                    }
-                }
-
-                input.close();
-
+                Grid grid = Grid.read(new GZIPInputStream(rawInput));
                 GridExporter.writeToS3(grid, s3, BUCKET, gridPath, format);
             }
         }
