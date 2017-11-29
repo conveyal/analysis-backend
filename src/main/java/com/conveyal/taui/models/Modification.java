@@ -3,13 +3,16 @@ package com.conveyal.taui.models;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Created by matthewc on 2/9/16.
  */
 @JsonTypeInfo(use=JsonTypeInfo.Id.NAME, include= JsonTypeInfo.As.PROPERTY, property="type")
 @JsonSubTypes({
         @JsonSubTypes.Type(name = "add-trip-pattern", value = AddTripPattern.class),
-        @JsonSubTypes.Type(name = "set-trip-phasing", value = SetPhasing.class),
         @JsonSubTypes.Type(name = "remove-trips", value = RemoveTrips.class),
         @JsonSubTypes.Type(name = "remove-stops", value = RemoveStops.class),
         @JsonSubTypes.Type(name = "adjust-speed", value = AdjustSpeed.class),
@@ -34,10 +37,16 @@ public abstract class Modification extends Model implements Cloneable {
     /** is this modification shown on the map in the UI at the moment? */
     public boolean showOnMap = true;
 
-    // TODO remove this, it is no longer used
-    /** is this modification expanded in the UI at the moment? */
-    public boolean expanded = true;
-
     /** A description/comment about this modification */
     public String description;
+
+    public Set<String> feedScopeIds (String feed, String[] ids) {
+        return Arrays.stream(ids).map(id -> feedScopeId(feed, id)).collect(Collectors.toSet());
+    }
+
+    public String feedScopeId (String feed, String id) {
+        return String.format("%s:%s", feed, id);
+    }
+
+    public abstract com.conveyal.r5.analyst.scenario.Modification toR5 ();
 }

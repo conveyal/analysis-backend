@@ -62,7 +62,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         if (result == null) {
             throw AnalysisServerException.NotFound("The data you requested could not be found.");
         } else if (!accessGroup.equals(result.accessGroup)) {
-            throw AnalysisServerException.Forbidden("You do not have perission to access this data.");
+            throw AnalysisServerException.Forbidden("You do not have permission to access this data.");
         } else {
             return result;
         }
@@ -174,6 +174,8 @@ public class MongoMap<V extends Model> implements Map<String, V> {
                 throw AnalysisServerException.NotFound("The data you attempted to update could not be found. ");
             } else if (!currentNonce.equals(result.nonce)) {
                 throw AnalysisServerException.Nonce();
+            } else {
+                throw AnalysisServerException.Forbidden("The data you attempted to update is not in your access group.");
             }
         }
 

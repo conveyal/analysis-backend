@@ -1,6 +1,10 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.r5.analyst.scenario.AddTrips;
+import com.conveyal.r5.analyst.scenario.AdjustFrequency;
+
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Convert a line to frequency.
@@ -30,5 +34,23 @@ public class ConvertToFrequency extends Modification {
 
         /** trips on the selected patterns which could be used as source trips */
         public String[] patternTrips;
+
+        public AddTrips.PatternTimetable toR5 (String feed) {
+            AddTrips.PatternTimetable pt = toBaseR5Timetable();
+
+            pt.sourceTrip = feed + ":" + sourceTrip;
+
+            return pt;
+        }
+    }
+
+    public AdjustFrequency toR5 () {
+        AdjustFrequency af = new AdjustFrequency();
+        af.comment = name;
+        af.route = feedScopeId(feed, routes[0]);
+        af.retainTripsOutsideFrequencyEntries = retainTripsOutsideFrequencyEntries;
+        af.entries = entries.stream().map(e -> e.toR5(feed)).collect(Collectors.toList());
+
+        return af;
     }
 }

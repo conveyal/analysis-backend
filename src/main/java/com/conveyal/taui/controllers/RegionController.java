@@ -1,6 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.osmlib.OSM;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Region;
@@ -65,44 +64,34 @@ public class RegionController {
         }
     }
 
-    private static synchronized OSM fetchOsm (Region region) throws Exception {
-        // Set the region status
-        region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
-        region = Persistence.regions.put(region);
-
-        // Retrieve and save the OSM for the region bounds at the given _id
-        return OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
-        // TODO remove all cached transport networks for this region
-    }
-
-    private static synchronized List<Region.OpportunityDataset> fetchCensus (Region region) throws Exception {
-        // Set the region status
-        region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
-        region = Persistence.regions.put(region);
-        return SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
-    }
-
-    public static void saveCustomOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
-        region.customOsm = true;
-        File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
-        files.get("customOpenStreetMapData").get(0).write(customOsmData);
-        OSMPersistence.cache.put(region._id, customOsmData);
-        customOsmData.delete();
-    }
-
     public static void fetchOsmAndCensusDataInThread (String _id, Map<String, List<FileItem>> files, boolean newBounds) {
         boolean customOsm = files.containsKey("customOpenStreetMapData");
         new Thread(() -> {
-            Region region = Persistence.regions.get(_id);
+            final Region region = Persistence.regions.get(_id);
 
             try {
                 if (customOsm) {
-                    saveCustomOSM(region, files);
+                    region.customOsm = true;
+                    File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
+                    files.get("customOpenStreetMapData").get(0).write(customOsmData);
+                    OSMPersistence.cache.put(region._id, customOsmData);
+                    customOsmData.delete();
                 }
 
                 if (newBounds) {
-                    if (!customOsm) fetchOsm(region);
-                    fetchCensus(region);
+                    if (!customOsm) {
+                        // Set the region status
+                        region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
+                        Persistence.regions.put(region);
+
+                        // Retrieve and save the OSM for the region bounds at the given _id
+                        OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
+                    }
+
+                    // Download census data
+                    region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
+                    Persistence.regions.put(region); // save the status
+                    region.opportunityDatasets = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
                 }
 
                 region.statusCode = Region.StatusCode.DONE;

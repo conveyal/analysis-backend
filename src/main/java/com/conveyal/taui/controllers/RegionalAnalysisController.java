@@ -8,10 +8,12 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
-import com.conveyal.taui.models.Region;
+import com.conveyal.taui.models.AnalysisRequest;
+import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.persistence.TiledAccessGrid;
@@ -271,20 +273,40 @@ public class RegionalAnalysisController {
     }
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
-        RegionalAnalysis regionalAnalysis = Persistence.regionalAnalyses.createFromJSONRequest(req, RegionalAnalysis.class);
-        Region region = Persistence.regions.findByIdIfPermitted(regionalAnalysis.regionId, req.attribute("accessGroup"));
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
 
-        // TODO coordinate parameters that go to broker/r5
-        // this scenario is specific to this job
-        regionalAnalysis.request.scenarioId = null;
-        regionalAnalysis.request.scenario.id = regionalAnalysis._id;
-        regionalAnalysis.zoom = 9;
+        AnalysisRequest analysisRequest = JsonUtil.objectMapper.readValue(req.body(), AnalysisRequest.class);
+        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
+        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
 
-        // TODO do statuses differently
-        if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
-        else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromRegion(region);
+        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+        task.x = 0;
+        task.y = 0;
 
-        Persistence.regionalAnalyses.put(regionalAnalysis);
+        // TODO remove duplicate data that is already in the task
+        RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
+
+        regionalAnalysis.height = task.height;
+        regionalAnalysis.north = task.north;
+        regionalAnalysis.west = task.west;
+        regionalAnalysis.width = task.width;
+
+        regionalAnalysis.accessGroup = accessGroup;
+        regionalAnalysis.bundleId = project.bundleId;
+        regionalAnalysis.createdBy = email;
+        regionalAnalysis.cutoffMinutes = task.maxTripDurationMinutes;
+        regionalAnalysis.grid = analysisRequest.opportunityDatasetKey;
+        regionalAnalysis.name = analysisRequest.name;
+        regionalAnalysis.projectId = analysisRequest.projectId;
+        regionalAnalysis.regionId = project.regionId;
+        regionalAnalysis.request = task;
+        regionalAnalysis.travelTimePercentile = analysisRequest.travelTimePercentile;
+        regionalAnalysis.variant = analysisRequest.variantIndex;
+        regionalAnalysis.workerVersion = analysisRequest.workerVersion;
+        regionalAnalysis.zoom = task.zoom;
+
+        regionalAnalysis = Persistence.regionalAnalyses.create(regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);
 
         return regionalAnalysis;
