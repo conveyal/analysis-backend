@@ -1,4 +1,6 @@
 # Analyst
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fconveyal%2Fanalysis-backend.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fconveyal%2Fanalysis-backend?ref=badge_shield)
+
 
 This is the server component of Conveyal's analysis platform.
 
@@ -48,3 +50,7 @@ and AWS credentials to access them, as these do not yet have offline equivalents
 You can then follow the instructions to get the [frontend](https://github.com/conveyal/analysis-ui) started up.
 
 You'll also need a MongoDB instance running locally.
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fconveyal%2Fanalysis-backend.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fconveyal%2Fanalysis-backend?ref=badge_large)
