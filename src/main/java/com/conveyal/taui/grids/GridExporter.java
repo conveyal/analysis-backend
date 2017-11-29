@@ -27,7 +27,7 @@ import static java.lang.Boolean.parseBoolean;
  *
  * Created by ansoncfit on 27-Nov-17, adapting code created by matthewc on 21-Oct-16
  */
-public class GridExporter {
+public abstract class GridExporter {
 
     private static final Logger LOG = LoggerFactory.getLogger(GridExporter.class);
 
