@@ -7,7 +7,6 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
@@ -61,12 +60,6 @@ public class RegionalAnalysisController {
         }
 
         return analysis;
-    }
-
-    private static void validateFormat(String format) {
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            throw AnalysisServerException.BadRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
-        }
     }
 
     /** Get a particular percentile of a query as a grid file */
