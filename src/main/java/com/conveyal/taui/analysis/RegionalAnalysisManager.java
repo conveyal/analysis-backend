@@ -5,21 +5,16 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
-import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
-import com.conveyal.r5.profile.ProfileRequest;
-import com.conveyal.taui.models.Region;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
-import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.models.Bundle;
-import com.conveyal.taui.models.RegionalAnalysis;
-import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -33,8 +28,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -89,13 +82,10 @@ public class RegionalAnalysisManager {
                 s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
             }
 
-            Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-            Region region = Persistence.regions.get(bundle.regionId);
-
             // Fill in all the fields that will remain the same across all tasks in a job.
             // Re-setting all these fields may not be necessary (they might already be set by the caller),
             // but we can't eliminate these lines without thoroughly checking that assumption.
-            templateTask.jobId = regionalAnalysis.id;
+            templateTask.jobId = regionalAnalysis._id;
             templateTask.graphId = regionalAnalysis.bundleId;
             templateTask.workerVersion = regionalAnalysis.workerVersion;
             templateTask.height = regionalAnalysis.height;
@@ -106,7 +96,7 @@ public class RegionalAnalysisManager {
             templateTask.outputQueue = resultsQueueUrl;
             templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
             templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-            templateTask.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
+            templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
             try {
                 LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
