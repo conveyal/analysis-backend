@@ -13,6 +13,6 @@ public class Bookmark extends Model {
     /** The destination grid */
     public String opportunityDataset;
 
-    /** The project ID of this bookmark */
-    public String projectId;
+    /** The region ID of this bookmark */
+    public String regionId;
 }

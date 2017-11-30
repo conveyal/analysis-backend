@@ -46,7 +46,7 @@ import static graphql.schema.GraphQLObjectType.newObject;
 import static spark.Spark.get;
 
 /**
- * GraphQL interface to scenario editing tools. For now it just wraps the GTFS API graphql response with a bundle object.
+ * GraphQL interface. For now it just wraps the GTFS API graphql response with a bundle object.
  */
 public class GraphQLController {
     private static final Logger LOG = LoggerFactory.getLogger(GraphQLController.class);

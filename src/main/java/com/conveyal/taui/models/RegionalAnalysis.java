@@ -13,11 +13,10 @@ import static com.conveyal.r5.analyst.Grid.lonToPixel;
  * Represents a query.
  */
 public class RegionalAnalysis extends Model implements Cloneable {
-    public String projectId;
+    public String regionId;
     public String bundleId;
+    public String projectId;
 
-    /** Scenario ID, null if the bundle was used directly */
-    public String scenarioId;
     public int variant;
 
     public String workerVersion;
@@ -71,11 +70,11 @@ public class RegionalAnalysis extends Model implements Cloneable {
         height = latToPixel(bbox.getMinY(), zoom) - north;
     }
 
-    public void computeBoundingBoxFromProject (Project project) {
-        west = lonToPixel(project.bounds.west, zoom);
-        width = lonToPixel(project.bounds.east, zoom) - west;
-        north = latToPixel(project.bounds.north, zoom);
-        height = latToPixel(project.bounds.south, zoom) - north;
+    public void computeBoundingBoxFromRegion (Region region) {
+        west = lonToPixel(region.bounds.west, zoom);
+        width = lonToPixel(region.bounds.east, zoom) - west;
+        north = latToPixel(region.bounds.north, zoom);
+        height = latToPixel(region.bounds.south, zoom) - north;
     }
 
     public RegionalAnalysis clone () {

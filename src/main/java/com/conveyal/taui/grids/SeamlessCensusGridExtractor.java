@@ -9,7 +9,7 @@ import com.conveyal.data.geobuf.GeobufFeature;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Bounds;
-import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
 import gnu.trove.map.TObjectDoubleMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +68,7 @@ public class SeamlessCensusGridExtractor {
     /**
      * Retrieve data for bounds and save to a bucket under a given key
      */
-    public static List<Project.OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
+    public static List<Region.OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
         long startTime = System.currentTimeMillis();
 
         S3SeamlessSource source = new S3SeamlessSource(seamlessCensusBucket);
@@ -125,7 +125,7 @@ public class SeamlessCensusGridExtractor {
         }
 
         // Write all the resulting grids out to gzipped objects on S3, and make a list of model objects for them.
-        List<Project.OpportunityDataset> opportunityDatasets = new ArrayList<>();
+        List<Region.OpportunityDataset> opportunityDatasets = new ArrayList<>();
         for (Map.Entry<String, Grid> entry : gridForAttribute.entrySet()) {
             String attribute = entry.getKey();
             Grid grid = entry.getValue();
@@ -147,7 +147,7 @@ public class SeamlessCensusGridExtractor {
             os.close();
 
             // Create an object representing this new destination density grid in the Analysis backend internal model.
-            Project.OpportunityDataset opportunityDataset = new Project.OpportunityDataset();
+            Region.OpportunityDataset opportunityDataset = new Region.OpportunityDataset();
             opportunityDataset.dataSource = seamlessCensusBucket;
             opportunityDataset.name = attribute;
             opportunityDataset.key = cleanedAttributeName;

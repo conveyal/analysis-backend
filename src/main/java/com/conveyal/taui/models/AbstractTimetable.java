@@ -1,5 +1,7 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.r5.analyst.scenario.AddTrips;
+
 public abstract class AbstractTimetable {
     public String _id;
 
@@ -35,4 +37,43 @@ public abstract class AbstractTimetable {
 
     /** Amount of time to phase from the other lines frequency */
     public int phaseSeconds;
+
+    public AddTrips.PatternTimetable toBaseR5Timetable () {
+        AddTrips.PatternTimetable pt = new AddTrips.PatternTimetable();
+        pt.entryId = _id;
+
+        // Days
+        pt.monday = monday;
+        pt.tuesday = tuesday;
+        pt.wednesday = wednesday;
+        pt.thursday = thursday;
+        pt.friday = friday;
+        pt.saturday = saturday;
+        pt.sunday = sunday;
+
+        if (exactTimes) {
+            int totalDepartures = (endTime - startTime) / headwaySecs;
+            pt.firstDepartures = new int[totalDepartures];
+            for (int i = 0, departure = startTime; departure < endTime; i++) {
+                pt.firstDepartures[i] = departure;
+                departure += headwaySecs;
+            }
+        } else {
+            if (phaseAtStop != null) {
+                pt.phaseAtStop = phaseAtStop;
+                pt.phaseFromStop = phaseFromStop;
+                pt.phaseSeconds = phaseSeconds;
+
+                if (phaseFromTimetable != null && phaseFromTimetable.length() > 0) {
+                    pt.phaseFromTimetable = phaseFromTimetable.split(":")[1];
+                }
+            }
+
+            pt.startTime = startTime;
+            pt.endTime = endTime;
+            pt.headwaySecs = headwaySecs;
+        }
+
+        return pt;
+    }
 }
