@@ -11,6 +11,7 @@ import com.conveyal.taui.persistence.Persistence;
 import com.mongodb.QueryBuilder;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -38,13 +39,13 @@ public class AnalysisRequest {
     public int toTime;
     public String transitModes;
     public float walkSpeed;
+    public int maxRides = 4;
 
     // Parameters that aren't currently configurable in the UI
     public int bikeTrafficStress = 4;
     public int maxWalkTime = 20;
     public int maxBikeTime = 20;
     public int maxCarTime = 45;
-    public int maxRides = 4;
     public int minBikeTime = 10;
     public int minCarTime = 10;
     public int streetTime = 90;
@@ -64,7 +65,8 @@ public class AnalysisRequest {
         return Persistence.modifications
                 .findPermitted(QueryBuilder.start("projectId").is(projectId).get(), accessGroup)
                 .stream()
-                .filter(m -> m.variants[variantIndex]).map(com.conveyal.taui.models.Modification::toR5)
+                .filter(m -> variantIndex < m.variants.length && m.variants[variantIndex])
+                .map(com.conveyal.taui.models.Modification::toR5)
                 .collect(Collectors.toList());
     }
 
@@ -74,7 +76,12 @@ public class AnalysisRequest {
      * request.
      */
     public AnalysisTask populateTask (AnalysisTask task, Project project) {
-        List<Modification> modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
+        List<Modification> modifications = new ArrayList<>();
+
+        // No modifications in the baseline comparison
+        if (variantIndex > -1) {
+            modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
+        }
 
         // No idea how long this operation takes or if it is actually necessary
         CRC32 crc = new CRC32();

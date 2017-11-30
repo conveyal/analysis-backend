@@ -42,7 +42,6 @@ public class SinglePointAnalysisController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
 
-
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
 
         CloseableHttpResponse brokerRes = null;
@@ -70,6 +69,6 @@ public class SinglePointAnalysisController {
     }
 
     public static void register () {
-        post("/api/analysis/", SinglePointAnalysisController::analysis);
+        post("/api/analysis", SinglePointAnalysisController::analysis);
     }
 }

@@ -112,7 +112,9 @@ public class RegionalAnalysisController {
 
     }
 
-    /** Get a probability of improvement from a baseline to a project */
+    /**
+     * Get a probability of improvement between two regional analyses
+     */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("_id");
         String comparisonId = req.params("comparisonId");
@@ -127,15 +129,15 @@ public class RegionalAnalysisController {
         if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", regionalAnalysisId, comparisonId);
 
-            String baseKey = String.format("%s.access", regionalAnalysisId);
-            String scenarioKey = String.format("%s.access", comparisonId);
+            String regionalAccessKey = String.format("%s.access", regionalAnalysisId);
+            String comparisonAccessKey = String.format("%s.access", comparisonId);
 
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
-            Grid grid = computer.computeImprovementProbability(BUCKET, baseKey, scenarioKey);
+            Grid grid = computer.computeImprovementProbability(BUCKET, comparisonAccessKey, regionalAccessKey);
             GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceName, format);
         }
 
