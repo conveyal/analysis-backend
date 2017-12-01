@@ -1,18 +1,18 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.geojson.GeometryDeserializer;
-import com.conveyal.geojson.GeometrySerializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.vividsolutions.jts.geom.Geometry;
+import com.conveyal.r5.analyst.scenario.AddTrips;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Add a trip pattern.
  */
 public class AddTripPattern extends Modification {
-    public String name;
+    public static final String type = "add-trip-pattern";
+    public String getType() {
+        return type;
+    }
 
     public List<Segment> segments;
 
@@ -20,83 +20,37 @@ public class AddTripPattern extends Modification {
 
     public List<Timetable> timetables;
 
-    public String getType() {
-        return "add-trip-pattern";
-    }
-
-    /** represents a single segment of an added trip pattern (between two user-specified points) */
-    public static class Segment {
-        /** Is there a stop at the start of this segment */
-        public boolean stopAtStart;
-
-        /** Is there a stop at the end of this segment */
-        public boolean stopAtEnd;
-
-        /** If this segment starts at an existing stop, what is its feed-scoped stop ID? */
-        public String fromStopId;
-
-        /** If this segment ends at an existing stop, what is its feed-scoped stop ID? */
-        public String toStopId;
-
-        /** spacing between stops in this segment, meters */
-        public int spacing;
-
-        /**
-         * Geometry of this segment
-         * Generally speaking, this will be a LineString, but the first segment may be a Point
-         * iff there are no more segments. This is used when someone first starts drawing a line and
-         * they have only drawn one stop so far. Of course a transit line with only one stop would
-         * not be particularly useful.
-         */
-        @JsonDeserialize(using= GeometryDeserializer.class)
-        @JsonSerialize(using= GeometrySerializer.class)
-        public Geometry geometry;
-    }
-
-    public static class Timetable {
-        public String id;
-        
-        /** Days of the week on which this service is active */
-        public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
-
-        /** allow naming timetables so it's easier to see what's going on */
-        public String name;
+    public static class Timetable extends AbstractTimetable {
+        /** Dwell time at each stop, seconds */
+        public int dwellTime;
 
         /** Speed, kilometers per hour, for each segment */
         public int[] segmentSpeeds;
-        
-        /** start time (seconds since GTFS midnight) */
-        public int startTime;
-
-        /** end time for frequency-based trips (seconds since GTFS midnight) */
-        public int endTime;
-
-        /** Dwell time at each stop, seconds */
-        public int dwellTime;
 
         /** Dwell times at specific stops, seconds */
         // using Integer not int because dwell times can be null
         public Integer[] dwellTimes;
 
-        /** headway for frequency-based patterns */
-        public int headwaySecs;
+        public AddTrips.PatternTimetable toR5 (List<ModificationStop> stops) {
+            AddTrips.PatternTimetable pt = this.toBaseR5Timetable();
 
-        /** should this be specified as an exact schedule */
-        public boolean exactTimes;
+            // Get hop times
+            pt.dwellTimes = ModificationStop.getDwellTimes(stops, this.dwellTimes, dwellTime);
+            pt.hopTimes = ModificationStop.getHopTimes(stops, this.segmentSpeeds);
 
-        /** Phase at a stop that is in this modification */
-        public String phaseAtStop;
+            return pt;
+        }
+    }
 
-        /**
-         * Phase from a timetable (frequency entry) on another modification.
-         * Syntax is `${modification.id}:${timetable.id}`
-         */
-        public String phaseFromTimetable;
+    public AddTrips toR5 () {
+        AddTrips at = new AddTrips();
+        at.comment = name;
 
-        /** Phase from a stop that can be found in the phased from modification's stops */
-        public String phaseFromStop;
+        at.bidirectional = bidirectional;
+        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
+        at.frequencies = timetables.stream().map(tt -> tt.toR5(stops)).collect(Collectors.toList());
+        at.stops = ModificationStop.toSpec(stops);
 
-        /** Amount of time to phase from the other lines frequency */
-        public int phaseSeconds;
+        return at;
     }
 }

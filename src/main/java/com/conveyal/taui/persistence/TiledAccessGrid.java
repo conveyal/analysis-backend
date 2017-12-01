@@ -17,12 +17,10 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -145,7 +143,6 @@ public class TiledAccessGrid {
                     AccessGridWriter writer = files.computeIfAbsent(tile, t -> {
                         try {
                             return new AccessGridWriter(
-                                    new File(tempDir, tile),
                                     zoom,
                                     west + x / TILE_SIZE,
                                     north + y / TILE_SIZE,
@@ -181,16 +178,17 @@ public class TiledAccessGrid {
             // write all tiles to S3
             files.forEach((key, writer) -> {
                 try {
-                    writer.close();
-                    File gzipFile = new File(tempDir, writer.file.getName() + ".gz");
-                    InputStream is = new BufferedInputStream(new FileInputStream(writer.file));
-                    OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gzipFile)));
-                    ByteStreams.copy(is, os);
-                    is.close();
-                    os.close();
-                    S3Util.s3.putObject(bucketName, key, gzipFile);
-                    writer.file.delete();
-                    gzipFile.delete();
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out);
+                    gzipOutputStream.write(writer.getBytes());
+                    gzipOutputStream.close();
+                    byte[] bytes = out.toByteArray();
+                    InputStream input = new ByteArrayInputStream(bytes);
+                    ObjectMetadata metaData = new ObjectMetadata();
+                    metaData.setContentLength(bytes.length);
+                    metaData.setContentEncoding("gzip");
+
+                    S3Util.s3.putObject(bucketName, key, input, metaData);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

@@ -1,10 +1,20 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.r5.analyst.scenario.AddTrips;
+import com.conveyal.r5.analyst.scenario.AdjustFrequency;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * Convert a line to frequency.
  */
 public class ConvertToFrequency extends Modification {
-    public String name;
+    public static final String type = "convert-to-frequency";
+    @Override
+    public String getType() {
+        return "convert-to-frequency";
+    }
 
     public String feed;
     public String[] routes;
@@ -12,31 +22,9 @@ public class ConvertToFrequency extends Modification {
     /** Should trips on this route that start outside the days/times specified by frequency entries be retained? */
     public boolean retainTripsOutsideFrequencyEntries = false;
 
-    public FrequencyEntry[] entries;
+    public List<FrequencyEntry> entries;
 
-    @Override
-    public String getType() {
-        return "convert-to-frequency";
-    }
-
-    public static class FrequencyEntry {
-        public String id;
-
-        /** Days of the week on which this service is active, 0 is Monday */
-        public boolean monday, tuesday, wednesday, thursday, friday, saturday, sunday;
-
-        /** allow naming entries for organizational purposes */
-        public String name;
-
-        /** start time (seconds since GTFS midnight) */
-        public int startTime;
-
-        /** end time for frequency-based trips (seconds since GTFS midnight) */
-        public int endTime;
-
-        /** headway for frequency-based patterns */
-        public int headwaySecs;
-
+    public static class FrequencyEntry extends AbstractTimetable {
         /** start times of this trip (seconds since midnight), when non-null scheduled trips will be created */
         @Deprecated
         public int[] startTimes;
@@ -47,22 +35,22 @@ public class ConvertToFrequency extends Modification {
         /** trips on the selected patterns which could be used as source trips */
         public String[] patternTrips;
 
-        /** Should this frequency entry use exact times? */
-        public boolean exactTimes;
+        public AddTrips.PatternTimetable toR5 (String feed) {
+            AddTrips.PatternTimetable pt = toBaseR5Timetable();
 
-        /** Phase at a stop that is in this modification */
-        public String phaseAtStop;
+            pt.sourceTrip = feed + ":" + sourceTrip;
 
-        /**
-         * Phase from a timetable (frequency entry) on another modification.
-         * Syntax is `${modification.id}:${timetable.id}`
-         */
-        public String phaseFromTimetable;
+            return pt;
+        }
+    }
 
-        /** Phase from a stop that can be found in the phased from modification's stops */
-        public String phaseFromStop;
+    public AdjustFrequency toR5 () {
+        AdjustFrequency af = new AdjustFrequency();
+        af.comment = name;
+        af.route = feedScopeId(feed, routes[0]);
+        af.retainTripsOutsideFrequencyEntries = retainTripsOutsideFrequencyEntries;
+        af.entries = entries.stream().map(e -> e.toR5(feed)).collect(Collectors.toList());
 
-        /** Amount of time to phase from the other lines frequency */
-        public int phaseSeconds;
+        return af;
     }
 }

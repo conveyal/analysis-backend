@@ -1,25 +1,20 @@
 package com.conveyal.taui.analysis;
 
-import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
-import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
-import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.models.Bundle;
-import com.conveyal.taui.models.Project;
-import com.conveyal.taui.models.RegionalAnalysis;
-import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -33,8 +28,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -55,12 +48,11 @@ public class RegionalAnalysisManager {
     public static final String resultsQueueUrl;
     private static final int REQUEST_CHUNK_SIZE = 1000;
 
-    public static final String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
-
+    public static final String brokerUrl = AnalysisServerConfig.brokerUrl;
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();
-        sqs.setRegion(Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
+        sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
         consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
 
@@ -90,13 +82,10 @@ public class RegionalAnalysisManager {
                 s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
             }
 
-            Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-            Project project = Persistence.projects.get(bundle.projectId);
-
             // Fill in all the fields that will remain the same across all tasks in a job.
             // Re-setting all these fields may not be necessary (they might already be set by the caller),
             // but we can't eliminate these lines without thoroughly checking that assumption.
-            templateTask.jobId = regionalAnalysis.id;
+            templateTask.jobId = regionalAnalysis._id;
             templateTask.graphId = regionalAnalysis.bundleId;
             templateTask.workerVersion = regionalAnalysis.workerVersion;
             templateTask.height = regionalAnalysis.height;
@@ -107,7 +96,7 @@ public class RegionalAnalysisManager {
             templateTask.outputQueue = resultsQueueUrl;
             templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
             templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-            templateTask.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
+            templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
             try {
                 LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);

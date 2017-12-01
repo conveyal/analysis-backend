@@ -5,11 +5,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.util.WrappedURL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Response;
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -37,7 +37,7 @@ public abstract class GridExporter {
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
     private static void haltWithIncorrectFormat (String format) {
-        haltWithJson(400, "Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+        throw AnalysisServerException.BadRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
     }
 
     /**

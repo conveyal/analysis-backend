@@ -5,26 +5,25 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.grids.GridExporter;
-import com.conveyal.taui.models.Bundle;
+import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
+import com.mongodb.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.Collection;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -37,27 +36,27 @@ public class RegionalAnalysisController {
     private static AmazonS3 s3 = new AmazonS3Client();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
-    public static List<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
-        String projectId = req.params("projectId");
-        // exclude deleted regional analyses by default. if these should be included,
-        // request should include query param deleted=true
-        boolean includeDeleted = "true".equals(req.queryParams("deleted"));
-        return Persistence.regionalAnalyses.values().stream()
-                .filter(q -> projectId.equals(q.projectId))
-                .filter(q -> includeDeleted || !q.deleted)
-                .collect(Collectors.toList());
+    public static Collection<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
+        return Persistence.regionalAnalyses.findPermitted(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("regionId").is(req.params("regionId")).get(),
+                        QueryBuilder.start("deleted").is(false).get()
+                ).get(),
+                req.attribute("accessGroup")
+        );
     }
 
     public static RegionalAnalysis deleteRegionalAnalysis (Request req, Response res) {
-        // NB no need for security, UUID provides sufficient security
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(req.params("regionalAnalysisId"));
-        analysis.clone();
+        String accessGroup = req.attribute("accessGroup");
+        String email = req.attribute("email");
+
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
         analysis.deleted = true;
-        Persistence.regionalAnalyses.put(analysis.id, analysis);
+        Persistence.regionalAnalyses.updateByUserIfPermitted(analysis, email, accessGroup);
 
         // clear it from the broker
         if (!analysis.complete) {
-            RegionalAnalysisManager.deleteJob(analysis.id);
+            RegionalAnalysisManager.deleteJob(analysis._id);
         }
 
         return analysis;
@@ -65,17 +64,14 @@ public class RegionalAnalysisController {
 
     /** Get a particular percentile of a query as a grid file */
     public static Object getPercentile (Request req, Response res) throws IOException {
-        String regionalAnalysisId = req.params("regionalAnalysisId");
+        String regionalAnalysisId = req.params("_id");
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+
+        // while we can do non-integer percentiles, don't allow that here to prevent cache misses
         String format = req.params("format").toLowerCase();
         String redirectText = req.queryParams("redirect");
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.get(regionalAnalysisId);
-
-        if (analysis == null) {
-            haltWithJson(404, "Regional analysis does not exist for " + regionalAnalysisId + ".");
-        }
 
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
-
         String percentileGridKey;
 
         if (analysis.travelTimePercentile == -1) {
@@ -116,39 +112,40 @@ public class RegionalAnalysisController {
 
     }
 
-    /** Get a probability of improvement from a baseline to a scenario */
+    /**
+     * Get a probability of improvement between two regional analyses
+     */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
-        String base = req.params("baseId");
-        String scenario = req.params("scenarioId");
-        String comparisonId = String.format("%s_%s_probability", base, scenario);
+        String regionalAnalysisId = req.params("_id");
+        String comparisonId = req.params("comparisonId");
+        String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
         String format = req.params("format").toLowerCase();
         String redirectText = req.queryParams("redirect");
 
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
-        String probabilitySurfaceKey = String.format("%s.%s", comparisonId, format);
+        String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, format);
 
         if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
-            LOG.info("Probability surface for {} -> {} not found, building it", base, scenario);
+            LOG.info("Probability surface for {} -> {} not found, building it", regionalAnalysisId, comparisonId);
 
-            String baseKey = String.format("%s.access", base);
-            String scenarioKey = String.format("%s.access", scenario);
+            String regionalAccessKey = String.format("%s.access", regionalAnalysisId);
+            String comparisonAccessKey = String.format("%s.access", comparisonId);
 
             // if these are bootstrapped travel times with a particular travel time percentile, use the bootstrap
             // p-value/hypothesis test computer. Otherwise use the older setup.
             // TODO should all comparisons use the bootstrap computer? the only real difference is that it is two-tailed.
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
-            Grid grid = computer.computeImprovementProbability(BUCKET, baseKey, scenarioKey);
-
-            GridExporter.writeToS3(grid, s3, BUCKET, comparisonId, format);
+            Grid grid = computer.computeImprovementProbability(BUCKET, comparisonAccessKey, regionalAccessKey);
+            GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceName, format);
         }
 
         return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
     }
 
     public static int[] getSamplingDistribution (Request req, Response res) {
-        String regionalAnalysisId = req.params("regionalAnalysisId");
+        String regionalAnalysisId = req.params("_id");
         double lat = Double.parseDouble(req.params("lat"));
         double lon = Double.parseDouble(req.params("lon"));
 
@@ -158,38 +155,51 @@ public class RegionalAnalysisController {
     }
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
-        RegionalAnalysis regionalAnalysis = JsonUtil.objectMapper.readValue(req.body(), RegionalAnalysis.class);
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
 
-        Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-        Project project = Persistence.projects.get(bundle.projectId);
+        AnalysisRequest analysisRequest = JsonUtil.objectMapper.readValue(req.body(), AnalysisRequest.class);
+        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
+        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
 
-        // fill in the fields
-        regionalAnalysis.id = UUID.randomUUID().toString();
-        regionalAnalysis.projectId = project.id;
+        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+        task.x = 0;
+        task.y = 0;
 
-        // this scenario is specific to this job
-        regionalAnalysis.request.scenarioId = null;
-        regionalAnalysis.request.scenario.id = regionalAnalysis.id;
+        // TODO remove duplicate data that is already in the task
+        RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
 
-        regionalAnalysis.creationTime = System.currentTimeMillis();
+        regionalAnalysis.height = task.height;
+        regionalAnalysis.north = task.north;
+        regionalAnalysis.west = task.west;
+        regionalAnalysis.width = task.width;
 
-        regionalAnalysis.zoom = 9;
+        regionalAnalysis.accessGroup = accessGroup;
+        regionalAnalysis.bundleId = project.bundleId;
+        regionalAnalysis.createdBy = email;
+        regionalAnalysis.cutoffMinutes = task.maxTripDurationMinutes;
+        regionalAnalysis.grid = analysisRequest.opportunityDatasetKey;
+        regionalAnalysis.name = analysisRequest.name;
+        regionalAnalysis.projectId = analysisRequest.projectId;
+        regionalAnalysis.regionId = project.regionId;
+        regionalAnalysis.request = task;
+        regionalAnalysis.travelTimePercentile = analysisRequest.travelTimePercentile;
+        regionalAnalysis.variant = analysisRequest.variantIndex;
+        regionalAnalysis.workerVersion = analysisRequest.workerVersion;
+        regionalAnalysis.zoom = task.zoom;
 
-        if (regionalAnalysis.bounds != null) regionalAnalysis.computeBoundingBoxFromBounds();
-        else if (regionalAnalysis.width == 0) regionalAnalysis.computeBoundingBoxFromProject(project);
-
-        Persistence.regionalAnalyses.put(regionalAnalysis.id, regionalAnalysis);
+        regionalAnalysis = Persistence.regionalAnalyses.create(regionalAnalysis);
         RegionalAnalysisManager.enqueue(regionalAnalysis);
 
         return regionalAnalysis;
     }
 
     public static void register () {
-        get("/api/project/:projectId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:regionalAnalysisId/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:baseId/:scenarioId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
-        delete("/api/regional/:regionalAnalysisId", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:_id/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/regional/:_id/:comparisonId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
+        delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 

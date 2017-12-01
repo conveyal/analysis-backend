@@ -20,12 +20,7 @@ import java.util.stream.Collectors;
  * All of the data is stored in S3, however some information is cached here.
  */
 public class Bundle extends Model implements Cloneable {
-    public String projectId;
-
-    public String name;
-
-    @Deprecated
-    public String group;
+    public String regionId;
 
     public double north;
     public double south;
@@ -41,7 +36,6 @@ public class Bundle extends Model implements Cloneable {
     public List<FeedSummary> feeds;
     public Status status;
 
-
     public int feedsComplete;
     public int totalFeeds;
 
@@ -51,10 +45,10 @@ public class Bundle extends Model implements Cloneable {
 
     public void writeManifestToCache () throws IOException {
         BundleManifest manifest = new BundleManifest();
-        manifest.osmId = this.projectId;
+        manifest.osmId = this.regionId;
         manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
         File cacheDir = new File(AnalysisServerConfig.localCache);
-        String manifestFileName = GTFSCache.cleanId(this.id) + ".json";
+        String manifestFileName = GTFSCache.cleanId(this._id) + ".json";
         File manifestFile = new File(cacheDir, manifestFileName);
         JsonUtil.objectMapper.writeValue(manifestFile, manifest);
 
@@ -87,7 +81,7 @@ public class Bundle extends Model implements Cloneable {
 
         public FeedSummary(GTFSFeed feed, Bundle bundle) {
             feedId = feed.feedId;
-            bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle.id);
+            bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle._id);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
         }
@@ -105,7 +99,7 @@ public class Bundle extends Model implements Cloneable {
     }
 
     public String toString () {
-        return "Bundle " + name + " (" + id + ")";
+        return "Bundle " + name + " (" + _id + ")";
     }
 
     public enum Status {

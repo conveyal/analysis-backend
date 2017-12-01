@@ -1,9 +1,6 @@
 package com.conveyal.taui.models;
 
-import com.amazonaws.partitions.model.Region;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.r5.common.SphericalDistanceLibrary;
-import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.vividsolutions.jts.geom.Envelope;
@@ -16,27 +13,24 @@ import static com.conveyal.r5.analyst.Grid.lonToPixel;
  * Represents a query.
  */
 public class RegionalAnalysis extends Model implements Cloneable {
+    public String regionId;
+    public String bundleId;
+    public String projectId;
+
+    public int variant;
+
+    public String workerVersion;
+
     public int zoom;
     public int width;
     public int height;
     public int north;
     public int west;
     public RegionalTask request;
-    public boolean complete;
-    public String name;
-    public String workerVersion;
-    public long creationTime;
-
-    public String bundleId;
-
-    /** Scenario ID, null if the bundle was used directly */
-    public String scenarioId;
 
     /** Percentile this analysis is using, or -1 if it is pre-percentiles and is using Andrew Owen-style accessibility */
     public int travelTimePercentile = -1;
 
-    public int variant;
-    public String projectId;
     public String grid;
     public int cutoffMinutes;
 
@@ -48,12 +42,16 @@ public class RegionalAnalysis extends Model implements Cloneable {
      */
     public Geometry bounds;
 
+    /** Is this Analysis complete? */
+    public boolean complete;
+
     /** Has this analysis been (soft) deleted? */
     public boolean deleted;
 
+    // TODO do statuses differently
     @JsonView(JsonViews.Api.class)
     public RegionalAnalysisManager.RegionalAnalysisStatus getStatus () {
-        return RegionalAnalysisManager.getStatus(this.id);
+        return RegionalAnalysisManager.getStatus(this._id);
     }
 
     /**
@@ -72,11 +70,11 @@ public class RegionalAnalysis extends Model implements Cloneable {
         height = latToPixel(bbox.getMinY(), zoom) - north;
     }
 
-    public void computeBoundingBoxFromProject (Project project) {
-        west = lonToPixel(project.bounds.west, zoom);
-        width = lonToPixel(project.bounds.east, zoom) - west;
-        north = latToPixel(project.bounds.north, zoom);
-        height = latToPixel(project.bounds.south, zoom) - north;
+    public void computeBoundingBoxFromRegion (Region region) {
+        west = lonToPixel(region.bounds.west, zoom);
+        width = lonToPixel(region.bounds.east, zoom) - west;
+        north = latToPixel(region.bounds.north, zoom);
+        height = latToPixel(region.bounds.south, zoom) - north;
     }
 
     public RegionalAnalysis clone () {

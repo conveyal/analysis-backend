@@ -1,10 +1,10 @@
 package com.conveyal.taui;
 
+import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.Properties;
 
 /**
@@ -21,8 +21,8 @@ public class AnalysisServerConfig {
             FileInputStream is = new FileInputStream("application.conf");
             config.load(is);
             is.close();
-        } catch (IOException e) {
-            LOG.info("Could not read config file. If all variables are in the environment, ignore this message", e);
+        } catch (Exception e) {
+            LOG.warn("Could not read config file. If all variables are in the environment, ignore this message.");
         }
     }
 
@@ -30,7 +30,7 @@ public class AnalysisServerConfig {
     public static final String databaseName = getEnv("DATABASE_NAME", "scenario-editor");
     public static final String databaseUri = getEnv("MONGOLAB_URI", null);
     public static final String auth0ClientId = getEnv("AUTH0_CLIENT_ID", null);
-    public static final String auth0Secret = getEnv("AUTH0_SECRET", null);
+    public static final byte[] auth0Secret = new Base64(true).decode(getEnv("AUTH0_SECRET", null));
     public static final String localCache = getEnv("LOCAL_CACHE", "cache");
     public static final String assetLocation = getEnv("ASSET_LOCATION", "https://d1uqjuy3laovxb.cloudfront.net");
     public static final int port = Integer.parseInt(getEnv("PORT", "7070"));
@@ -51,5 +51,11 @@ public class AnalysisServerConfig {
         }
 
         return val != null ? val : defaultValue;
+    }
+
+    static {
+        if (!offline && (brokerUrl == null || bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || resultsQueue == null)) {
+            LOG.error("Application is missing config variables needed in online mode.");
+        }
     }
 }
