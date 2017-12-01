@@ -69,3 +69,55 @@ addNonceToCollection(db.modifications);
 addNonceToCollection(db.projects);
 addNonceToCollection(db.getCollection("regional-analyses"));
 addNonceToCollection(db.scenarios);
+
+// 6 Migrate all createdAt/updatedAt to appropriate Date objects (or add them if they did not exist)
+// Also, handle the migration of `creationTime` from regional analyses while we are at it.
+db
+	.getCollectionNames()
+	.map(function (name) { return db.getCollection(name); })
+	.forEach(function (collection) {
+		collection.find({}).forEach(function (entry) {
+			if (entry.creationTime) { // For regional analyses
+				entry.createdAt = new Date(entry.creationTime);
+				delete entry.creationTime;
+			} else {
+				entry.createdAt = entry.createdAt ? new Date(entry.createdAt) : new Date();
+			}
+
+			entry.updatedAt = entry.updatedAt ? new Date(entry.updatedAt) : new Date();
+			collection.save(entry);
+		});
+	});
+
+// 7 Remove all r5 entries from Projects
+db.projects.update({}, {$unset: {r5Version: ""}}, {multi: true});
+
+// WARNING THE FOLLOWING CAN ONLY BE PERFORMED ONCE. To prevent doing it twice, check for the existence of a "regions"
+// collection.
+
+if (!db.regions) {
+    // 8 Projects -> Regions
+    // Rename the collection, check for existance
+    if (db.projects) {
+        db.projects.renameCollection("regions");
+    }
+    // $rename: {"projectId": "regionId"}
+    db
+        .getCollectionNames()
+        .map(function (name) { return db.getCollection(name); })
+        .forEach(function (collection) {
+            collection.update({}, {$rename:{projectId:"regionId"}}, {multi: true});
+        });
+
+    // 9 Rename Scenarios -> Projects
+    if (db.scenarios) {
+        db.scenarios.renameCollection("projects");
+    }
+    // $rename: {"scenarioId": "projectId"}
+    db
+        .getCollectionNames()
+        .map(function (name) { return db.getCollection(name); })
+        .forEach(function (collection) {
+            collection.update({}, {$rename:{scenarioId:"projectId"}}, {multi: true});
+        });
+}
