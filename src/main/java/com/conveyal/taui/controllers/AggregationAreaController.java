@@ -36,7 +36,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -127,6 +126,9 @@ public class AggregationAreaController {
         maskGrid.write(os);
         os.close();
 
+        // Create the aggregation area before generating the S3 key so that the `_id` is generated
+        Persistence.aggregationAreas.create(aggregationArea);
+
         InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
         // can't use putObject with File when we have metadata . . .
         S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
@@ -134,12 +136,12 @@ public class AggregationAreaController {
 
         tempDir.delete();
 
-        return Persistence.aggregationAreas.create(aggregationArea);
+        return aggregationArea;
     }
 
     public static Object getAggregationArea (Request req, Response res) {
-        String maskId = req.params("maskId");
-        String regionId = req.params("regionId");
+        final String accessGroup = req.attribute("accessGroup");
+        final String maskId = req.params("maskId");
         boolean redirect = true;
 
         try {
@@ -149,7 +151,7 @@ public class AggregationAreaController {
             // do nothing
         }
 
-        AggregationArea aggregationArea = Persistence.aggregationAreas.findByIdIfPermitted(maskId, req.attribute("accessGroup"));
+        AggregationArea aggregationArea = Persistence.aggregationAreas.findByIdIfPermitted(maskId, accessGroup);
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + 60 * 1000);
