@@ -1,28 +1,21 @@
 package com.conveyal.taui.analysis;
 
-import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
-import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
-import com.conveyal.r5.profile.ProfileRequest;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
-import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.models.Bundle;
-import com.conveyal.taui.models.Project;
-import com.conveyal.taui.models.RegionalAnalysis;
-import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.google.common.collect.Lists;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
@@ -35,8 +28,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,12 +48,11 @@ public class RegionalAnalysisManager {
     public static final String resultsQueueUrl;
     private static final int REQUEST_CHUNK_SIZE = 1000;
 
-    public static final String brokerUrl = AnalysisServerConfig.offline ? "http://localhost:6001" : AnalysisServerConfig.brokerUrl;
-
+    public static final String brokerUrl = AnalysisServerConfig.brokerUrl;
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();
-        sqs.setRegion(Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
+        sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
         consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
 
@@ -71,11 +61,13 @@ public class RegionalAnalysisManager {
 
     public static void enqueue (RegionalAnalysis regionalAnalysis) {
         executor.execute(() -> {
-            // first save the scenario
-            ProfileRequest request = regionalAnalysis.request.clone();
-            Scenario scenario = request.scenario;
-            request.scenarioId = scenario.id;
-            request.scenario = null;
+            // Replace the scenario with only its ID, and save the scenario to be fetched by the workers.
+            // This avoids having 2 million identical copies of the same scenario going over the wire, and being
+            // saved in memory on the broker.
+            RegionalTask templateTask = regionalAnalysis.request.clone();
+            Scenario scenario = templateTask.scenario;
+            templateTask.scenarioId = scenario.id;
+            templateTask.scenario = null;
 
             String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
             File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
@@ -86,66 +78,50 @@ public class RegionalAnalysisManager {
             }
 
             if (!AnalysisServerConfig.offline) {
-                // upload to S3
+                // Upload the scenario to S3 where workers can fetch it by ID.
                 s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
             }
 
-            Bundle bundle = Persistence.bundles.get(regionalAnalysis.bundleId);
-            Project project = Persistence.projects.get(bundle.projectId);
-
-            // now that that's done, make the requests to the broker
-            List<AnalysisTask> requests = new ArrayList<>();
-
-            for (int x = 0; x < regionalAnalysis.width; x++) {
-                for (int y = 0; y < regionalAnalysis.height; y++) {
-                    RegionalTask req = regionalAnalysis.request.clone();
-                    req.jobId = regionalAnalysis.id;
-                    req.graphId = regionalAnalysis.bundleId;
-                    req.workerVersion = regionalAnalysis.workerVersion;
-                    req.height = regionalAnalysis.height;
-                    req.width = regionalAnalysis.width;
-                    req.north = regionalAnalysis.north;
-                    req.west = regionalAnalysis.west;
-                    req.zoom = regionalAnalysis.zoom;
-                    req.fromLat = Grid.pixelToCenterLat(regionalAnalysis.north + y, regionalAnalysis.zoom);
-                    req.fromLon = Grid.pixelToCenterLon(regionalAnalysis.west + x, regionalAnalysis.zoom);
-                    req.outputQueue = resultsQueueUrl;
-                    req.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
-                    req.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-                    req.x = x;
-                    req.y = y;
-                    req.grid = String.format("%s/%s.grid", project.id, regionalAnalysis.grid);
-                    requests.add(req);
-                }
-            }
-
-            AnalysisTask exemplar = requests.get(0);
-            consumer.registerJob(exemplar, new TilingGridResultAssembler(exemplar, AnalysisServerConfig.resultsBucket));
+            // Fill in all the fields that will remain the same across all tasks in a job.
+            // Re-setting all these fields may not be necessary (they might already be set by the caller),
+            // but we can't eliminate these lines without thoroughly checking that assumption.
+            templateTask.jobId = regionalAnalysis._id;
+            templateTask.graphId = regionalAnalysis.bundleId;
+            templateTask.workerVersion = regionalAnalysis.workerVersion;
+            templateTask.height = regionalAnalysis.height;
+            templateTask.width = regionalAnalysis.width;
+            templateTask.north = regionalAnalysis.north;
+            templateTask.west = regionalAnalysis.west;
+            templateTask.zoom = regionalAnalysis.zoom;
+            templateTask.outputQueue = resultsQueueUrl;
+            templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
+            templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
+            templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
             try {
-                // cluster requests to broker so that we don't risk running out of memory for regional analyses
-                // with very large grids: https://github.com/conveyal/analysis-backend/issues/38
-                LOG.info("Enqueuing {} tasks for job {}", requests.size(), requests.get(0).jobId);
-                for (List<AnalysisTask> chunkOfTasks : Lists.partition(requests, REQUEST_CHUNK_SIZE)) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    JsonUtil.objectMapper.writeValue(baos, chunkOfTasks);
+                LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                JsonUtil.objectMapper.writeValue(baos, templateTask);
 
-                    HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
-                    post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-                    CloseableHttpResponse res = null;
+                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
+                CloseableHttpResponse res = null;
 
-                    try {
-                        res = HttpUtil.httpClient.execute(post);
-                        LOG.info("Enqueuing {} tasks to broker. Response status: {}", chunkOfTasks.size(), res.getStatusLine().getStatusCode());
-                        EntityUtils.consume(res.getEntity());
-                    } finally {
-                        if (res != null) res.close();
-                    }
+                try {
+                    res = HttpUtil.httpClient.execute(post);
+                    LOG.info("Enqueued job {} to broker. Response status: {}", templateTask.jobId, res.getStatusLine().getStatusCode());
+                    EntityUtils.consume(res.getEntity());
+                } finally {
+                    if (res != null) res.close();
                 }
-
             } catch (IOException e) {
                 LOG.error("error enqueueing requests", e);
+                throw new RuntimeException("error enqueueing requests", e);
             }
+
+            consumer.registerJob(templateTask,
+                    new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
+
         });
     }
 

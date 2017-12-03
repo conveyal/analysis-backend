@@ -4,7 +4,9 @@ package com.conveyal.taui.models;
  * Created by matthewc on 3/2/16.
  */
 public class RemoveStops extends Modification {
-    public String name;
+    public String getType() {
+        return "remove-stops";
+    }
 
     public String feed;
 
@@ -16,8 +18,19 @@ public class RemoveStops extends Modification {
 
     public int secondsSavedAtEachStop = 0;
 
-    @Override
-    public String getType() {
-        return "remove-stops";
+    public com.conveyal.r5.analyst.scenario.RemoveStops toR5 () {
+        com.conveyal.r5.analyst.scenario.RemoveStops rs = new com.conveyal.r5.analyst.scenario.RemoveStops();
+        rs.comment = name;
+        rs.stops = feedScopeIds(feed, stops);
+
+        if (trips == null) {
+            rs.routes = feedScopeIds(feed, routes);
+        } else {
+            rs.patterns = feedScopeIds(feed, trips);
+        }
+
+        rs.secondsSavedAtEachStop = secondsSavedAtEachStop;
+
+        return rs;
     }
 }

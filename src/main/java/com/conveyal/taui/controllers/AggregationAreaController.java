@@ -9,6 +9,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.S3Util;
 import com.conveyal.r5.util.ShapefileReader;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.persistence.Persistence;
@@ -35,15 +36,12 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static com.conveyal.taui.util.SparkUtil.haltWithJson;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
@@ -68,17 +66,17 @@ public class AggregationAreaController {
 
         String fileName = filesByName.keySet().stream().filter(f -> f.endsWith(".shp")).findAny().orElse(null);
         if (fileName == null) {
-            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
+            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
         String baseName = fileName.substring(0, fileName.length() - 4);
 
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            haltWithJson(400, "Shapefile upload must contain .shp, .prj, and .dbf. Please verify the contents of your data before trying again.");
+            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
-        String projectId = req.params("projectId");
+        String regionId = req.params("regionId");
         String maskName = query.get("name").get(0).getString("UTF-8");
 
         File tempDir = Files.createTempDir();
@@ -117,20 +115,24 @@ public class AggregationAreaController {
 
         AggregationArea aggregationArea = new AggregationArea();
         aggregationArea.name = maskName;
-        aggregationArea.id = UUID.randomUUID().toString();
-        aggregationArea.projectId = projectId;
+        aggregationArea.regionId = regionId;
+
+        // Set `createdBy` and `accessGroup`
+        aggregationArea.accessGroup = req.attribute("accessGroup");
+        aggregationArea.createdBy = req.attribute("email");
 
         File gridFile = new File(tempDir, "weights.grid");
         OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
         maskGrid.write(os);
         os.close();
 
+        // Create the aggregation area before generating the S3 key so that the `_id` is generated
+        Persistence.aggregationAreas.create(aggregationArea);
+
         InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
         // can't use putObject with File when we have metadata . . .
         S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
         is.close();
-
-        Persistence.aggregationAreas.put(aggregationArea.id, aggregationArea);
 
         tempDir.delete();
 
@@ -138,8 +140,8 @@ public class AggregationAreaController {
     }
 
     public static Object getAggregationArea (Request req, Response res) {
-        String maskId = req.params("maskId");
-        String projectId = req.params("projectId");
+        final String accessGroup = req.attribute("accessGroup");
+        final String maskId = req.params("maskId");
         boolean redirect = true;
 
         try {
@@ -149,7 +151,7 @@ public class AggregationAreaController {
             // do nothing
         }
 
-        AggregationArea aggregationArea = Persistence.aggregationAreas.get(maskId);
+        AggregationArea aggregationArea = Persistence.aggregationAreas.findByIdIfPermitted(maskId, accessGroup);
 
         Date expiration = new Date();
         expiration.setTime(expiration.getTime() + 60 * 1000);
@@ -169,7 +171,7 @@ public class AggregationAreaController {
     }
 
     public static void register () {
-        get("/api/project/:projectId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/project/:projectId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        get("/api/region/:regionId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/region/:regionId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
     }
 }
