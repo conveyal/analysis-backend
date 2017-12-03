@@ -95,7 +95,7 @@ db.projects.update({}, {$unset: {r5Version: ""}}, {multi: true});
 // WARNING THE FOLLOWING CAN ONLY BE PERFORMED ONCE. To prevent doing it twice, check for the existence of a "regions"
 // collection.
 
-if (!db.regions) {
+if (db.getCollectionNames().indexOf("regions") === -1) {
     // 8 Projects -> Regions
     // Rename the collection, check for existance
     if (db.projects) {
