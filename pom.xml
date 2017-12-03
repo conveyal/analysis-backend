@@ -6,7 +6,7 @@
 
     <groupId>com.conveyal</groupId>
     <artifactId>analyst</artifactId>
-    <version>3.1.0-SNAPSHOT</version>
+    <version>4.0.0-SNAPSHOT</version>
 
     <build>
         <plugins>
@@ -152,7 +152,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>r5</artifactId>
-            <version>4.0.0-SNAPSHOT</version>
+            <version>4.0.0-20171109.183530-3</version>
         </dependency>
 
         <dependency>
