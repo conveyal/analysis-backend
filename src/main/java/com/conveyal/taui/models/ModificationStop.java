@@ -33,6 +33,10 @@ class ModificationStop {
         Stack<ModificationStop> stops = new Stack<>();
         CoordinateReferenceSystem crs = DefaultGeographicCRS.WGS84;
 
+        if (segments == null || segments.size() == 0) {
+            return new ArrayList<>();
+        }
+
         Segment firstSegment = segments.get(0);
         Coordinate firstStopCoord = firstSegment.geometry.getCoordinates()[0];
         ModificationStop firstStop = new ModificationStop(firstStopCoord, firstSegment.fromStopId, 0);
@@ -93,6 +97,10 @@ class ModificationStop {
     }
 
     static int[] getDwellTimes (List<ModificationStop> stops, Integer[] dwellTimes, int defaultDwellTime) {
+        if (stops == null || stops.size() == 0) {
+            return new int[0];
+        }
+
         int[] stopDwellTimes = new int[stops.size()];
 
         int realStopIndex = 0;
@@ -111,6 +119,10 @@ class ModificationStop {
     }
 
     static int[] getHopTimes (List<ModificationStop> stops, int[] segmentSpeeds) {
+        if (stops == null || stops.size() == 0) {
+            return new int[0];
+        }
+
         int[] hopTimes = new int[stops.size() - 1];
 
         ModificationStop lastStop = stops.get(0);
