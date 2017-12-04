@@ -17,28 +17,39 @@ class ModificationStop {
     private static double MIN_SPACING_PERCENTAGE = 0.25;
     private static int DEFAULT_SEGMENT_SPEED = 15;
 
-    private StopSpec stop;
+    private Coordinate coordinate;
+    private String id;
     private double distanceFromStart;
 
     private ModificationStop(Coordinate c, String id, double distanceFromStart) {
-        this.stop = new StopSpec(c.x, c.y);
-        this.stop.id = id;
+        this.coordinate = c;
+        this.id = id;
         this.distanceFromStart = distanceFromStart;
     }
 
+    /**
+     * Create the StopSpec types required by r5
+     * @param stops
+     * @return
+     */
     static List<StopSpec> toSpec (List<ModificationStop> stops) {
         return stops
                 .stream()
                 .map(s -> {
-                    if (s.stop.id == null){
-                        return s.stop;
+                    if (s.id == null){
+                        return new StopSpec(s.coordinate.x, s.coordinate.y);
                     } else {
-                        return new StopSpec(s.stop.id);
+                        return new StopSpec(s.id);
                     }
                 })
                 .collect(Collectors.toList());
     }
 
+    /**
+     * We don't just use `StopSpec`s here because we need to keep the `distanceFromStart` for generating hop times.
+     * @param segments Modification segments
+     * @return ModificationStop[]
+     */
     static List<ModificationStop> getStopsFromSegments (List<Segment> segments) {
         Stack<ModificationStop> stops = new Stack<>();
         CoordinateReferenceSystem crs = DefaultGeographicCRS.WGS84;
@@ -93,7 +104,7 @@ class ModificationStop {
                 // If the last auto-generated stop was too close, pop it
                 if (stops.size() > 0) {
                     ModificationStop lastStop = stops.peek();
-                    if (lastStop.stop.id == null && (distanceToLineSegmentStart - distanceToLastStop) / spacing < MIN_SPACING_PERCENTAGE) {
+                    if (lastStop.id == null && (distanceToLineSegmentStart - distanceToLastStop) / spacing < MIN_SPACING_PERCENTAGE) {
                         stops.pop();
                     }
                 }
@@ -118,7 +129,7 @@ class ModificationStop {
 
         int realStopIndex = 0;
         for (int i = 0; i < stops.size(); i++) {
-            String id = stops.get(i).stop.id;
+            String id = stops.get(i).id;
             if (id == null || dwellTimes == null || dwellTimes.length <= realStopIndex) {
                 stopDwellTimes[i] = defaultDwellTime;
             } else {
@@ -147,7 +158,7 @@ class ModificationStop {
             int segmentSpeed = segmentSpeeds.length > realStopIndex ? segmentSpeeds[realStopIndex] : DEFAULT_SEGMENT_SPEED;
             hopTimes[i] = (int) (hopDistance / (segmentSpeed * 1000) * 3000);
 
-            if (stop.stop.id != null) {
+            if (stop.id != null) {
                 realStopIndex++;
             }
 
