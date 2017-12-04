@@ -17,17 +17,26 @@ class ModificationStop {
     private static double MIN_SPACING_PERCENTAGE = 0.25;
     private static int DEFAULT_SEGMENT_SPEED = 15;
 
-    StopSpec stop;
-    double distanceFromStart;
+    private StopSpec stop;
+    private double distanceFromStart;
 
-    ModificationStop(Coordinate c, String id, double distanceFromStart) {
+    private ModificationStop(Coordinate c, String id, double distanceFromStart) {
         this.stop = new StopSpec(c.x, c.y);
         this.stop.id = id;
         this.distanceFromStart = distanceFromStart;
     }
 
     static List<StopSpec> toSpec (List<ModificationStop> stops) {
-        return stops.stream().map(s -> s.stop).collect(Collectors.toList());
+        return stops
+                .stream()
+                .map(s -> {
+                    if (s.stop.id == null){
+                        return s.stop;
+                    } else {
+                        return new StopSpec(s.stop.id);
+                    }
+                })
+                .collect(Collectors.toList());
     }
 
     static List<ModificationStop> getStopsFromSegments (List<Segment> segments) {
@@ -110,7 +119,7 @@ class ModificationStop {
         int realStopIndex = 0;
         for (int i = 0; i < stops.size(); i++) {
             String id = stops.get(i).stop.id;
-            if (id == null || dwellTimes == null) {
+            if (id == null || dwellTimes == null || dwellTimes.length <= realStopIndex) {
                 stopDwellTimes[i] = defaultDwellTime;
             } else {
                 Integer specificDwellTime = dwellTimes[realStopIndex];
