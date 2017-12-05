@@ -81,16 +81,17 @@ public class AnalysisServer {
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
 
-            // Log each API request
-            LOG.info("{} {}", req.requestMethod(), req.pathInfo());
-
-            if (!AnalysisServerConfig.offline) {
+            if (AnalysisServerConfig.auth0ClientId != null && AnalysisServerConfig.auth0Secret != null) {
                 handleAuthentication(req, res);
             } else {
+                LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
             }
+
+            // Log each API request
+            LOG.info("{} {} by {} of {}", req.requestMethod(), req.pathInfo(), req.attribute("email"), req.attribute("accessGroup"));
         });
 
         // Register all our HTTP request handlers with the Spark HTTP framework.
@@ -123,23 +124,23 @@ public class AnalysisServer {
 
         exception(AnalysisServerException.class, (e, request, response) -> {
             AnalysisServerException ase = ((AnalysisServerException) e);
-            AnalysisServer.respondToException(response, ase, ase.type.name(), ase.message, ase.httpCode);
+            AnalysisServer.respondToException(ase, request, response, ase.type.name(), ase.message, ase.httpCode);
         });
 
         exception(IOException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(response, e, "BAD_REQUEST", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.getMessage(), 400);
         });
 
         exception(FileUploadException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(response, e, "BAD_REQUEST", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.getMessage(), 400);
         });
 
         exception(NullPointerException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(response, e, "UNKNOWN", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "UNKNOWN", e.getMessage(), 400);
         });
 
         exception(RuntimeException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(response, e, "RUNTIME", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "RUNTIME", e.getMessage(), 400);
         });
 
         LOG.info("Conveyal Analysis server is ready.");
@@ -190,10 +191,10 @@ public class AnalysisServer {
         req.attribute("email", jwt.get("email"));
     }
 
-    public static void respondToException(Response response, Exception e, String type, String message, int code) {
+    public static void respondToException(Exception e, Request request, Response response, String type, String message, int code) {
         String stack = ExceptionUtils.getStackTrace(e);
 
-        LOG.error("Server exception thrown, type: {}, message: {}", type, message);
+        LOG.error("{} {} -> {} {} by {} of {}", type, message, request.requestMethod(), request.pathInfo(), request.attribute("email"), request.attribute("accessGroup"));
         LOG.error(stack);
 
         JSONObject body = new JSONObject();
