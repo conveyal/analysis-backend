@@ -28,7 +28,6 @@ public class AnalysisRequest {
     // All analyses parameters
     public String accessModes;
     public float bikeSpeed;
-    public float carSpeed;
     public LocalDate date;
     public String directModes;
     public String egressModes;
@@ -43,6 +42,7 @@ public class AnalysisRequest {
 
     // Parameters that aren't currently configurable in the UI
     public int bikeTrafficStress = 4;
+    public float carSpeed = 20;
     public int maxWalkTime = 20;
     public int maxBikeTime = 20;
     public int maxCarTime = 45;
@@ -146,15 +146,21 @@ public class AnalysisRequest {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
         }
 
-        task.accessModes = EnumSet.copyOf(Arrays.stream(accessModes.split(","))
-                .map(LegMode::valueOf).collect(Collectors.toList()));
-        task.directModes = EnumSet.copyOf(Arrays.stream(directModes.split(","))
-                .map(LegMode::valueOf).collect(Collectors.toList()));
-        task.egressModes = EnumSet.copyOf(Arrays.stream(egressModes.split(","))
-                .map(LegMode::valueOf).collect(Collectors.toList()));
-        task.transitModes = EnumSet.copyOf(Arrays.stream(transitModes.split(","))
-                .map(TransitModes::valueOf).collect(Collectors.toList()));
+        task.accessModes = getEnumSetFromString(accessModes);
+        task.directModes = getEnumSetFromString(directModes);
+        task.egressModes = getEnumSetFromString(egressModes);
+        task.transitModes = transitModes != null && !"".equals(transitModes)
+                ? EnumSet.copyOf(Arrays.stream(transitModes.split(",")).map(TransitModes::valueOf).collect(Collectors.toList()))
+                : EnumSet.noneOf(TransitModes.class);
 
         return task;
+    }
+
+    private EnumSet<LegMode> getEnumSetFromString (String s) {
+        if (s != null && !"".equals(s)) {
+            return EnumSet.copyOf(Arrays.stream(s.split(",")).map(LegMode::valueOf).collect(Collectors.toList()));
+        } else {
+            return EnumSet.noneOf(LegMode.class);
+        }
     }
 }
