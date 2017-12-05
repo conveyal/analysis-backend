@@ -84,7 +84,7 @@ public class AnalysisServer {
             if (AnalysisServerConfig.auth0ClientId != null && AnalysisServerConfig.auth0Secret != null) {
                 handleAuthentication(req, res);
             } else {
-                LOG.warn("No Auth0 credentials given, set accessGroup and email automatically");
+                LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
