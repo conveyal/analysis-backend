@@ -9,6 +9,8 @@ import com.conveyal.r5.api.util.TransitModes;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.persistence.Persistence;
 import com.mongodb.QueryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
 public class AnalysisRequest {
+    private static final Logger LOG = LoggerFactory.getLogger(AnalysisRequest.class);
     private static int ZOOM = 9;
 
     public String projectId;
@@ -83,14 +86,15 @@ public class AnalysisRequest {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
         }
 
-        // No idea how long this operation takes or if it is actually necessary
+        // Generate a checksum of all the modifications
         CRC32 crc = new CRC32();
-        crc.update(modifications.stream().map(Modification::toString).collect(Collectors.joining("-")).getBytes());
+        modifications.stream().map(JsonUtilities::objectToJsonBytes).forEach(crc::update);
         crc.update(JsonUtilities.objectToJsonBytes(this));
+        long crcValue = crc.getValue();
 
         task.scenario = new Scenario();
         // TODO figure out why we use both
-        task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crc.getValue());
+        task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
 
