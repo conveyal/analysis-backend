@@ -7,6 +7,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
@@ -95,7 +96,7 @@ public class RegionalAnalysisController {
                 // Andrew Owen style average instantaneous accessibility
                 // The samples stored in the access grid are samples of instantaneous accessibility at different minutes
                 // and Monte Carlo draws, average them together
-                throw new IllegalArgumentException("Old-style instantaneous-accessibility regional analyses are no longer supported");
+                throw AnalysisServerException.BadRequest("Old-style instantaneous-accessibility regional analyses are no longer supported");
             } else {
                 // This is accessibility given x percentile travel time, the first sample is the point estimate
                 // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
