@@ -92,7 +92,7 @@ public abstract class GridExporter {
             try {
                 if ("grid".equals(format)) {
                     grid.write(new GZIPOutputStream(pos));
-                } else if ("png".equals("format")) {
+                } else if ("png".equals(format)) {
                     grid.writePng(pos);
                 } else if ("tiff".equals(format)) {
                     grid.writeGeotiff(pos);
