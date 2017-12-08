@@ -1,12 +1,10 @@
 package com.conveyal.taui.models;
 
-import com.conveyal.r5.profile.ProfileRequest;
-
 /**
  * A bookmark represents "frozen" settings for single point results.
  */
 public class Bookmark extends Model {
-    public ProfileRequest profileRequest;
+    public AnalysisRequest profileRequest;
 
     public int isochroneCutoff;
 
