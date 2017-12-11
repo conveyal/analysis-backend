@@ -49,7 +49,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public boolean containsValue(Object value) {
-        throw new UnsupportedOperationException();
+        throw AnalysisServerException.Unknown("Unsupported operation");
     }
 
     public V findByIdFromRequestIfPermitted(Request request) {
@@ -135,7 +135,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public V put(String key, V value) {
-        if (key != value._id) throw new IllegalArgumentException("ID does not match");
+        if (key != value._id) throw AnalysisServerException.BadRequest("ID does not match");
         return put(value, null);
     }
 
@@ -203,7 +203,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         WriteResult<V, String> result = wrappedCollection.removeById((String) key);
         LOG.info(result.toString());
         if (result.getN() == 0) {
-            throw new RuntimeException(String.format("The data for _id %s does not exist", key));
+            throw AnalysisServerException.NotFound(String.format("The data for _id %s does not exist", key));
         }
 
         return null;

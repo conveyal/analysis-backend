@@ -1,5 +1,6 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
 
@@ -64,7 +65,7 @@ public class Region extends Model implements Cloneable {
             return (Region) super.clone();
         } catch (CloneNotSupportedException e) {
             // can't happen.
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 

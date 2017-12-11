@@ -47,6 +47,7 @@ public class AddTripPattern extends Modification {
         at.comment = name;
 
         at.bidirectional = bidirectional;
+
         List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
         at.frequencies = timetables.stream().map(tt -> tt.toR5(stops)).collect(Collectors.toList());
         at.stops = ModificationStop.toSpec(stops);

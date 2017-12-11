@@ -6,6 +6,7 @@ import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.AccessGridWriter;
 import com.conveyal.r5.util.S3Util;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -150,7 +151,7 @@ public class TiledAccessGrid {
                                     TILE_SIZE,
                                     valuesThisOrigin.length);
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            throw AnalysisServerException.Unknown(e);
                         }
                     });
 
@@ -166,7 +167,7 @@ public class TiledAccessGrid {
                     try {
                         writer.writePixel(x % TILE_SIZE, y % TILE_SIZE, valuesThisOrigin);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        throw AnalysisServerException.Unknown(e);
                     }
 
                     return 0;
@@ -190,7 +191,7 @@ public class TiledAccessGrid {
 
                     S3Util.s3.putObject(bucketName, key, input, metaData);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw AnalysisServerException.Unknown(e);
                 }
             });
 
@@ -207,7 +208,7 @@ public class TiledAccessGrid {
 
             LOG.info("Done saving tiled access grid to S3");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 
@@ -218,7 +219,7 @@ public class TiledAccessGrid {
             this.header = JsonUtil.objectMapper.readValue(is, Header.class);
             is.close();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 
@@ -240,13 +241,13 @@ public class TiledAccessGrid {
             for (int i = 0; i < 8; i++) header[i] = tile.readByte();
             String headerStr = new String(header);
 
-            if (!"ACCESSGR".equals(headerStr)) throw new IllegalStateException("Tile is not in Access Grid format!");
-            if (tile.readInt() != 0) throw new IllegalStateException("Invalid access grid tile version!");
+            if (!"ACCESSGR".equals(headerStr)) throw AnalysisServerException.BadRequest("Tile is not in Access Grid format!");
+            if (tile.readInt() != 0) throw AnalysisServerException.BadRequest("Invalid access grid tile version!");
 
             tile.seek(24); // seek to width
             int width = readIntLittleEndian(tile);
             int height = readIntLittleEndian(tile);
-            if (width != TILE_SIZE || height != TILE_SIZE) throw new IllegalStateException("Invalid access grid tile size!");
+            if (width != TILE_SIZE || height != TILE_SIZE) throw AnalysisServerException.BadRequest("Invalid access grid tile size!");
 
             long nValuesPerPixel = readIntLittleEndian(tile);
             // 4 bytes per value
@@ -262,7 +263,7 @@ public class TiledAccessGrid {
 
             return values;
         } catch (IOException | ExecutionException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 
@@ -279,7 +280,7 @@ public class TiledAccessGrid {
         try {
             return cache.get(compositeKey);
         } catch (ExecutionException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 
