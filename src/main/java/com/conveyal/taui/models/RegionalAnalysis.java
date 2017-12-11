@@ -1,6 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.cluster.RegionalTask;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.vividsolutions.jts.geom.Envelope;
@@ -81,7 +82,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
         try {
             return (RegionalAnalysis) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 }

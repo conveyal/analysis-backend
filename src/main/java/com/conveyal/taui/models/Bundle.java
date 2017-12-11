@@ -6,6 +6,7 @@ import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.r5.analyst.cluster.BundleManifest;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.util.JsonUtil;
 
 import java.io.File;
@@ -62,7 +63,7 @@ public class Bundle extends Model implements Cloneable {
         try {
             return (Bundle) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 
@@ -93,7 +94,7 @@ public class Bundle extends Model implements Cloneable {
             try {
                 return (FeedSummary) super.clone();
             } catch (CloneNotSupportedException e) {
-                throw new RuntimeException(e);
+                throw AnalysisServerException.Unknown(e);
             }
         }
     }

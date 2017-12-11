@@ -283,7 +283,7 @@ public class OpportunityDatasetsController {
         if (!s3.doesObjectExist(BUCKET, String.format("%s.%s", gridPath, format))) {
             // if this grid is not on S3 in the requested format, try to get the .grid format
             if (!s3.doesObjectExist(BUCKET, String.format("%s.grid", gridPath))) {
-                throw new IllegalArgumentException("This grid does not exist.");
+                throw AnalysisServerException.NotFound("This grid does not exist.");
             } else {
                 // get the grid and convert it to the requested format
                 S3Object s3Grid = s3.getObject(BUCKET, String.format("%s.grid", gridPath));
@@ -327,7 +327,7 @@ public class OpportunityDatasetsController {
                 status.status = Status.ERROR;
                 status.message = e.getMessage();
                 status.completed();
-                throw new RuntimeException(e);
+                throw AnalysisServerException.Unknown(e);
             }
 
             Region.OpportunityDataset opportunityDataset = new Region.OpportunityDataset();

@@ -12,6 +12,7 @@ import com.conveyal.r5.analyst.cluster.GridResultQueueConsumer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.HttpUtil;
@@ -116,7 +117,7 @@ public class RegionalAnalysisManager {
                 }
             } catch (IOException e) {
                 LOG.error("error enqueueing requests", e);
-                throw new RuntimeException("error enqueueing requests", e);
+                throw AnalysisServerException.Unknown(e);
             }
 
             consumer.registerJob(templateTask,

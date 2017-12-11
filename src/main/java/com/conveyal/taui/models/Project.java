@@ -1,5 +1,7 @@
 package com.conveyal.taui.models;
 
+import com.conveyal.taui.AnalysisServerException;
+
 /**
  * Represents a TAUI project
  */
@@ -15,7 +17,7 @@ public class Project extends Model implements Cloneable {
         try {
             return (Project) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
+            throw AnalysisServerException.Unknown(e);
         }
     }
 }
