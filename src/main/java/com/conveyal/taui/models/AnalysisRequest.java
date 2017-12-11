@@ -83,14 +83,14 @@ public class AnalysisRequest {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
         }
 
-        // No idea how long this operation takes or if it is actually necessary
+        // Generate a checksum of the modifications to uniquely identify this dataset for the broker and the workers.
         CRC32 crc = new CRC32();
-        crc.update(modifications.stream().map(Modification::toString).collect(Collectors.joining("-")).getBytes());
-        crc.update(JsonUtilities.objectToJsonBytes(this));
+        crc.update(JsonUtilities.objectToJsonBytes(modifications));
+        long crcValue = crc.getValue();
 
         task.scenario = new Scenario();
         // TODO figure out why we use both
-        task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crc.getValue());
+        task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
 
