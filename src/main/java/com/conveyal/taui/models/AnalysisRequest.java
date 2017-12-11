@@ -83,11 +83,9 @@ public class AnalysisRequest {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
         }
 
-        // Generate a checksum of all the modifications and request data to uniquely identify this job for the broker
-        // and the workers.
+        // Generate a checksum of the modifications to uniquely identify this dataset for the broker and the workers.
         CRC32 crc = new CRC32();
         crc.update(JsonUtilities.objectToJsonBytes(modifications));
-        crc.update(JsonUtilities.objectToJsonBytes(this));
         long crcValue = crc.getValue();
 
         task.scenario = new Scenario();
