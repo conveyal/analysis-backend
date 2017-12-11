@@ -83,7 +83,9 @@ public class AnalysisRequest {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
         }
 
-        // Generate a checksum of the modifications to uniquely identify this dataset for the broker and the workers.
+        // The CRC is appended to the scenario ID to identify a unique revision of the scenario (still denoted here
+        // as variant) allowing the worker to cache and reuse networks built by applying that exact revision of the
+        // scenario to a base network.
         CRC32 crc = new CRC32();
         crc.update(JsonUtilities.objectToJsonBytes(modifications));
         long crcValue = crc.getValue();
