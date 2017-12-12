@@ -99,6 +99,10 @@ public class OpportunityDatasetsController {
      * Handle many types of file upload. Returns a OpportunityDatasetUploadStatus which has a handle to request status.
      */
     public static OpportunityDatasetUploadStatus createOpportunityDataset(Request req, Response res) {
+
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
+
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         String dataSet;
         Map<String, List<FileItem>> query;
@@ -148,7 +152,7 @@ public class OpportunityDatasetsController {
                     Region region = Persistence.regions.get(regionId).clone();
                     region.opportunityDatasets = new ArrayList<>(region.opportunityDatasets);
                     region.opportunityDatasets.addAll(opportunities);
-                    Persistence.regions.updateByUserIfPermitted(region, req.attribute("email"), req.attribute("accessGroup"));
+                    Persistence.regions.updateByUserIfPermitted(region, email, accessGroup);
                     return opportunities;
                 }
             } catch (HaltException e) {
