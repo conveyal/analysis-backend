@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -65,7 +66,9 @@ public class OpportunityDatasetsController {
     private static void addStatusAndRemoveOldStatuses(OpportunityDatasetUploadStatus status) {
         uploadStatuses.add(status);
         LocalDateTime now = LocalDateTime.now();
-        uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt.toString()).isBefore(now.minusDays(7)));
+        uploadStatuses.removeIf(s -> s.completedAt != null &&
+                LocalDateTime.ofInstant(s.completedAt.toInstant(), ZoneId.systemDefault()).isBefore(now.minusDays(7))
+        );
     }
 
     public static Object getOpportunityDataset(Request req, Response res) {
