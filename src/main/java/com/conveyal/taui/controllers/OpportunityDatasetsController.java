@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -65,7 +66,9 @@ public class OpportunityDatasetsController {
     private static void addStatusAndRemoveOldStatuses(OpportunityDatasetUploadStatus status) {
         uploadStatuses.add(status);
         LocalDateTime now = LocalDateTime.now();
-        uploadStatuses.removeIf(s -> s.completedAt != null && LocalDateTime.parse(s.completedAt.toString()).isBefore(now.minusDays(7)));
+        uploadStatuses.removeIf(s -> s.completedAt != null &&
+                LocalDateTime.ofInstant(s.completedAt.toInstant(), ZoneId.systemDefault()).isBefore(now.minusDays(7))
+        );
     }
 
     public static Object getOpportunityDataset(Request req, Response res) {
@@ -99,6 +102,10 @@ public class OpportunityDatasetsController {
      * Handle many types of file upload. Returns a OpportunityDatasetUploadStatus which has a handle to request status.
      */
     public static OpportunityDatasetUploadStatus createOpportunityDataset(Request req, Response res) {
+
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
+
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         String dataSet;
         Map<String, List<FileItem>> query;
@@ -148,7 +155,7 @@ public class OpportunityDatasetsController {
                     Region region = Persistence.regions.get(regionId).clone();
                     region.opportunityDatasets = new ArrayList<>(region.opportunityDatasets);
                     region.opportunityDatasets.addAll(opportunities);
-                    Persistence.regions.updateByUserIfPermitted(region, req.attribute("email"), req.attribute("accessGroup"));
+                    Persistence.regions.updateByUserIfPermitted(region, email, accessGroup);
                     return opportunities;
                 }
             } catch (HaltException e) {
