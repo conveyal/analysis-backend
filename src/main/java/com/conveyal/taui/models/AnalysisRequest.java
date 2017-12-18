@@ -138,14 +138,11 @@ public class AnalysisRequest {
 
         task.monteCarloDraws = monteCarloDraws;
 
-        if (travelTimePercentile == null) {
+        if (task.getType() == AnalysisTask.Type.TRAVEL_TIME_SURFACE) {
             task.percentiles = new double[]{5, 25, 50, 75, 95};
         } else {
-            task.percentiles = new double[]{travelTimePercentile};
-        }
-
-        if (maxTripDurationMinutes != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
+            task.percentiles = new double[]{travelTimePercentile};
         }
 
         task.accessModes = getEnumSetFromString(accessModes);

@@ -13,6 +13,8 @@ public class Project extends Model implements Cloneable {
 
     public String bundleId;
 
+    public AnalysisRequest analysisRequestSettings;
+
     public Project clone () {
         try {
             return (Project) super.clone();
