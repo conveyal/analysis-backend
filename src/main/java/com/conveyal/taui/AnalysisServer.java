@@ -3,6 +3,7 @@ package com.conveyal.taui;
 import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
+import com.conveyal.r5.analyst.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
@@ -13,6 +14,7 @@ import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.SinglePointAnalysisController;
+import com.conveyal.taui.controllers.WorkerController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Map;
+import java.util.Properties;
 
 import static spark.Spark.before;
 import static spark.Spark.exception;
@@ -54,17 +57,7 @@ public class AnalysisServer {
         File cacheDir = new File(AnalysisServerConfig.localCache);
         cacheDir.mkdirs();
 
-        if (AnalysisServerConfig.offline) {
-            LOG.info("Running in OFFLINE mode...");
-            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCache);
-
-            LOG.info("Starting local cluster of Analysis workers...");
-            // TODO port is hardwired here and also in SinglePointAnalysisController
-            // You have to make the worker machineId non-static if you want to launch more than one worker.
-            new LocalCluster(9001, feedSourceCache, OSMPersistence.cache, 1);
-        } else {
-            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
-        }
+        // Set up Spark
 
         // Set the port on which the HTTP server will listen for connections.
         LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.port);
@@ -74,7 +67,7 @@ public class AnalysisServer {
         // http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
 
-        // check if a user is authenticated
+        // Before handling each request, check if the user is authenticated.
         before((req, res) -> {
             if (!req.pathInfo().startsWith("/api")) return; // don't need to be authenticated to view main page
 
@@ -84,7 +77,7 @@ public class AnalysisServer {
             if (AnalysisServerConfig.auth0ClientId != null && AnalysisServerConfig.auth0Secret != null) {
                 handleAuthentication(req, res);
             } else {
-                LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
+                // LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
@@ -104,6 +97,27 @@ public class AnalysisServer {
         OpportunityDatasetsController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
+
+
+        // TODO wire up Spark without using static methods:
+//        spark.Service httpService = spark.Service.ignite()
+//                .port(1234)
+//                .staticFileLocation("/public")
+//                .threadPool(40);
+//
+//        httpService.get("/hello", (q, a) -> "Hello World!");
+//        httpService.get("/goodbye", (q, a) -> "Goodbye!");
+//        httpService.redirect.any("/hi", "/hello");
+
+        // Add a controller to handle connections from workers, using the local broker
+        Properties brokerConfig = new Properties();
+        // I believe work-offline tells the broker not to spin up AWS instances.
+        brokerConfig.setProperty("work-offline", "true");
+        brokerConfig.setProperty("bind-address", "localhost");
+        brokerConfig.setProperty("port", "" + AnalysisServerConfig.port);
+        Broker broker = new Broker(brokerConfig, "localhost", AnalysisServerConfig.port);
+        new WorkerController(broker).register();
+
 
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
@@ -142,6 +156,21 @@ public class AnalysisServer {
         exception(RuntimeException.class, (e, request, response) -> {
             AnalysisServer.respondToException(e, request, response, "RUNTIME", e.getMessage(), 400);
         });
+
+
+
+        if (AnalysisServerConfig.offline) {
+            LOG.info("Running in OFFLINE mode...");
+            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCache);
+
+            LOG.info("Starting local cluster of Analysis workers...");
+            // TODO port is hardwired here and also in SinglePointAnalysisController
+            // You have to make the worker machineId non-static if you want to launch more than one worker.
+            LocalCluster localCluster = new LocalCluster(7070, feedSourceCache, OSMPersistence.cache, 1);
+        } else {
+            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
+        }
+
 
         LOG.info("Conveyal Analysis server is ready.");
     }

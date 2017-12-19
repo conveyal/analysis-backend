@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.broker.ClusterStatus;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -8,6 +9,7 @@ import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpUtil;
 import com.google.common.io.ByteStreams;
+import javassist.bytecode.ByteArray;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
@@ -22,6 +24,8 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Writer;
+import java.nio.ByteBuffer;
 
 import static spark.Spark.post;
 
@@ -33,6 +37,14 @@ public class SinglePointAnalysisController {
     private static final String BROKER_ENQUEUE_SINGLE_URL = AnalysisServerConfig.brokerUrl + "/enqueue/single";
 
     public static byte[] analysis (Request req, Response res) throws IOException {
+
+        res.status(503);
+        if (true) {
+            // DEV HACK Return empty OK response to make the front end UI behave until single-point is re-implemented.
+            res.status(200);
+            return new ByteArrayOutputStream().toByteArray();
+        }
+
         // we already know the user is authenticated, and we need not check if they have access to the graphs etc,
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
         final String accessGroup = req.attribute("accessGroup");

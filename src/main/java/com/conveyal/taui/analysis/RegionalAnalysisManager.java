@@ -43,11 +43,8 @@ public class RegionalAnalysisManager {
 
     private static ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 20, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(512));
 
-    public static Map<String, JobStatus> statusByJob;
-
     public static final GridResultQueueConsumer consumer;
     public static final String resultsQueueUrl;
-    private static final int REQUEST_CHUNK_SIZE = 1000;
 
     public static final String brokerUrl = AnalysisServerConfig.brokerUrl;
 
@@ -56,8 +53,8 @@ public class RegionalAnalysisManager {
         sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
         consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
-
-        new Thread(consumer, "queue-consumer").start();
+        // Here we used to create and start a new thread for the queue consumer. Now the results are stored
+        // synchronously on the backend in the HTTP handler used by workers to return their results.
     }
 
     public static void enqueue (RegionalAnalysis regionalAnalysis) {
@@ -65,6 +62,7 @@ public class RegionalAnalysisManager {
             // Replace the scenario with only its ID, and save the scenario to be fetched by the workers.
             // This avoids having 2 million identical copies of the same scenario going over the wire, and being
             // saved in memory on the broker.
+            // TODO have the backend supply the scenarios over an HTTP API to the workers (which would then cache them), so we don't need to use S3
             RegionalTask templateTask = regionalAnalysis.request.clone();
             Scenario scenario = templateTask.scenario;
             templateTask.scenarioId = scenario.id;
@@ -104,7 +102,7 @@ public class RegionalAnalysisManager {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 JsonUtil.objectMapper.writeValue(baos, templateTask);
 
-                HttpPost post = new HttpPost(String.format("%s/enqueue/regional", brokerUrl));
+                HttpPost post = new HttpPost(String.format("%s/api/enqueue", brokerUrl));
                 post.setEntity(new ByteArrayEntity(baos.toByteArray()));
                 CloseableHttpResponse res = null;
 
