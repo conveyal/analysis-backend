@@ -93,7 +93,7 @@ public class AnalysisServer {
         ProjectController.register();
         GraphQLController.register();
         BundleController.register();
-        SinglePointAnalysisController.register();
+//        SinglePointAnalysisController.register();
         OpportunityDatasetsController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
