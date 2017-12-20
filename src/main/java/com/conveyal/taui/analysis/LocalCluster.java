@@ -3,7 +3,6 @@ package com.conveyal.taui.analysis;
 import com.conveyal.gtfs.BaseGTFSCache;
 import com.conveyal.osmlib.OSMCache;
 import com.conveyal.r5.analyst.broker.Broker;
-import com.conveyal.r5.analyst.broker.BrokerMain;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.transit.TransportNetworkCache;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -21,9 +20,7 @@ public class LocalCluster {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalCluster.class);
     public final int brokerPort;
-    public Thread brokerThread;
     public List<Thread> workerThreads = new ArrayList<>();
-    public Broker broker;
 
     /**
      * This used to start up a separate broker thread. This is no longer necessary because the broker actions are

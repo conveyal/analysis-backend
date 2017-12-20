@@ -203,7 +203,7 @@ public class WorkerController {
     /**
      * Workers use this command to fetch tasks from a work queue.
      * TODO supply any completed work within this same JSON body
-     * Workers supply their R5 commit, loaded network IDs, a unique worker ID etc. in the request body so the broker
+     * They also supply their R5 commit, loaded network IDs, a unique worker ID etc. in the request body so the broker
      * can preferentially send them work they can do efficiently (with already loaded networks and other resources).
      * The method is POST because unlike GETs (which fetch status) it modifies the contents of the task queue.
      */
