@@ -142,22 +142,20 @@ public class AnalysisServer {
         });
 
         exception(IOException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.toString(), 400);
         });
 
         exception(FileUploadException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "BAD_REQUEST", e.toString(), 400);
         });
 
         exception(NullPointerException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(e, request, response, "UNKNOWN", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "UNKNOWN", e.toString(), 400);
         });
 
         exception(RuntimeException.class, (e, request, response) -> {
-            AnalysisServer.respondToException(e, request, response, "RUNTIME", e.getMessage(), 400);
+            AnalysisServer.respondToException(e, request, response, "RUNTIME", e.toString(), 400);
         });
-
-
 
         if (AnalysisServerConfig.offline) {
             LOG.info("Running in OFFLINE mode...");
