@@ -52,7 +52,7 @@ public class RegionalAnalysisManager {
         AmazonSQS sqs = new AmazonSQSClient();
         sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
         resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
-        consumer = new GridResultQueueConsumer(resultsQueueUrl, AnalysisServerConfig.resultsBucket);
+        consumer = new GridResultQueueConsumer();
         // Here we used to create and start a new thread for the queue consumer. Now the results are stored
         // synchronously on the backend in the HTTP handler used by workers to return their results.
     }
@@ -118,6 +118,7 @@ public class RegionalAnalysisManager {
                 throw AnalysisServerException.Unknown(e);
             }
 
+            // FIXME why is this a "tiling" grid result assembler?
             consumer.registerJob(templateTask,
                     new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
 

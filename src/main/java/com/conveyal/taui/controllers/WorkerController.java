@@ -5,23 +5,21 @@ import com.conveyal.r5.analyst.broker.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
+import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
-import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
@@ -30,8 +28,6 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 
 import static spark.Spark.get;
@@ -50,6 +46,7 @@ import static spark.Spark.post;
  *
  * The long polling originally only existed for high-priority tasks and has been extended to single point
  * tasks, which we will instead handle with a proxy-like push approach.
+ * TODO rename to BrokerController
  */
 public class WorkerController {
 
@@ -87,7 +84,6 @@ public class WorkerController {
         // add endpoint to delete jobs
         post("/api/enqueue", this::enqueueRegional);
         post("/api/dequeue", this::dequeueRegional);
-        post("/api/complete/:jobId/:taskId", this::taskCompleted); // TODO parameter to indicate error/task failure
         post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
     }
 
@@ -100,7 +96,7 @@ public class WorkerController {
      * We could use the Jetty HTTP client, but since Spark wraps the internal Jetty request/response objects, we
      * don't gain much. We should probably switch to the Jetty HTTP client some day when we get rid of Spark.
      * There is also a Jetty proxy module that may be too simple for what we're doing here.
-     * @return whatever the worker responds, as an input stream. Spark serializer chain can properly handle streams.
+     * @return whatever the worker responds, usually an input stream. Spark serializer chain can properly handle streams.
      */
     private Object singlePoint(Request request, Response response) {
         // Deserialize the task in the request body so we can see what kind of worker it wants.
@@ -204,43 +200,35 @@ public class WorkerController {
     }
 
     /**
-     * Workers use this command to fetch tasks from a work queue.
-     * TODO supply any completed work within this same JSON body
-     * They also supply their R5 commit, loaded network IDs, a unique worker ID etc. in the request body so the broker
-     * can preferentially send them work they can do efficiently (with already loaded networks and other resources).
-     * The method is POST because unlike GETs (which fetch status) it modifies the contents of the task queue.
+     * Workers use this endpoint to fetch tasks from job queues. At the same time, they also report their version
+     * information, unique ID, loaded networks, etc. as JSON in the request body. They also supply the results of any
+     * completed work via this same object. The broker should preferentially send them work they can do efficiently
+     * using already loaded networks and scenarios. The method is POST because unlike GETs (which fetch status) it
+     * modifies the contents of the task queue.
      */
     private Object dequeueRegional (Request request, Response response) {
         WorkerStatus workerStatus = objectFromRequestBody(request, WorkerStatus.class);
-        // Assume one loaded graph (or preferred graph at startup) in the current system
-        // Add this worker to our catalog, tracking its graph affinity and the last time it was seen.
+        // Record any results that were supplied.
+        for (RegionalWorkResult workResult : workerStatus.results) {
+            // These two steps each synchronize on separate objects.
+            RegionalAnalysisManager.consumer.registerResult(workResult);
+            broker.markTaskCompleted(workResult);
+        }
+        // Clear out the results field so it's not visible in the worker list API endpoint.
+        workerStatus.results = null;
+        // Add this worker to our catalog, tracking its graph affinity and the last time it was seen among other things.
         broker.recordWorkerObservation(workerStatus);
         WorkerCategory workerCategory = workerStatus.getWorkerCategory();
-        // Tell the caller whether any tasks exist.
+        // See if any appropriate tasks exist for this worker.
         List<AnalysisTask> tasks = broker.getSomeWork(workerCategory);
-        // If there is no work for the worker. Signal this clearly with a "no content" code,
+        // If there is no work for the worker, signal this clearly with a "no content" code,
         // so the worker can sleep a while before the next polling attempt.
         if (tasks.isEmpty()) {
             return jsonResponse(response, HttpStatus.NO_CONTENT_204, tasks);
+        } else {
+            return jsonResponse(response, HttpStatus.OK_200, tasks);
         }
-        return jsonResponse(response, HttpStatus.OK_200, tasks);
     }
-
-    /**
-     * Workers use this command to tell the broker they have finished a task.
-     * TODO add a way to signal that an error occurred when processing this task.
-     * TODO eliminate, supply the work results and any error messages within the JSON when the worker requests more work.
-     */
-    private Object taskCompleted (Request request, Response response) {
-        String jobId = request.params("jobId");
-        int taskId = Integer.parseInt(request.params("taskId"));
-        byte[] result = request.bodyAsBytes();
-        RegionalAnalysisManager.consumer.registerResult(jobId, result);
-        // Only this part is synchronized, grid assembler has its own synchronized block.
-        broker.markTaskCompleted(jobId, taskId);
-        return jsonResponse(response, HttpStatus.OK_200, "Task marked completed.");
-    }
-
 
     /**
      * Deserializes an object of the given type from JSON in the body of the supplied Spark request.
@@ -252,7 +240,5 @@ public class WorkerController {
             throw new RuntimeException(e);
         }
     }
-
-
 
 }
