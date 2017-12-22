@@ -39,6 +39,7 @@ public class AnalysisRequest {
     public String transitModes;
     public float walkSpeed;
     public int maxRides = 4;
+    public double[] percentiles;
 
     // Parameters that aren't currently configurable in the UI
     public int bikeTrafficStress = 4;
@@ -137,14 +138,9 @@ public class AnalysisRequest {
         task.suboptimalMinutes = suboptimalMinutes;
 
         task.monteCarloDraws = monteCarloDraws;
+        task.percentiles = percentiles;
 
-        if (travelTimePercentile == null) {
-            task.percentiles = new double[]{5, 25, 50, 75, 95};
-        } else {
-            task.percentiles = new double[]{travelTimePercentile};
-        }
-
-        if (maxTripDurationMinutes != null) {
+        if (task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
         }
 
