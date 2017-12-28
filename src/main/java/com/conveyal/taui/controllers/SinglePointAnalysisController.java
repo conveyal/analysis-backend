@@ -43,7 +43,7 @@ public class SinglePointAnalysisController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
 
-        if (req.headers("Content-Type") == "geotiff") task.format = AnalysisTask.Format.GEOTIFF;
+        if (req.headers("Accept") == "image/tiff") task.format = AnalysisTask.Format.GEOTIFF;
 
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
 
