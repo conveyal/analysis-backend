@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -41,6 +42,8 @@ public class SinglePointAnalysisController {
         AnalysisRequest analysisRequest = JsonUtilities.objectMapper.readValue(req.body(), AnalysisRequest.class);
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
+
+        if (req.headers("Content-Type") == "geotiff") task.format = AnalysisTask.Format.GEOTIFF;
 
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
 
