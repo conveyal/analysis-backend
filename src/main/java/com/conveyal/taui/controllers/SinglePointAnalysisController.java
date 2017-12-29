@@ -58,7 +58,7 @@ public class SinglePointAnalysisController {
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
             //FIXME this is a hack for geotiff exports that should be fixed when broker changes are implemented
             if (req.headers("Accept").equals("image/tiff")) {
-                res.header("Content-Type","image/tiff");
+                res.header("Content-Type","application/octet-stream");
                 res.header("Content-Encoding", "gzip");
             }
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
