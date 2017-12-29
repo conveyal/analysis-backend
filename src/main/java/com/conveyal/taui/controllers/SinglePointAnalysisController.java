@@ -42,7 +42,7 @@ public class SinglePointAnalysisController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
 
-        if (req.headers("Accept") == "image/tiff") task.format = TravelTimeSurfaceTask.Format.GEOTIFF;
+        if (req.headers("Accept").equals("image/tiff")) task.format = TravelTimeSurfaceTask.Format.GEOTIFF;
 
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
 
@@ -56,7 +56,11 @@ public class SinglePointAnalysisController {
             brokerRes = HttpUtil.httpClient.execute(post);
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
-            // TODO set encoding?
+            //FIXME this is a hack for geotiff exports that should be fixed when broker changes are implemented
+            if (req.headers("Accept").equals("image/tiff")) {
+                res.header("Content-Type","image/tiff");
+                res.header("Content-Encoding", "gzip");
+            }
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
             long l = ByteStreams.copy(is, baos);
