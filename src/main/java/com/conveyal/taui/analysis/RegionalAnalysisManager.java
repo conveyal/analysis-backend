@@ -5,6 +5,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.conveyal.r5.analyst.broker.Broker;
 import com.conveyal.r5.analyst.broker.JobStatus;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
@@ -36,17 +37,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Manages coordination of multipoint runs with the broker.
+ * FIXME this whole thing is static, it should be an instance.
  */
 public class RegionalAnalysisManager {
+
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisManager.class);
     private static AmazonS3 s3 = new AmazonS3Client();
-
-    private static ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 20, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(512));
-
+    public static Broker broker;
     public static final GridResultQueueConsumer consumer;
     public static final String resultsQueueUrl;
-
-    public static final String brokerUrl = AnalysisServerConfig.brokerUrl;
 
     static {
         AmazonSQS sqs = new AmazonSQSClient();
@@ -58,87 +57,53 @@ public class RegionalAnalysisManager {
     }
 
     public static void enqueue (RegionalAnalysis regionalAnalysis) {
-        executor.execute(() -> {
-            // Replace the scenario with only its ID, and save the scenario to be fetched by the workers.
-            // This avoids having 2 million identical copies of the same scenario going over the wire, and being
-            // saved in memory on the broker.
-            // TODO have the backend supply the scenarios over an HTTP API to the workers (which would then cache them), so we don't need to use S3
-            RegionalTask templateTask = regionalAnalysis.request.clone();
-            Scenario scenario = templateTask.scenario;
-            templateTask.scenarioId = scenario.id;
-            templateTask.scenario = null;
+        // TODO have the backend supply the scenarios over an HTTP API to the workers (which would then cache them), so we don't need to use S3?
+        RegionalTask templateTask = regionalAnalysis.request.clone();
+        Scenario scenario = templateTask.scenario;
+        templateTask.scenarioId = scenario.id;
+        templateTask.scenario = null;
 
-            String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
-            File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
-            try {
-                JsonUtil.objectMapper.writeValue(cachedScenario, scenario);
-            } catch (IOException e) {
-                LOG.error("Error saving scenario to disk", e);
-            }
+        String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
+        File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
+        try {
+            JsonUtil.objectMapper.writeValue(cachedScenario, scenario);
+        } catch (IOException e) {
+            LOG.error("Error saving scenario to disk", e);
+        }
 
-            if (!AnalysisServerConfig.offline) {
-                // Upload the scenario to S3 where workers can fetch it by ID.
-                s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
-            }
+        if (!AnalysisServerConfig.offline) {
+            // Upload the scenario to S3 where workers can fetch it by ID.
+            s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
+        }
 
-            // Fill in all the fields that will remain the same across all tasks in a job.
-            // Re-setting all these fields may not be necessary (they might already be set by the caller),
-            // but we can't eliminate these lines without thoroughly checking that assumption.
-            templateTask.jobId = regionalAnalysis._id;
-            templateTask.graphId = regionalAnalysis.bundleId;
-            templateTask.workerVersion = regionalAnalysis.workerVersion;
-            templateTask.height = regionalAnalysis.height;
-            templateTask.width = regionalAnalysis.width;
-            templateTask.north = regionalAnalysis.north;
-            templateTask.west = regionalAnalysis.west;
-            templateTask.zoom = regionalAnalysis.zoom;
-            templateTask.outputQueue = resultsQueueUrl;
-            templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
-            templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-            templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
+        // Fill in all the fields that will remain the same across all tasks in a job.
+        // Re-setting all these fields may not be necessary (they might already be set by the caller),
+        // but we can't eliminate these lines without thoroughly checking that assumption.
+        templateTask.jobId = regionalAnalysis._id;
+        templateTask.graphId = regionalAnalysis.bundleId;
+        templateTask.workerVersion = regionalAnalysis.workerVersion;
+        templateTask.height = regionalAnalysis.height;
+        templateTask.width = regionalAnalysis.width;
+        templateTask.north = regionalAnalysis.north;
+        templateTask.west = regionalAnalysis.west;
+        templateTask.zoom = regionalAnalysis.zoom;
+        templateTask.outputQueue = resultsQueueUrl;
+        templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
+        templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
+        templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
-            try {
-                LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                JsonUtil.objectMapper.writeValue(baos, templateTask);
+        broker.enqueueTasksForRegionalJob(templateTask);
 
-                HttpPost post = new HttpPost(String.format("%s/api/enqueue", brokerUrl));
-                post.setEntity(new ByteArrayEntity(baos.toByteArray()));
-                CloseableHttpResponse res = null;
-
-                try {
-                    res = HttpUtil.httpClient.execute(post);
-                    LOG.info("Enqueued job {} to broker. Response status: {}", templateTask.jobId, res.getStatusLine().getStatusCode());
-                    EntityUtils.consume(res.getEntity());
-                } finally {
-                    if (res != null) res.close();
-                }
-            } catch (IOException e) {
-                LOG.error("error enqueueing requests", e);
-                throw AnalysisServerException.Unknown(e);
-            }
-
-            // FIXME why is this a "tiling" grid result assembler?
-            consumer.registerJob(templateTask,
-                    new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
-
-        });
+        // FIXME why is this a "tiling" grid result assembler?
+        consumer.registerJob(templateTask,
+                new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
     }
 
     public static void deleteJob(String jobId) {
-        CloseableHttpResponse res = null;
-        try {
-            HttpDelete del = new HttpDelete(String.format("%s/jobs/%s", brokerUrl, jobId));
-            res = HttpUtil.httpClient.execute(del);
-            EntityUtils.consume(res.getEntity());
-        } catch (IOException e) {
-            LOG.error("error deleting job {}", e);
-        } finally {
-            if (res != null) try {
-                res.close();
-            } catch (IOException e) {
-                LOG.error("error deleting job {}", e);
-            }
+        if (broker.deleteJob(jobId)) {
+            LOG.info("Deleted job {} from broker.", jobId);
+        } else {
+            LOG.error("Deleting job {} from broker failed.", jobId);
         }
         // free temp disk space
         consumer.deleteJob(jobId);

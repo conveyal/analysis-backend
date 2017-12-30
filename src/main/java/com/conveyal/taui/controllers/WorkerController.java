@@ -36,8 +36,7 @@ import static spark.Spark.post;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
- * This will replace the separate broker process.
- * Created by abyrd on 2017-12-12
+ * This API replaces what used to be a separate broker process.
  *
  * Workers used to long-poll and hold connections open, allowing them to receive tasks instantly, as soon as the tasks
  * are enqueued. However, this adds a lot of complexity since we need to suspend the open connections and clear them
@@ -81,8 +80,6 @@ public class WorkerController {
         head("", this::headHandler);
         get("/api/jobs", this::getAllJobs);
         get("/api/workers", this::getAllWorkers);
-        // add endpoint to delete jobs
-        post("/api/enqueue", this::enqueueRegional);
         post("/api/dequeue", this::dequeueRegional);
         post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
     }
@@ -186,17 +183,6 @@ public class WorkerController {
      */
     private String getAllWorkers(Request request, Response response) {
         return jsonResponse(response, HttpStatus.OK_200, broker.getWorkerObservations());
-    }
-
-    /**
-     * This endpoint is used by the front end to enqueue a regional job.
-     * A single representative task is sent in the request body as JSON.
-     * TODO check that reading objects with objectMapper is threadsafe.
-     */
-    private Object enqueueRegional (Request request, Response response) {
-        RegionalTask templateTask = objectFromRequestBody(request, RegionalTask.class);
-        broker.enqueueTasksForRegionalJob(templateTask);
-        return jsonResponse(response, HttpStatus.ACCEPTED_202, "Accepted regional job.");
     }
 
     /**
