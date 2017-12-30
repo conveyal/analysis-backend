@@ -3,7 +3,7 @@ package com.conveyal.taui;
 import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
-import com.conveyal.r5.analyst.broker.Broker;
+import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.controllers.AggregationAreaController;

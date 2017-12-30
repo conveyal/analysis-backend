@@ -2,7 +2,6 @@ package com.conveyal.taui.analysis;
 
 import com.conveyal.gtfs.BaseGTFSCache;
 import com.conveyal.osmlib.OSMCache;
-import com.conveyal.r5.analyst.broker.Broker;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.transit.TransportNetworkCache;
 import com.conveyal.taui.AnalysisServerConfig;
