@@ -4,7 +4,7 @@ This is the server component of Conveyal's analysis platform.
 
 **Please note:** At this time Conveyal does not provide support for third-party deployments of Analysis. We provide paid subscriptions to a hosted deployment of this system, as well as transportation planning consulting for subscribers.
 
-For now, the region is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in planning and decision making processes. It is likely that over time the system will become easier to deploy by third parties, but we do not plan to provide technical support for such deployments.
+For now, the project is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in planning and decision making processes. It is likely that over time the system will become easier to deploy by third parties, but we do not plan to provide technical support for such deployments.
 
 ## Setup
 
@@ -34,8 +34,8 @@ You can then start the [frontend](https://github.com/conveyal/analysis-ui) with 
 
 In order to do development on the frontend, backend, or on [R5](https://github.com/conveyal/r5), which we use for
 performing the analyses, you'll want a local development environment. We use [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-(free/community version is fine). First, clone the region with `git`, and add it as a region to IntelliJ. Do the same with
-R5; add it as another module _in the same IntelliJ project_. Then, enter the region settings of `analysis-backend` and remove
+(free/community version is fine). First, clone the project with `git`, and add it as a project to IntelliJ. Do the same with
+R5; add it as another module _in the same IntelliJ project_. Then, enter the project settings of `analysis-backend` and remove
 the existing dependency on R5 (which will pull down a built JAR from Maven Central) and replace it with a module dependency 
 on your local R5. This way, any changes you make to R5 will also be reflected when you run it.
 
