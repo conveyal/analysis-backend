@@ -60,7 +60,11 @@ public class SinglePointAnalysisController {
             brokerRes = HttpUtil.httpClient.execute(post);
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
-            //FIXME this is a hack for geotiff exports that should be fixed when broker changes are implemented
+            // FIXME this is a hack for geotiff exports that should be fixed when broker changes are implemented.
+            // We expected Content-Type to be image/tiff, but the downloaded files are readable when it is set to
+            // application/octet-stream instead.  This may relate to how the UI handles image/tiff files. Chrome seems
+            // to recognize that the gzipped output stream for the geotiff is indeed gzipped, but it's worth making that
+            // explicit here.
             if (req.headers("Accept").equals("image/tiff")) {
                 res.header("Content-Type","application/octet-stream");
                 res.header("Content-Encoding", "gzip");
