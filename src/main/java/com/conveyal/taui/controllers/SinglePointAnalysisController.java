@@ -42,6 +42,12 @@ public class SinglePointAnalysisController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
 
+        if (req.headers("Accept").equals("image/tiff")) {
+            task.format = TravelTimeSurfaceTask.Format.GEOTIFF;
+        } else {
+            task.format = TravelTimeSurfaceTask.Format.GRID;
+        }
+
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
 
         CloseableHttpResponse brokerRes = null;
@@ -54,7 +60,15 @@ public class SinglePointAnalysisController {
             brokerRes = HttpUtil.httpClient.execute(post);
             res.status(brokerRes.getStatusLine().getStatusCode());
             res.type(brokerRes.getFirstHeader("Content-Type").getValue());
-            // TODO set encoding?
+            // FIXME this is a hack for geotiff exports that should be fixed when broker changes are implemented.
+            // We expected Content-Type to be image/tiff, but the downloaded files are readable when it is set to
+            // application/octet-stream instead.  This may relate to how the UI handles image/tiff files. Chrome seems
+            // to recognize that the gzipped output stream for the geotiff is indeed gzipped, but it's worth making that
+            // explicit here.
+            if (req.headers("Accept").equals("image/tiff")) {
+                res.header("Content-Type","application/octet-stream");
+                res.header("Content-Encoding", "gzip");
+            }
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             InputStream is = new BufferedInputStream(brokerRes.getEntity().getContent());
             long l = ByteStreams.copy(is, baos);
