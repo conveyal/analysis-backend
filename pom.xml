@@ -151,7 +151,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>r5</artifactId>
-            <version>4.0.0-20180102.180010-21</version>
+            <version>3.4.1</version>
         </dependency>
 
         <dependency>
