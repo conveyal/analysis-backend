@@ -43,9 +43,9 @@ public class SinglePointAnalysisController {
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
 
         if (req.headers("Accept").equals("image/tiff")) {
-            task.format = TravelTimeSurfaceTask.Format.GEOTIFF;
+            task.setFormat(TravelTimeSurfaceTask.Format.GEOTIFF);
         } else {
-            task.format = TravelTimeSurfaceTask.Format.GRID;
+            task.setFormat(TravelTimeSurfaceTask.Format.GRID);
         }
 
         LOG.info("Single point request by {} made {}", email, BROKER_ENQUEUE_SINGLE_URL);
