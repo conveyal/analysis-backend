@@ -74,6 +74,7 @@ public class AnalysisRequest {
      * Finds the modifications for the specified project and variant, maps them to their corresponding R5 modification
      * types, creates a checksum from those modifications, and adds them to the AnalysisTask along with the rest of the
      * request.
+     * TODO do we really need to pass in a base AnalysisTask? can't we construct a fresh AnalysisTask in this method?
      */
     public AnalysisTask populateTask (AnalysisTask task, Project project) {
         List<Modification> modifications = new ArrayList<>();
