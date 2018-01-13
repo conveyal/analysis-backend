@@ -36,7 +36,10 @@ public class AdjustSpeed extends Modification {
         if (hops != null) {
             as.hops = Arrays.stream(hops)
                     .map(h -> feedScopeIds(feed, h))
-                    .map(s -> (String[]) s.toArray())
+                    .map(s -> {
+                        Object[] oa = s.toArray();
+                        return Arrays.copyOf(oa, oa.length, String[].class);
+                    })
                     .collect(Collectors.toList());
         }
 
