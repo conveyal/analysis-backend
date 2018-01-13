@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.amazonaws.services.devicefarm.model.ExecutionResult;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
@@ -167,7 +168,18 @@ public class RegionalAnalysisController {
         task.x = 0;
         task.y = 0;
 
-        // TODO remove duplicate data that is already in the task
+        // If the UI has requested creation of a "static site", set all the necessary switches on the requests
+        // that will go to the worker: break travel time down into waiting, riding, and walking, record paths to
+        // destinations, and save results on S3.
+        if (analysisRequest.makeStaticSite) {
+            task.makeStaticSite = true;
+            task.travelTimeBreakdown = true;
+            task.returnPaths = true;
+        }
+
+        // TODO remove duplicate fields from RegionalAnalysis that are already in the nested task.
+        // The RegionalAnalysis object contains a reference to the template task itself.
+        // In fact, there are three separate classes all containing almost the same info: AnalysisRequest, RegionalTask, RegionalAnalysis.
         RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
 
         regionalAnalysis.height = task.height;
