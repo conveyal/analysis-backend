@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
@@ -193,10 +194,9 @@ public class WorkerController {
      */
     private Object dequeueRegional (Request request, Response response) {
         WorkerStatus workerStatus = objectFromRequestBody(request, WorkerStatus.class);
-        // Record any results that were supplied.
+        // Record any regional analysis results that were supplied by the worker and mark them completed.
         for (RegionalWorkResult workResult : workerStatus.results) {
-            // These two steps each synchronize on separate objects.
-            RegionalAnalysisManager.consumer.registerResult(workResult);
+            RegionalAnalysisManager.handleRegionalWorkResult(workResult);
             broker.markTaskCompleted(workResult);
         }
         // Clear out the results field so it's not visible in the worker list API endpoint.
