@@ -8,7 +8,6 @@ import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
@@ -74,59 +73,41 @@ public class RegionalAnalysisController {
         return analysis;
     }
 
-    /** Get a particular percentile of a query as a grid file */
+    /**
+     * Get a particular percentile of a query as a grid file.
+     * FIXME this does not seem to do that anymore. It just gets the single percentile that exists for any one analysis.
+     */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("_id");
         RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
-
-        // while we can do non-integer percentiles, don't allow that here to prevent cache misses
+        // The response file format: PNG, TIFF, or GRID
         String format = req.params("format").toLowerCase();
         String redirectText = req.queryParams("redirect");
-
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
-        String percentileGridKey;
+        String percentileGridKey; // TODO explain what this is
 
-        if (analysis.travelTimePercentile == -1) {
-            // Andrew Owen style average instantaneous accessibility
-            percentileGridKey = String.format("%s_average.%s", regionalAnalysisId, format);
-        } else {
-            // accessibility given X percentile travel time
-            // use the point estimate when there are many bootstrap replications of the accessibility given median
-            // accessibility
-            // no need to record what the percentile is, that is fixed by the regional analysis.
-            percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, format);
-        }
-
+        // Accessibility given X percentile travel time.
+        // No need to record what the percentile is, that is currently fixed by the regional analysis.
+        percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, format);
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
-
         if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
-            // make the grid
+            // The grid has not been built yet, make it.
             Grid grid;
             long computeStart = System.currentTimeMillis();
-            if (analysis.travelTimePercentile == -1) {
-                // Andrew Owen style average instantaneous accessibility
-                // The samples stored in the access grid are samples of instantaneous accessibility at different minutes
-                // and Monte Carlo draws, average them together
-                throw AnalysisServerException.BadRequest("Old-style instantaneous-accessibility regional analyses are no longer supported");
-            } else {
-                // This is accessibility given x percentile travel time, the first sample is the point estimate
-                // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
-                // point estimate in the grids.
-                LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-                grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
-            }
+            // This is accessibility given x percentile travel time, the first sample is the point estimate
+            // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
+            // point estimate in the grids.
+            LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
+            grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
             LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
-
             GridExporter.writeToS3(grid, s3, BUCKET, String.format("%s_given_percentile_travel_time", regionalAnalysisId), format);
         }
-
         return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
-
     }
 
     /**
      * Get a probability of improvement between two regional analyses.
-     * TODO simplify / remove this
+     * TODO remove this. But the UI is still calling it.
      */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("_id");

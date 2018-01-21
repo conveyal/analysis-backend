@@ -49,14 +49,16 @@ public abstract class GridExporter {
      * @return cleaned up version of redirectText
      */
     public static boolean checkRedirectAndFormat(String redirectText, String format){
+        // FIXME replace string matching with enum type
         if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
             haltWithIncorrectFormat(format);
         }
-
         boolean redirect;
-        if (redirectText == null || "" .equals(redirectText)) redirect = true;
-        else redirect = parseBoolean(redirectText);
-
+        if (redirectText == null || "" .equals(redirectText)) {
+            redirect = true;
+        } else {
+            redirect = parseBoolean(redirectText);
+        }
         return redirect;
     }
 
@@ -75,7 +77,7 @@ public abstract class GridExporter {
         PipedOutputStream pos = new PipedOutputStream(pis);
 
         ObjectMetadata om = new ObjectMetadata();
-
+        // FIXME replace string matching with enum type
         if ("grid".equals(format)) {
             om.setContentType("application/octet-stream");
             om.setContentEncoding("gzip");
