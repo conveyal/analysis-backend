@@ -7,13 +7,11 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.taui.analysis.broker.Broker;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.RegionalAnalysis;
-import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,8 +94,7 @@ public class RegionalAnalysisManager {
 
         // Register the regional job so results received from multiple workers can be assembled into one file.
         // TODO possibly just merge this result assembly functionality into the broker
-        // FIXME remvove special tiling grid result assembler
-        resultAssemblers.put(templateTask.jobId, new TilingGridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
+        resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
     }
 
     public static void deleteJob(String jobId) {
@@ -114,6 +111,7 @@ public class RegionalAnalysisManager {
         } catch (Exception e) {
             LOG.error("Could not terminate grid result assembler, this may waste disk space. Reason: {}", e.toString());
         }
+        // TODO where do we delete the regional analysis from Persistence so it doesn't show up in the UI after deletion?
     }
 
     public static RegionalAnalysisStatus getStatus (String jobId) {
@@ -141,25 +139,4 @@ public class RegionalAnalysisManager {
         }
     }
 
-    /**
-     * A GridResultAssembler that tiles the results once they are complete.
-     * TODO remove this and TiledAccessGrid
-     */
-    public static class TilingGridResultAssembler extends GridResultAssembler {
-        public TilingGridResultAssembler(AnalysisTask request, String outputBucket) {
-            super(request, outputBucket);
-        }
-
-        @Override
-        protected synchronized void finish () {
-            super.finish();
-            // build the tiles (used to display sampling distributions in the client)
-            // Note that the job will be marked as complete even before the tiles are built, but this is okay;
-            // the tiles are not needed to display the regional analysis, only to display sampling distributions from it
-            // the user can view the results immediately, and the sampling distribution loading will block until the tiles
-            // are built thanks to the use of a Guava loadingCache below (which will only build the value for a particular key
-            // once)
-            TiledAccessGrid.get(outputBucket, String.format("%s.access", request.jobId));
-        }
-    }
 }

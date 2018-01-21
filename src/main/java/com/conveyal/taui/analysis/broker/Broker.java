@@ -168,6 +168,7 @@ public class Broker {
         jobs.insertAtTail(job);
         if (!workersAvailable(job.workerCategory)) {
             // FIXME whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
+            // We should make this an asynchronous task.
             createWorkersInCategory(job.workerCategory);
         }
     }

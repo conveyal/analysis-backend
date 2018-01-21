@@ -1,6 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.amazonaws.services.devicefarm.model.ExecutionResult;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
@@ -15,7 +14,6 @@ import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
-import com.conveyal.taui.persistence.TiledAccessGrid;
 import com.conveyal.taui.util.JsonUtil;
 import com.mongodb.QueryBuilder;
 import org.slf4j.Logger;
@@ -31,7 +29,8 @@ import static spark.Spark.get;
 import static spark.Spark.post;
 
 /**
- * Created by matthewc on 10/21/16.
+ * Spark HTTP handler methods that allow launching new regional analyses, as well as deleting them and fetching
+ * information about them.
  */
 public class RegionalAnalysisController {
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
@@ -115,7 +114,8 @@ public class RegionalAnalysisController {
     }
 
     /**
-     * Get a probability of improvement between two regional analyses
+     * Get a probability of improvement between two regional analyses.
+     * TODO simplify / remove this
      */
     public static Object getProbabilitySurface (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("_id");
@@ -144,16 +144,6 @@ public class RegionalAnalysisController {
         }
 
         return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
-    }
-
-    public static int[] getSamplingDistribution (Request req, Response res) {
-        String regionalAnalysisId = req.params("_id");
-        double lat = Double.parseDouble(req.params("lat"));
-        double lon = Double.parseDouble(req.params("lon"));
-
-        return TiledAccessGrid
-                .get(BUCKET,  String.format("%s.access", regionalAnalysisId))
-                .getLatLon(lat, lon);
     }
 
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
@@ -210,7 +200,6 @@ public class RegionalAnalysisController {
     public static void register () {
         get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:_id/samplingDistribution/:lat/:lon", RegionalAnalysisController::getSamplingDistribution, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/:comparisonId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
