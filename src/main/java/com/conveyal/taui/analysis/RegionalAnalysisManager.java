@@ -31,16 +31,9 @@ public class RegionalAnalysisManager {
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisManager.class);
     private static AmazonS3 s3 = new AmazonS3Client();
     public static Broker broker;
-    public static final String resultsQueueUrl;
 
     // FIXME use less static fields
     private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
-
-    static {
-        AmazonSQS sqs = new AmazonSQSClient();
-        sqs.setRegion(com.amazonaws.regions.Region.getRegion(Regions.fromName(AnalysisServerConfig.region)));
-        resultsQueueUrl = sqs.getQueueUrl(AnalysisServerConfig.resultsQueue).getQueueUrl();
-    }
 
     /**
      * This function is called with a single RegionalAnalysis object that actually represents a lot of individual
@@ -84,7 +77,6 @@ public class RegionalAnalysisManager {
         templateTask.north = regionalAnalysis.north;
         templateTask.west = regionalAnalysis.west;
         templateTask.zoom = regionalAnalysis.zoom;
-        templateTask.outputQueue = resultsQueueUrl;
         templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
         templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
         templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
