@@ -1,6 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
@@ -9,7 +8,6 @@ import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
-import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
@@ -196,7 +194,8 @@ public class WorkerController {
         WorkerStatus workerStatus = objectFromRequestBody(request, WorkerStatus.class);
         // Record any regional analysis results that were supplied by the worker and mark them completed.
         for (RegionalWorkResult workResult : workerStatus.results) {
-            RegionalAnalysisManager.handleRegionalWorkResult(workResult);
+            // TODO merge these two methods on the broker?
+            broker.handleRegionalWorkResult(workResult);
             broker.markTaskCompleted(workResult);
         }
         // Clear out the results field so it's not visible in the worker list API endpoint.

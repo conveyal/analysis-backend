@@ -5,7 +5,6 @@ import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
-import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
@@ -116,7 +115,7 @@ public class AnalysisServer {
         brokerConfig.setProperty("bind-address", "localhost");
         brokerConfig.setProperty("port", "" + AnalysisServerConfig.port);
         Broker broker = new Broker(brokerConfig, "localhost", AnalysisServerConfig.port);
-        RegionalAnalysisManager.broker = broker;
+        RegionalAnalysisController.broker = broker;
         new WorkerController(broker).register();
 
 

@@ -12,7 +12,7 @@ import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.analysis.RegionalAnalysisManager;
+import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -425,12 +425,12 @@ public class Broker {
     /**
      * Returns a simple status object intended to inform the UI of job progress.
      */
-    public RegionalAnalysisManager.RegionalAnalysisStatus getJobStatus (String jobId) {
+    public RegionalAnalysisStatus getJobStatus (String jobId) {
         GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
         if (gridResultAssembler == null) {
             return null;
         } else {
-            return new RegionalAnalysisManager.RegionalAnalysisStatus(gridResultAssembler);
+            return new RegionalAnalysisStatus(gridResultAssembler);
         }
     }
 
