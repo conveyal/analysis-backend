@@ -7,9 +7,12 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.analysis.RegionalAnalysisManager;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -92,6 +95,9 @@ public class Broker {
 
     private AmazonEC2 ec2;
 
+    // Instances that fit together results received from workers into a single regional analysis result file.
+    private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
+
     /**
      * keep track of which graphs we have launched workers on and how long ago we launched them,
      * so that we don't re-request workers which have been requested.
@@ -166,9 +172,11 @@ public class Broker {
         }
         Job job = new Job(templateTask);
         jobs.insertAtTail(job);
+        // Register the regional job so results received from multiple workers can be assembled into one file.
+        resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (!workersAvailable(job.workerCategory)) {
             // FIXME whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
-            // We should make this an asynchronous task.
+            // FIXME FIXME FIXME! We should make this an asynchronous operation.
             createWorkersInCategory(job.workerCategory);
         }
     }
@@ -334,11 +342,25 @@ public class Broker {
         return null;
     }
 
-    /** Delete the job with the given ID. */
+    /**
+     * Delete the job with the given ID.
+     */
     public synchronized boolean deleteJob (String jobId) {
+        // Remove the job from the broker so we stop distributing its tasks to workers.
         Job job = findJob(jobId);
         if (job == null) return false;
-        return jobs.remove(job);
+        boolean success = jobs.remove(job);
+        // Shut down the object used for assembling results, removing its associated temporary disk file.
+        // TODO just put the assembler in the Job object
+        GridResultAssembler assembler = resultAssemblers.remove(jobId);
+        try {
+            assembler.terminate();
+        } catch (Exception e) {
+            LOG.error("Could not terminate grid result assembler, this may waste disk space. Reason: {}", e.toString());
+            success = false;
+        }
+        // TODO where do we delete the regional analysis from Persistence so it doesn't show up in the UI after deletion?
+        return success;
     }
 
     /**
@@ -385,6 +407,31 @@ public class Broker {
      */
     public void recordWorkerObservation(WorkerStatus workerStatus) {
         workerCatalog.catalog(workerStatus);
+    }
+
+    /**
+     * Slots a single regional work result received from a worker into the appropriate position in the appropriate file.
+     * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
+     */
+    public void handleRegionalWorkResult (RegionalWorkResult workResult) {
+        GridResultAssembler assembler = resultAssemblers.get(workResult.jobId);
+        if (assembler == null) {
+            LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
+        } else {
+            assembler.handleMessage(workResult);
+        }
+    }
+
+    /**
+     * Returns a simple status object intended to inform the UI of job progress.
+     */
+    public RegionalAnalysisManager.RegionalAnalysisStatus getJobStatus (String jobId) {
+        GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
+        if (gridResultAssembler == null) {
+            return null;
+        } else {
+            return new RegionalAnalysisManager.RegionalAnalysisStatus(gridResultAssembler);
+        }
     }
 
 }

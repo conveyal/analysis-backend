@@ -1,10 +1,7 @@
 package com.conveyal.taui.analysis;
 
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
@@ -19,8 +16,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Manages coordination of multipoint runs with the broker.
@@ -31,9 +26,6 @@ public class RegionalAnalysisManager {
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisManager.class);
     private static AmazonS3 s3 = new AmazonS3Client();
     public static Broker broker;
-
-    // FIXME use less static fields
-    private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
 
     /**
      * This function is called with a single RegionalAnalysis object that actually represents a lot of individual
@@ -83,42 +75,27 @@ public class RegionalAnalysisManager {
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
         broker.enqueueTasksForRegionalJob(templateTask);
-
-        // Register the regional job so results received from multiple workers can be assembled into one file.
-        // TODO possibly just merge this result assembly functionality into the broker
-        resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
     }
 
     public static void deleteJob(String jobId) {
-        // First, remove the job from the broker so we stop distributing its tasks to workers.
         if (broker.deleteJob(jobId)) {
             LOG.info("Deleted job {} from broker.", jobId);
         } else {
             LOG.error("Deleting job {} from broker failed.", jobId);
         }
-        // Then shut down the object used for assembling results, removing its associated temporary disk file.
-        GridResultAssembler assembler = resultAssemblers.remove(jobId);
-        try {
-            assembler.terminate();
-        } catch (Exception e) {
-            LOG.error("Could not terminate grid result assembler, this may waste disk space. Reason: {}", e.toString());
-        }
-        // TODO where do we delete the regional analysis from Persistence so it doesn't show up in the UI after deletion?
     }
 
     public static RegionalAnalysisStatus getStatus (String jobId) {
-        return resultAssemblers.containsKey(jobId) ? new RegionalAnalysisStatus(resultAssemblers.get(jobId)) : null;
+        return broker.getJobStatus(jobId);
     }
 
-    public static void handleRegionalWorkResult(RegionalWorkResult workResult) {
-        GridResultAssembler assembler = resultAssemblers.get(workResult.jobId);
-        if (assembler == null) {
-            LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
-        } else {
-            assembler.handleMessage(workResult);
-        }
+    public static void handleRegionalWorkResult (RegionalWorkResult workResult) {
+        broker.handleRegionalWorkResult(workResult);
     }
 
+    /**
+     * This model object is sent to the UI to report progress on a regional job.
+     */
     public static final class RegionalAnalysisStatus implements Serializable {
         public int total;
         public int complete;
