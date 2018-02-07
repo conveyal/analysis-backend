@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
+/**
+ * This is the request sent from the UI. It is actually distinct from the requests sent to the R5 workers, though it
+ * has many of the same fields.
+ */
 public class AnalysisRequest {
     private static int ZOOM = 9;
 
@@ -58,6 +62,8 @@ public class AnalysisRequest {
     public String name;
     public String opportunityDatasetKey;
     public Integer travelTimePercentile;
+    // Save all results in a regional analysis to S3 for display in a "static site".
+    public boolean makeStaticSite = false;
 
     /**
      * Get all of the modifications for a project id that are in the Variant and map them to their corresponding r5 mod
@@ -75,6 +81,9 @@ public class AnalysisRequest {
      * Finds the modifications for the specified project and variant, maps them to their corresponding R5 modification
      * types, creates a checksum from those modifications, and adds them to the AnalysisTask along with the rest of the
      * request.
+     *
+     * This method takes a task as a parameter, modifies that task, and also returns that same task.
+     * This is because we have two subtypes of AnalysisTask and need to be able to create both.
      */
     public AnalysisTask populateTask (AnalysisTask task, Project project) {
         List<Modification> modifications = new ArrayList<>();
@@ -93,6 +102,8 @@ public class AnalysisRequest {
 
         task.scenario = new Scenario();
         // TODO figure out why we use both
+        // (AB: what does the above comment mean? both what?)
+        // FIXME Job IDs need to be unique. Why are we setting this to the project and variant? This only works because the job ID is overwritten when the job is enqueued.
         task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
