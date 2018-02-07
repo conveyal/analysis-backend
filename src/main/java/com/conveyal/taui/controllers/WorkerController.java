@@ -76,9 +76,9 @@ public class WorkerController {
      */
     public void register () {
         head("", this::headHandler);
-        get("/api/jobs", this::getAllJobs);
-        get("/api/workers", this::getAllWorkers);
-        post("/api/dequeue", this::dequeueRegional);
+        get("/internal/jobs", this::getAllJobs);
+        get("/internal/workers", this::getAllWorkers);
+        post("/internal/dequeue", this::dequeueRegional);
         post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
     }
 

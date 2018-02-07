@@ -68,7 +68,9 @@ public class AnalysisServer {
 
         // Before handling each request, check if the user is authenticated.
         before((req, res) -> {
-            if (!req.pathInfo().startsWith("/api")) return; // don't need to be authenticated to view main page
+            // Don't require authentication to view the main page, or for internal API endpoints contacted by workers.
+            // FIXME those internal endpoints should be hidden from the outside world by the reverse proxy.
+            if (!req.pathInfo().startsWith("/api")) return;
 
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
