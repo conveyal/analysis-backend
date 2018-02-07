@@ -78,7 +78,7 @@ public class WorkerController {
         head("", this::headHandler);
         get("/internal/jobs", this::getAllJobs);
         get("/internal/workers", this::getAllWorkers);
-        post("/internal/dequeue", this::dequeueRegional);
+        post("/internal/poll", this::workerPoll);
         post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
     }
 
@@ -199,7 +199,7 @@ public class WorkerController {
      * using already loaded networks and scenarios. The method is POST because unlike GETs (which fetch status) it
      * modifies the contents of the task queue.
      */
-    private Object dequeueRegional (Request request, Response response) {
+    private Object workerPoll (Request request, Response response) {
         WorkerStatus workerStatus = objectFromRequestBody(request, WorkerStatus.class);
         // Record any regional analysis results that were supplied by the worker and mark them completed.
         for (RegionalWorkResult workResult : workerStatus.results) {
