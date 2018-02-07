@@ -43,7 +43,7 @@ import static spark.Spark.post;
  *
  * The long polling originally only existed for high-priority tasks and has been extended to single point
  * tasks, which we will instead handle with a proxy-like push approach.
- * TODO rename to BrokerController
+ * TODO rename to BrokerController?
  */
 public class WorkerController {
 
@@ -103,8 +103,16 @@ public class WorkerController {
         final String accessGroup = request.attribute("accessGroup");
         AnalysisRequest analysisRequest = objectFromRequestBody(request, AnalysisRequest.class);
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
-        // This is where we transform the task into a slightly different type for R5
+        // Transform the analysis UI/backend task format into a slightly different type for R5 workers.
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
+        if (request.headers("Accept").equals("image/tiff")) {
+            // If the client requested a Geotiff using HTTP headers (for exporting results to GIS),
+            // signal this using a field on the request sent to the worker.
+            task.setFormat(TravelTimeSurfaceTask.Format.GEOTIFF);
+        } else {
+            // The default response format is our own compact grid representation.
+            task.setFormat(TravelTimeSurfaceTask.Format.GRID);
+        }
         WorkerCategory workerCategory = task.getWorkerCategory();
         String address = broker.getWorkerAddress(workerCategory);
         if (address == null) {
@@ -122,6 +130,7 @@ public class WorkerController {
             httpPost.setEntity(new ByteArrayEntity(JsonUtil.objectMapper.writeValueAsBytes(task)));
             HttpResponse workerResponse = httpClient.execute(httpPost);
             response.status(workerResponse.getStatusLine().getStatusCode());
+            // TODO Should we exactly mimic these headers coming back from the worker?
             response.header("Content-Type", "application/octet-stream");
             response.header("Content-Encoding", "gzip");
             HttpEntity entity = workerResponse.getEntity();
