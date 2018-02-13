@@ -112,8 +112,10 @@ public class AnalysisServer {
 
         // Add a controller to handle connections from workers, using the local broker
         Properties brokerConfig = new Properties();
-        // I believe work-offline tells the broker not to spin up AWS instances.
-        brokerConfig.setProperty("work-offline", "true");
+
+        // TODO eliminate these configuration options from the broker object
+        // work-offline=true tells the broker not to spin up AWS instances.
+        brokerConfig.setProperty("work-offline", "false");
         brokerConfig.setProperty("bind-address", "localhost");
         brokerConfig.setProperty("port", "" + AnalysisServerConfig.port);
         Broker broker = new Broker(brokerConfig, "localhost", AnalysisServerConfig.port);
