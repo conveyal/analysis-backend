@@ -28,6 +28,7 @@ import spark.Response;
 
 import javax.imageio.ImageIO;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -115,10 +116,20 @@ public class AnalysisServer {
 
         // TODO eliminate these configuration options from the broker object
         // work-offline=true tells the broker not to spin up AWS instances.
-        brokerConfig.setProperty("work-offline", Boolean.toString(AnalysisServerConfig.offline));
-        brokerConfig.setProperty("bind-address", "localhost");
-        brokerConfig.setProperty("port", "" + AnalysisServerConfig.port);
-        Broker broker = new Broker(brokerConfig, "localhost", AnalysisServerConfig.port);
+        if (AnalysisServerConfig.offline) {
+            brokerConfig.setProperty("work-offline", "true");
+            brokerConfig.setProperty("bind-address", "localhost");
+        } else {
+            try {
+                FileInputStream is = new FileInputStream("broker.conf");
+                brokerConfig.load(is);
+                is.close();
+            } catch (Exception e) {
+                LOG.warn("Could not read broker config file.");
+            }
+        }
+        brokerConfig.setProperty("port", Integer.toString(AnalysisServerConfig.port));
+        Broker broker = new Broker(brokerConfig, brokerConfig.getProperty("bind-address"), AnalysisServerConfig.port);
         RegionalAnalysisController.broker = broker;
         new WorkerController(broker).register();
 
