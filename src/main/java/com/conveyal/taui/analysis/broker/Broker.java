@@ -136,9 +136,6 @@ public class Broker {
             workerConfig.setProperty("broker-address", addr);
             workerConfig.setProperty("broker-port", "" + port);
 
-            if (brokerConfig.getProperty("statistics-queue") != null)
-                workerConfig.setProperty("statistics-queue", brokerConfig.getProperty("statistics-queue"));
-
             workerConfig.setProperty("graphs-bucket", brokerConfig.getProperty("graphs-bucket"));
             workerConfig.setProperty("pointsets-bucket", brokerConfig.getProperty("pointsets-bucket"));
 

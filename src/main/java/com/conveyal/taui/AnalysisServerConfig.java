@@ -10,7 +10,8 @@ import java.util.Properties;
 /**
  * Represents config information for the Analysis backend server.
  * FIXME Gets some info from a config file and some from environment variables.
- * Everything should come from one place.
+ * Everything should come from one place, not environment variables.
+ * FIXME Why is this all static?
  */
 public class AnalysisServerConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AnalysisServerConfig.class);

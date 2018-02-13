@@ -115,13 +115,12 @@ public class AnalysisServer {
 
         // TODO eliminate these configuration options from the broker object
         // work-offline=true tells the broker not to spin up AWS instances.
-        brokerConfig.setProperty("work-offline", "false");
+        brokerConfig.setProperty("work-offline", Boolean.toString(AnalysisServerConfig.offline));
         brokerConfig.setProperty("bind-address", "localhost");
         brokerConfig.setProperty("port", "" + AnalysisServerConfig.port);
         Broker broker = new Broker(brokerConfig, "localhost", AnalysisServerConfig.port);
         RegionalAnalysisController.broker = broker;
         new WorkerController(broker).register();
-
 
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
