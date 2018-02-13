@@ -192,7 +192,9 @@ public class Broker {
         }
     }
 
-    /** Create workers for a given job, if need be */
+    /**
+     * Create workers for a given job, if need be.
+     */
     private void createWorkersInCategory (WorkerCategory category) {
 
         String clientToken = UUID.randomUUID().toString().replaceAll("-", "");
@@ -364,19 +366,24 @@ public class Broker {
     }
 
     /**
-     * Given a worker commit and network, return the IP or DNS name of that worker.
+     * Given a worker commit ID and transport network, return the IP or DNS name of a worker that has that software
+     * and network already loaded. If none exist, return null and try to start one.
      */
     public String getWorkerAddress(WorkerCategory workerCategory) {
+        // First try to get a worker that's already loaded the right network.
         Collection<String> workerIds = workerCatalog.workersByCategory.get(workerCategory);
-        for (String workerId : workerIds) {
-            WorkerObservation observation = workerCatalog.observationsByWorkerId.get(workerId);
+        if (!workerIds.isEmpty()) {
+            WorkerObservation observation = workerCatalog.observationsByWorkerId.get(workerIds.iterator().next());
             return observation.status.ipAddress;
         }
-        // Fall back on any existing worker
-        for (WorkerObservation observation : workerCatalog.observationsByWorkerId.values()) {
-            return observation.status.ipAddress;
-        }
-        return "localhost";
+        // Fall back on any existing worker, including a local one if running in local mode.
+//        for (WorkerObservation observation : workerCatalog.observationsByWorkerId.values()) {
+//            return observation.status.ipAddress;
+//        }
+        // There are no workers that can handle this request. Request some.
+        // FIXME parts of the following method assume that it's synchronized
+        createWorkersInCategory(workerCategory);
+        return null;
     }
 
 
