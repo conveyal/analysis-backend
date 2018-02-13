@@ -367,6 +367,9 @@ public class Broker {
      * and network already loaded. If none exist, return null and try to start one.
      */
     public String getWorkerAddress(WorkerCategory workerCategory) {
+        if (workOffline) {
+            return "localhost";
+        }
         // First try to get a worker that's already loaded the right network.
         Collection<String> workerIds = workerCatalog.workersByCategory.get(workerCategory);
         if (!workerIds.isEmpty()) {
