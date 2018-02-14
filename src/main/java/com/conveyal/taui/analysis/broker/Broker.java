@@ -280,7 +280,7 @@ public class Broker {
         req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
 
         // Tag the new instance so we can identify it in the EC2 console.
-        TagSpecification instanceTags = new TagSpecification().withTags(
+        TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance).withTags(
                 new Tag("project","analysis"),
                 new Tag("networkId", category.graphId),
                 new Tag("workerVersion", category.workerVersion)
