@@ -153,6 +153,7 @@ public class RegionalAnalysisController {
         // If the UI has requested creation of a "static site", set all the necessary switches on the requests
         // that will go to the worker: break travel time down into waiting, riding, and walking, record paths to
         // destinations, and save results on S3.
+//        analysisRequest.makeStaticSite = true; // DEBUG
         if (analysisRequest.makeStaticSite) {
             task.makeStaticSite = true;
             task.travelTimeBreakdown = true;
