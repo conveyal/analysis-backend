@@ -1,5 +1,6 @@
 package com.conveyal.taui.analysis.broker;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.regions.*;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
@@ -25,6 +26,7 @@ import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * This class distributes the tasks making up regional jobs to workers.
@@ -277,9 +279,21 @@ public class Broker {
         // allow machine to shut itself completely off
         req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
         RunInstancesResult res = ec2.runInstances(req);
-        // FIXME this was not pushing the instance tags to EC2, just changing them locally
+
+        // Tag the new instance so we can identify it in the EC2 console.
+        ArrayList<Tag> instanceTags = new ArrayList<>();
+        instanceTags.add(new Tag("project","analysis"));
+        instanceTags.add(new Tag("networkId", category.graphId));
+        instanceTags.add(new Tag("workerVersion", category.workerVersion));
+        CreateTagsRequest createTagsRequest = new CreateTagsRequest();
+        createTagsRequest.setResources(res.getReservation().getInstances().stream().map(Instance::getInstanceId)
+                .collect(Collectors.toList()));
+        createTagsRequest.setTags(instanceTags);
+        ec2.createTags(createTagsRequest);
+
+        // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
-        LOG.info("Requesting {} workers", nWorkers);
+        LOG.info("Requested {} workers", nWorkers);
     }
 
     /**
