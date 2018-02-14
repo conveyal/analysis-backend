@@ -60,7 +60,7 @@ public class Broker {
     public final CircularList<Job> jobs = new CircularList<>();
 
     /** The most tasks to deliver to a worker at a time. */
-    public final int MAX_TASKS_PER_WORKER = 8;
+    public final int MAX_TASKS_PER_WORKER = 16;
 
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
@@ -286,7 +286,7 @@ public class Broker {
      * Attempt to find some tasks that match what a worker is requesting.
      * Always returns a list, which may be empty if there is nothing to deliver.
      */
-    public synchronized List<AnalysisTask> getSomeWork (WorkerCategory workerCategory) {
+    public synchronized List<RegionalTask> getSomeWork (WorkerCategory workerCategory) {
         Job job;
         // FIXME use workOffline boolean instead of examining workerVersion
         if (workerCategory.graphId == null || "UNKNOWN".equalsIgnoreCase(workerCategory.workerVersion)) {
@@ -301,7 +301,7 @@ public class Broker {
             // No matching job was found.
             return Collections.EMPTY_LIST;
         }
-        // Get up to N tasks from the tasksAwaitingDelivery deque
+        // Return up to N tasks that are waiting to be processed.
         return job.generateSomeTasksToDeliver(MAX_TASKS_PER_WORKER);
     }
 

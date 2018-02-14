@@ -71,9 +71,7 @@ public class Job {
      * The only thing that changes from one task to the next is the origin coordinates.
      * @param taskNumber the task number within the job, equal to the point number within the origin point set.
      */
-    private AnalysisTask makeOneTask (int taskNumber) {
-        // Hack to deliver single-point requests, replace this eventually.
-        if (tasks != null) return tasks.get(taskNumber);
+    private RegionalTask makeOneTask (int taskNumber) {
         RegionalTask task = templateTask.clone();
         // We want to support any Pointset but for now we only have grids tied to the task itself.
         // In the future we'll set origin coords from a PointSet object.
@@ -107,25 +105,6 @@ public class Job {
         this.workerCategory = new WorkerCategory(templateTask.graphId, templateTask.workerVersion);
         this.nTasksCompleted = 0;
         this.nextTaskToDeliver = 0;
-    }
-
-    private List<AnalysisTask> tasks = null;
-
-    /** create a special job of arbitrary tasks from the same worker category */
-    public Job (List<AnalysisTask> tasks) {
-        this.workerCategory = tasks.get(0).getWorkerCategory();
-        for (AnalysisTask task : tasks) {
-            if (!task.getWorkerCategory().equals(this.workerCategory)) {
-                throw new RuntimeException("WORKER CATEGORY MISMATCH, FAIL.");
-            }
-        }
-        this.jobId = "SINGLE_POINT_BATCH";
-        this.templateTask = null;
-        this.nTasksTotal = tasks.size();
-        this.completedTasks = new BitSet(nTasksTotal);
-        this.nTasksCompleted = 0;
-        this.nextTaskToDeliver = 0;
-        this.tasks = tasks;
     }
 
     public boolean markTaskCompleted(int taskId) {
@@ -181,11 +160,9 @@ public class Job {
     /**
      * @param maxTasks the maximum number of tasks to return.
      * @return some tasks that are not yet marked as completed and have not yet been delivered in this delivery pass.
-     * This is returning AnalysisTasks instead of RegionalTasks because the first time a worker receives single-point
-     * requests it's through this same mechanism.
      */
-    public List<AnalysisTask> generateSomeTasksToDeliver (int maxTasks) {
-        List<AnalysisTask> tasks = new ArrayList<>(maxTasks);
+    public List<RegionalTask> generateSomeTasksToDeliver (int maxTasks) {
+        List<RegionalTask> tasks = new ArrayList<>(maxTasks);
         // TODO use special bitset iteration syntax.
         while (nextTaskToDeliver < nTasksTotal && tasks.size() < maxTasks) {
             if (!completedTasks.get(nextTaskToDeliver)) {

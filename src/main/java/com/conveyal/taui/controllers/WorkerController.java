@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
@@ -213,7 +214,7 @@ public class WorkerController {
         broker.recordWorkerObservation(workerStatus);
         WorkerCategory workerCategory = workerStatus.getWorkerCategory();
         // See if any appropriate tasks exist for this worker.
-        List<AnalysisTask> tasks = broker.getSomeWork(workerCategory);
+        List<RegionalTask> tasks = broker.getSomeWork(workerCategory);
         // If there is no work for the worker, signal this clearly with a "no content" code,
         // so the worker can sleep a while before the next polling attempt.
         if (tasks.isEmpty()) {
