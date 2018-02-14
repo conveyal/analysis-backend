@@ -281,7 +281,8 @@ public class Broker {
 
         // Tag the new instance so we can identify it in the EC2 console.
         TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance).withTags(
-                new Tag("project","analysis"),
+                new Tag("Name","Analysis Worker"),
+                new Tag("Project", "Analysis"),
                 new Tag("networkId", category.graphId),
                 new Tag("workerVersion", category.workerVersion)
         );
