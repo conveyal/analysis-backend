@@ -183,7 +183,6 @@ public class AnalysisServer {
             ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
         }
 
-
         LOG.info("Conveyal Analysis server is ready.");
     }
 

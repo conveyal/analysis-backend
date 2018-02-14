@@ -202,6 +202,20 @@
             <version>4.5.3</version>
         </dependency>
 
+        <!-- AWS SDK for interacting with S3 and EC2 -->
+
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>1.11.274</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-ec2</artifactId>
+            <version>1.11.274</version>
+        </dependency>
+
         <!-- Rest Assured is an assertion library that makes testing web apis easy. -->
         <dependency>
             <groupId>io.rest-assured</groupId>

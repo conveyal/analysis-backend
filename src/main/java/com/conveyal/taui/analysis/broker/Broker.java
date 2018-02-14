@@ -278,18 +278,14 @@ public class Broker {
         req.setClientToken(clientToken);
         // allow machine to shut itself completely off
         req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
-        RunInstancesResult res = ec2.runInstances(req);
 
         // Tag the new instance so we can identify it in the EC2 console.
-        ArrayList<Tag> instanceTags = new ArrayList<>();
-        instanceTags.add(new Tag("project","analysis"));
-        instanceTags.add(new Tag("networkId", category.graphId));
-        instanceTags.add(new Tag("workerVersion", category.workerVersion));
-        CreateTagsRequest createTagsRequest = new CreateTagsRequest();
-        createTagsRequest.setResources(res.getReservation().getInstances().stream().map(Instance::getInstanceId)
-                .collect(Collectors.toList()));
-        createTagsRequest.setTags(instanceTags);
-        ec2.createTags(createTagsRequest);
+        TagSpecification instanceTags = new TagSpecification().withTags(
+                new Tag("project","analysis"),
+                new Tag("networkId", category.graphId),
+                new Tag("workerVersion", category.workerVersion)
+        );
+        RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
 
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
