@@ -24,14 +24,14 @@ public class LocalCluster {
      * just performed in HTTP handler threads.
      * @param nWorkers cannot currently start more than 1 worker because the IDs are static, see AnalystWorker.machineId
      */
-    public LocalCluster(AnalysisServerConfig config, BaseGTFSCache gtfsCache, OSMCache osmCache, int nWorkers) {
+    public LocalCluster(BaseGTFSCache gtfsCache, OSMCache osmCache, int nWorkers) {
 
         Properties workerConfig = new Properties();
 
         workerConfig.setProperty("auto-shutdown", "false"); // cause that would be annoying
         workerConfig.setProperty("work-offline", "true");
         workerConfig.setProperty("broker-address", "localhost");
-        workerConfig.setProperty("broker-port", Integer.toString(config.serverPort));
+        workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
         workerConfig.setProperty("cache-dir", AnalysisServerConfig.localCacheDirectory);
         workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
 

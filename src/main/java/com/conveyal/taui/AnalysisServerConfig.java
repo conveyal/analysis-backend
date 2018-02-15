@@ -14,7 +14,7 @@ import java.util.Set;
  * Represents config information for the Analysis backend server.
  * FIXME This should not be all static.
  */
-public class AnalysisServerConfig {
+public abstract class AnalysisServerConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(AnalysisServerConfig.class);
 

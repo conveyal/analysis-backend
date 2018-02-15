@@ -25,6 +25,7 @@ conf/application.conf
 nbproject
 logentries.xml
 application.conf
+analysis.properties
 src/main/resources/git.properties
 !src/test/resources/application.conf
 pom.xml.versionsBackup

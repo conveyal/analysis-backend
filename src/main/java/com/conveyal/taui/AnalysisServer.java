@@ -158,7 +158,7 @@ public class AnalysisServer {
             LOG.info("Starting local cluster of Analysis workers...");
             // TODO port is hardwired here and also in SinglePointAnalysisController
             // You have to make the worker machineId non-static if you want to launch more than one worker.
-            LocalCluster localCluster = new LocalCluster(7070, feedSourceCache, OSMPersistence.cache, 1);
+            LocalCluster localCluster = new LocalCluster(feedSourceCache, OSMPersistence.cache, 1);
         } else {
             ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCacheDirectory);
         }
