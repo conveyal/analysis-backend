@@ -121,38 +121,6 @@ public class Job {
         }
     }
 
-    /**
-     * Check if there are any tasks that were delivered to workers but never marked as completed.
-     * This could happen if the workers are spot instances and they are terminated by AWS while processing some tasks.
-     * @return the number of tasks that have not been marked complete and will be redelivered.
-     * FIXME we don't actually materialize a list of things to deliver so this method is no longer necessary except for logging purposes
-     * FIXME this is getting called constantly, really we could just do it once in a while on a timer
-     */
-    public int redeliver () {
-
-        // Only redeliver on jobs that are still active (that have some tasks not marked complete).
-        if (this.isComplete()) return 0;
-
-        // Only redeliver tasks once we've already delivered everything in this job (completed the current pass).
-        if (nextTaskToDeliver < nTasksTotal) return 0;
-
-        // If we've finished the last allowed redelivery attempt, don't do any more.
-        if (this.deliveryPass >= MAX_REDELIVERIES) return 0;
-
-        // After the last task is delivered, wait a while before redelivering to avoid spurious re-delivery.
-        if (System.currentTimeMillis() - lastDeliveryTime < REDELIVERY_WAIT_MSEC) return 0;
-
-        // If we arrive here, we have already delivered all tasks, but some of them are still not marked complete.
-        // The quiet period has passed, so we start redelivering them.
-        deliveryPass += 1;
-        int nIncompleteTasks = nTasksTotal - nTasksCompleted;
-        LOG.info("Beginning redelivery pass {} on job {} because {} delivered tasks are still incomplete.", deliveryPass, jobId, nIncompleteTasks);
-        // Start back over at the beginning, it will only re-send tasks that are not marked as completed.
-        nextTaskToDeliver = 0;
-        return nIncompleteTasks;
-
-    }
-
     public boolean isComplete() {
         return nTasksCompleted == nTasksTotal;
     }

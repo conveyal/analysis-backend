@@ -48,6 +48,7 @@ public class AnalysisServer {
     private static final Logger LOG = LoggerFactory.getLogger(AnalysisServer.class);
 
     public static void main (String... args) {
+
         LOG.info("Starting Conveyal Analysis server, the time is now {}", DateTime.now());
 
         LOG.info("Connecting to database...");
@@ -57,13 +58,12 @@ public class AnalysisServer {
         File cacheDir = new File(AnalysisServerConfig.localCache);
         cacheDir.mkdirs();
 
-        // Set up Spark
-
+        // Set up Spark, the HTTP framework wrapping Jetty
         // Set the port on which the HTTP server will listen for connections.
         LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.port);
         port(AnalysisServerConfig.port);
 
-        // initialize ImageIO
+        // Initialize ImageIO
         // http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
 
@@ -95,11 +95,9 @@ public class AnalysisServer {
         ProjectController.register();
         GraphQLController.register();
         BundleController.register();
-//        SinglePointAnalysisController.register();
         OpportunityDatasetsController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
-
 
         // TODO wire up Spark without using static methods:
 //        spark.Service httpService = spark.Service.ignite()
