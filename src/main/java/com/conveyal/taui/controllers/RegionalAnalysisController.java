@@ -208,7 +208,7 @@ public class RegionalAnalysisController {
         templateTask.scenarioId = scenario.id;
         templateTask.scenario = null;
         String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
-        File cachedScenario = new File(AnalysisServerConfig.localCache, fileName);
+        File cachedScenario = new File(AnalysisServerConfig.localCacheDirectory, fileName);
         try {
             JsonUtil.objectMapper.writeValue(cachedScenario, scenario);
         } catch (IOException e) {

@@ -23,7 +23,7 @@ import java.util.Locale;
  */
 public class OSMPersistence {
     public static final OSMCache cache =
-            new OSMCache(AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket, new File(AnalysisServerConfig.localCache));
+            new OSMCache(AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket, new File(AnalysisServerConfig.localCacheDirectory));
 
     public static OSM retrieveOSMFromVexForBounds(Bounds bounds, String key) throws Exception {
         File temporaryFile = File.createTempFile("osm", ".pbf");

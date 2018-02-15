@@ -28,12 +28,10 @@ import spark.Response;
 
 import javax.imageio.ImageIO;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Map;
-import java.util.Properties;
 
 import static spark.Spark.before;
 import static spark.Spark.exception;
@@ -55,13 +53,15 @@ public class AnalysisServer {
         Persistence.initialize();
 
         LOG.info("Initializing local GTFS cache...");
-        File cacheDir = new File(AnalysisServerConfig.localCache);
-        cacheDir.mkdirs();
+        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
+        if (!cacheDir.mkdirs()) {
+            LOG.error("Unable to create cache directory.");
+        }
 
         // Set up Spark, the HTTP framework wrapping Jetty
         // Set the port on which the HTTP server will listen for connections.
-        LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.port);
-        port(AnalysisServerConfig.port);
+        LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.serverPort);
+        port(AnalysisServerConfig.serverPort);
 
         // Initialize ImageIO
         // http://stackoverflow.com/questions/20789546
@@ -76,13 +76,13 @@ public class AnalysisServer {
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
 
-            if (AnalysisServerConfig.auth0ClientId != null && AnalysisServerConfig.auth0Secret != null) {
-                handleAuthentication(req, res);
-            } else {
+            if (AnalysisServerConfig.offline) {
                 // LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
+            } else {
+                handleAuthentication(req, res);
             }
 
             // Log each API request
@@ -109,25 +109,8 @@ public class AnalysisServer {
 //        httpService.get("/goodbye", (q, a) -> "Goodbye!");
 //        httpService.redirect.any("/hi", "/hello");
 
-        // Add a controller to handle connections from workers, using the local broker
-        Properties brokerConfig = new Properties();
-
-        // TODO eliminate these configuration options from the broker object
-        // work-offline=true tells the broker not to spin up AWS instances.
-        if (AnalysisServerConfig.offline) {
-            brokerConfig.setProperty("work-offline", "true");
-            brokerConfig.setProperty("bind-address", "localhost");
-        } else {
-            try {
-                FileInputStream is = new FileInputStream("broker.conf");
-                brokerConfig.load(is);
-                is.close();
-            } catch (Exception e) {
-                LOG.warn("Could not read broker config file.");
-            }
-        }
-        brokerConfig.setProperty("port", Integer.toString(AnalysisServerConfig.port));
-        Broker broker = new Broker(brokerConfig, brokerConfig.getProperty("bind-address"), AnalysisServerConfig.port);
+        // TODO pass in non-static Analysis server config
+        Broker broker = new Broker();
         RegionalAnalysisController.broker = broker;
         new WorkerController(broker).register();
 
@@ -136,7 +119,7 @@ public class AnalysisServer {
 
         try {
             String index = CharStreams.toString(
-                    new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.assetLocation);
+                    new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl);
             indexStream.close();
 
             get("/*", (req, res) -> {
@@ -149,8 +132,7 @@ public class AnalysisServer {
         }
 
         exception(AnalysisServerException.class, (e, request, response) -> {
-            AnalysisServerException ase = ((AnalysisServerException) e);
-            AnalysisServer.respondToException(ase, request, response, ase.type.name(), ase.message, ase.httpCode);
+            AnalysisServer.respondToException(e, request, response, e.type.name(), e.message, e.httpCode);
         });
 
         exception(IOException.class, (e, request, response) -> {
@@ -171,14 +153,14 @@ public class AnalysisServer {
 
         if (AnalysisServerConfig.offline) {
             LOG.info("Running in OFFLINE mode...");
-            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCache);
+            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCacheDirectory);
 
             LOG.info("Starting local cluster of Analysis workers...");
             // TODO port is hardwired here and also in SinglePointAnalysisController
             // You have to make the worker machineId non-static if you want to launch more than one worker.
             LocalCluster localCluster = new LocalCluster(7070, feedSourceCache, OSMPersistence.cache, 1);
         } else {
-            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCache);
+            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCacheDirectory);
         }
 
         LOG.info("Conveyal Analysis server is ready.");
@@ -213,7 +195,7 @@ public class AnalysisServer {
             throw AnalysisServerException.Forbidden("Access denied. User does not have access to Analysis.");
         }
 
-        String group = null;
+        String group;
         try {
             group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
         } catch (Exception e) {

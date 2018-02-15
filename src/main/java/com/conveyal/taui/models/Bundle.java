@@ -48,7 +48,7 @@ public class Bundle extends Model implements Cloneable {
         BundleManifest manifest = new BundleManifest();
         manifest.osmId = this.regionId;
         manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
-        File cacheDir = new File(AnalysisServerConfig.localCache);
+        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
         String manifestFileName = GTFSCache.cleanId(this._id) + ".json";
         File manifestFile = new File(cacheDir, manifestFileName);
         JsonUtil.objectMapper.writeValue(manifestFile, manifest);

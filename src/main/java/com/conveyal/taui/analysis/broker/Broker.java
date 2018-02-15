@@ -1,13 +1,11 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.regions.*;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
@@ -17,7 +15,6 @@ import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
-import org.glassfish.grizzly.http.server.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +23,6 @@ import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * This class distributes the tasks making up regional jobs to workers.
@@ -52,7 +48,8 @@ import java.util.stream.Collectors;
  * It may also be helpful to mark jobs every time they are skipped in the LRU queue. Each time a job is serviced,
  * it is taken out of the queue and put at its end. Jobs that have not been serviced float to the top.
  *
- * TODO: occasionally purge dead workers from workersByCategory
+ * Most methods on this class are synchronized, because they can be called from many HTTP handler threads at once.
+ * TODO evaluate whether synchronizing all the functions to make this threadsafe is a performance issue.
  */
 public class Broker {
 
@@ -73,31 +70,19 @@ public class Broker {
     /** Maximum number of workers allowed */
     private int maxWorkers;
 
-    /*static {
-        mapper.registerModule(AgencyAndIdSerializer.makeModule());
-        mapper.registerModule(QualifiedModeSetSerializer.makeModule());
-        mapper.registerModule(JavaLocalDateSerializer.makeModule());
-        mapper.registerModule(TraverseModeSetSerializer.makeModule());
-    }*/
-
-    /** The configuration for this broker. */
-    private final Properties brokerConfig;
-
     /** The configuration that will be applied to workers launched by this broker. */
     private Properties workerConfig;
 
     /** Keeps track of all the workers that have contacted this broker recently asking for work. */
     protected WorkerCatalog workerCatalog = new WorkerCatalog();
 
-    /** Outstanding requests from workers for tasks, grouped by worker graph affinity. */
-    Map<WorkerCategory, Deque<Response>> workersByCategory = new HashMap<>();
-
-    /** should we work offline */
+    /** If true, avoid using remote hosted services. */
     private boolean workOffline;
 
+    /** Amazon AWS SDK client. */
     private AmazonEC2 ec2;
 
-    // Instances that fit together results received from workers into a single regional analysis result file.
+    /** These objects piece together results received from workers into one regional analysis result file per job. */
     private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
 
     /**
@@ -106,46 +91,29 @@ public class Broker {
      */
     private TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
 
-    // TODO evaluate whether synchronizing all the functions to make this threadsafe is a performance issue.
-    // We might want to allow a queue of tasks to Complete, Delete, Enqueue etc. but then we have to throttle it.
-
-    public Broker (Properties brokerConfig, String addr, int port) {
+    public Broker () {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
         LOG.info("Analyst broker starting at {}", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
 
-        this.brokerConfig = brokerConfig;
-
-        Boolean workOffline = Boolean.parseBoolean(brokerConfig.getProperty("work-offline"));
-        if (workOffline == null) workOffline = true;
-        this.workOffline = workOffline;
+        this.workOffline = AnalysisServerConfig.offline;
 
         if (!workOffline) {
-            // create a config for the AWS workers
+            // Create a single properties file that will be used as a template for all worker instances.
             workerConfig = new Properties();
-
-            if (this.brokerConfig.getProperty("worker-config") != null) {
-                // load the base worker configuration if specified
-                try {
-                    File f = new File(this.brokerConfig.getProperty("worker-config"));
-                    FileInputStream fis = new FileInputStream(f);
-                    workerConfig.load(fis);
-                    fis.close();
-                } catch (IOException e) {
-                    LOG.error("Error loading base worker configuration", e);
-                }
-            }
-
-            workerConfig.setProperty("broker-address", addr);
-            workerConfig.setProperty("broker-port", "" + port);
-
-            workerConfig.setProperty("graphs-bucket", brokerConfig.getProperty("graphs-bucket"));
-            workerConfig.setProperty("pointsets-bucket", brokerConfig.getProperty("pointsets-bucket"));
-
-            // Tell the workers to shut themselves down automatically
+            // TODO rename to worker-log-group in worker code
+            workerConfig.setProperty("log-group", AnalysisServerConfig.workerLogGroup);
+            workerConfig.setProperty("broker-address", AnalysisServerConfig.serverAddress);
+            // TODO rename all config fields in config class, worker and backend to be consistent.
+            // TODO Maybe just send the entire analyst config to the worker!
+            workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
+            workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
+            workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
+            workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
+            // Tell the workers to shut themselves down automatically when no longer busy.
             workerConfig.setProperty("auto-shutdown", "true");
         }
 
-        this.maxWorkers = brokerConfig.getProperty("max-workers") != null ? Integer.parseInt(brokerConfig.getProperty("max-workers")) : 4;
+        this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
         ec2 = new AmazonEC2Client();
 
@@ -221,9 +189,9 @@ public class Broker {
         // There are no workers on this graph with the right worker commit, start some.
         LOG.info("Starting {} workers as there are none on {}", nWorkers, category);
         RunInstancesRequest req = new RunInstancesRequest();
-        req.setImageId(brokerConfig.getProperty("ami-id"));
-        req.setInstanceType(InstanceType.valueOf(brokerConfig.getProperty("worker-type")));
-        req.setSubnetId(brokerConfig.getProperty("subnet-id"));
+        req.setImageId(AnalysisServerConfig.workerAmiId);
+        req.setInstanceType(AnalysisServerConfig.workerInstanceType);
+        req.setSubnetId(AnalysisServerConfig.workerSubnetId);
 
         // even if we can't get all the workers we want at least get some
         req.setMinCount(1);
@@ -255,11 +223,8 @@ public class Broker {
             scriptIs.close();
             scriptBaos.close();
             String scriptTemplate = scriptBaos.toString();
-
             String logGroup = workerConfig.getProperty("log-group");
-
             String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString);
-
             // Send the config to the new workers as EC2 "user data"
             String userData = new String(Base64.getEncoder().encode(script.getBytes()));
             req.setUserData(userData);
@@ -267,16 +232,13 @@ public class Broker {
             throw new RuntimeException(e);
         }
 
-        if (brokerConfig.getProperty("worker-iam-role") != null)
-            req.setIamInstanceProfile(new IamInstanceProfileSpecification().withArn(brokerConfig.getProperty("worker-iam-role")));
+        // Set the IAM profile of the new worker.
+        req.setIamInstanceProfile(new IamInstanceProfileSpecification().withArn(AnalysisServerConfig.workerIamRole));
 
-        // launch into a VPC if desired
-        if (brokerConfig.getProperty("subnet") != null)
-            req.setSubnetId(brokerConfig.getProperty("subnet"));
-
-        // allow us to retry request at will
+        // Allow us to retry the instance creation request at will. TODO how does this statement accomplish that?
         req.setClientToken(clientToken);
-        // allow machine to shut itself completely off
+
+        // Allow the worker machine to shut itself completely off.
         req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
 
         // Tag the new instance so we can identify it in the EC2 console.
@@ -286,6 +248,7 @@ public class Broker {
                 new Tag("networkId", category.graphId),
                 new Tag("workerVersion", category.workerVersion)
         );
+        // TODO check and log result of request.
         RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
 
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
