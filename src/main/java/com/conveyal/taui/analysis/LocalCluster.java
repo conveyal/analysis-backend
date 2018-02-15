@@ -28,7 +28,8 @@ public class LocalCluster {
 
         Properties workerConfig = new Properties();
 
-        workerConfig.setProperty("auto-shutdown", "false"); // cause that would be annoying
+        // Do not auto-shutdown the local machine
+        workerConfig.setProperty("auto-shutdown", "false");
         workerConfig.setProperty("work-offline", "true");
         workerConfig.setProperty("broker-address", "localhost");
         workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
