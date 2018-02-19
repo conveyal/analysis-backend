@@ -56,6 +56,7 @@ public class S3TransferPerformance {
             String key = uploadToS3();
             downloadFromS3(key);
         }
+        s3TransferManager.shutdownNow();
     }
 
     private static String uploadToS3 () throws Exception {
