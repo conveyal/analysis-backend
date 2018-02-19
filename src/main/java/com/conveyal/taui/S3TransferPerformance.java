@@ -27,7 +27,7 @@ import java.util.UUID;
  * in very local S3 buckets. The only thing that seems to help is using the s3 TransferManager but speed is still a bit
  * asymmetric.
  */
-public class S3TransferTest {
+public class S3TransferPerformance {
 
     private static final boolean BUFFER_STREAMS = false;
 
