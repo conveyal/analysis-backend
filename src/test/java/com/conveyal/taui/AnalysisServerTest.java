@@ -12,11 +12,10 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 
 /**
- * A few tests of some basic routes of the server
+ * A few tests of some basic routes of the server.
+ * This relies on the configuration file in the project root being a local (offline=true) configuration.
  */
 public class AnalysisServerTest {
-    private static File appConf = new File("./application.conf");
-    private static File tempAppConf = new File("./application.conf-copied-during-test");
 
     /**
      * Prepare and start a testing-specific web server
@@ -24,41 +23,9 @@ public class AnalysisServerTest {
      */
     @BeforeClass
     public static void setUp() throws Exception {
-        // temporarily rename existing application.conf
-        if (appConf.exists()) {
-            Files.move(
-                appConf.toPath(),
-                tempAppConf.toPath()
-            );
-        }
-
-        // copy testing-specific application.conf
-        Files.copy(
-            (new File("./src/test/resources/application.conf")).toPath(),
-            appConf.toPath()
-        );
-
-        // start a server
+        // Start a server using the configuration in the root of the project.
         String[] args = {};
         AnalysisServer.main(args);
-    }
-
-    /**
-     * Clean up various created application.conf files.
-     * @throws IOException
-     */
-    @AfterClass
-    public static void tearDown() throws IOException {
-        // delete testing-specific application.conf
-        appConf.delete();
-
-        // if there already was an application.conf present, rename and move it back.
-        if(tempAppConf.exists()) {
-            Files.move(
-                tempAppConf.toPath(),
-                appConf.toPath()
-            );
-        }
     }
 
     /**
