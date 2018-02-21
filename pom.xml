@@ -157,7 +157,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>gtfs-api</artifactId>
-            <version>1.1.0</version>
+            <version>3.1.1</version>
         </dependency>
 
         <dependency>
@@ -202,18 +202,12 @@
             <version>4.5.3</version>
         </dependency>
 
-        <!-- AWS SDK for interacting with S3 and EC2 -->
-
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-s3</artifactId>
-            <version>1.11.274</version>
-        </dependency>
+        <!-- AWS SDK for interacting with EC2 -->
 
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-ec2</artifactId>
-            <version>1.11.274</version>
+            <version>1.11.282</version>
         </dependency>
 
         <!-- Rest Assured is an assertion library that makes testing web apis easy. -->
