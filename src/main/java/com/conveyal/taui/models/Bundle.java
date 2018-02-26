@@ -63,7 +63,7 @@ public class Bundle extends Model implements Cloneable {
         try {
             return (Bundle) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 
@@ -94,7 +94,7 @@ public class Bundle extends Model implements Cloneable {
             try {
                 return (FeedSummary) super.clone();
             } catch (CloneNotSupportedException e) {
-                throw AnalysisServerException.Unknown(e);
+                throw AnalysisServerException.unknown(e);
             }
         }
     }

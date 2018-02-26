@@ -65,7 +65,7 @@ public class GraphQLController {
         List<GraphQLError> errs = er.getErrors();
         errs.addAll(context.getErrors());
         if (!errs.isEmpty()) {
-            throw AnalysisServerException.GraphQL(errs);
+            throw AnalysisServerException.graphQL(errs);
         }
 
         return er.getData();

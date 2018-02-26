@@ -19,7 +19,7 @@ public class Project extends Model implements Cloneable {
         try {
             return (Project) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 }

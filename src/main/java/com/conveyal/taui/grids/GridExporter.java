@@ -37,7 +37,7 @@ public abstract class GridExporter {
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
     private static void haltWithIncorrectFormat (String format) {
-        throw AnalysisServerException.BadRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+        throw AnalysisServerException.badRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
     }
 
     /**

@@ -171,14 +171,14 @@ public class AnalysisServer {
 
         // authorization required
         if (auth == null || auth.isEmpty()) {
-            throw AnalysisServerException.Unauthorized("You must be logged in.");
+            throw AnalysisServerException.unauthorized("You must be logged in.");
         }
 
         // make sure it's properly formed
         String[] authComponents = auth.split(" ");
 
         if (authComponents.length != 2 || !"bearer".equals(authComponents[0].toLowerCase())) {
-            throw AnalysisServerException.Unknown("Authorization header is malformed: " + auth);
+            throw AnalysisServerException.unknown("Authorization header is malformed: " + auth);
         }
 
         // validate the JWT
@@ -188,22 +188,22 @@ public class AnalysisServer {
         try {
             jwt = verifier.verify(authComponents[1]);
         } catch (Exception e) {
-            throw AnalysisServerException.Forbidden("Login failed to verify with our authorization provider. " + e.getMessage());
+            throw AnalysisServerException.forbidden("Login failed to verify with our authorization provider. " + e.getMessage());
         }
 
         if (!jwt.containsKey("analyst")) {
-            throw AnalysisServerException.Forbidden("Access denied. User does not have access to Analysis.");
+            throw AnalysisServerException.forbidden("Access denied. User does not have access to Analysis.");
         }
 
         String group;
         try {
             group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
         } catch (Exception e) {
-            throw AnalysisServerException.Forbidden("Access denied. User is not associated with any group. " + e.getMessage());
+            throw AnalysisServerException.forbidden("Access denied. User is not associated with any group. " + e.getMessage());
         }
 
         if (group == null) {
-            throw AnalysisServerException.Forbidden("Access denied. User is not associated with any group.");
+            throw AnalysisServerException.forbidden("Access denied. User is not associated with any group.");
         }
 
         // attributes to be used on models

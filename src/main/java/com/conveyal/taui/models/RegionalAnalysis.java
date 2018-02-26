@@ -83,7 +83,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
         try {
             return (RegionalAnalysis) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 }

@@ -48,7 +48,7 @@ public class RegionController {
             ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
             return sfu.parseParameterMap(req.raw());
         } catch (FileUploadException e) {
-            throw AnalysisServerException.FileUpload("Error uploading files. " + e.getMessage());
+            throw AnalysisServerException.fileUpload("Error uploading files. " + e.getMessage());
         }
     }
 
@@ -60,7 +60,7 @@ public class RegionController {
 
             return region;
         } catch (IOException e) {
-            throw AnalysisServerException.BadRequest("Error parsing region. " + e.getMessage());
+            throw AnalysisServerException.badRequest("Error parsing region. " + e.getMessage());
         }
     }
 

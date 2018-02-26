@@ -49,7 +49,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public boolean containsValue(Object value) {
-        throw AnalysisServerException.Unknown("Unsupported operation");
+        throw AnalysisServerException.unknown("Unsupported operation");
     }
 
     public V findByIdFromRequestIfPermitted(Request request) {
@@ -60,9 +60,9 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         V result = wrappedCollection.findOneById(id);
 
         if (result == null) {
-            throw AnalysisServerException.NotFound("The data you requested could not be found.");
+            throw AnalysisServerException.notFound("The data you requested could not be found.");
         } else if (!accessGroup.equals(result.accessGroup)) {
-            throw AnalysisServerException.Forbidden("You do not have permission to access this data.");
+            throw AnalysisServerException.forbidden("You do not have permission to access this data.");
         } else {
             return result;
         }
@@ -135,7 +135,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public V put(String key, V value) {
-        if (key != value._id) throw AnalysisServerException.BadRequest("ID does not match");
+        if (key != value._id) throw AnalysisServerException.badRequest("ID does not match");
         return put(value, null);
     }
 
@@ -171,11 +171,11 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         if (result == null) {
             result = wrappedCollection.findOneById(value._id);
             if (result == null) {
-                throw AnalysisServerException.NotFound("The data you attempted to update could not be found. ");
+                throw AnalysisServerException.notFound("The data you attempted to update could not be found. ");
             } else if (!currentNonce.equals(result.nonce)) {
-                throw AnalysisServerException.Nonce();
+                throw AnalysisServerException.nonce();
             } else {
-                throw AnalysisServerException.Forbidden("The data you attempted to update is not in your access group.");
+                throw AnalysisServerException.forbidden("The data you attempted to update is not in your access group.");
             }
         }
 
@@ -193,7 +193,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         ).get());
 
         if (result == null) {
-            throw AnalysisServerException.NotFound("The data you attempted to remove could not be found.");
+            throw AnalysisServerException.notFound("The data you attempted to remove could not be found.");
         }
 
         return result;
@@ -203,7 +203,7 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         WriteResult<V, String> result = wrappedCollection.removeById((String) key);
         LOG.info(result.toString());
         if (result.getN() == 0) {
-            throw AnalysisServerException.NotFound(String.format("The data for _id %s does not exist", key));
+            throw AnalysisServerException.notFound(String.format("The data for _id %s does not exist", key));
         }
 
         return null;

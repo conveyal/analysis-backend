@@ -76,7 +76,7 @@ class ModificationStop {
                 try {
                     distanceThisLineSegment = JTS.orthodromicDistance(c0, c1, crs);
                 } catch (TransformException e) {
-                    throw AnalysisServerException.Unknown(e.getMessage());
+                    throw AnalysisServerException.unknown(e.getMessage());
                 }
 
                 if (spacing > 0) {

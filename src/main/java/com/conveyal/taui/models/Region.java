@@ -65,7 +65,7 @@ public class Region extends Model implements Cloneable {
             return (Region) super.clone();
         } catch (CloneNotSupportedException e) {
             // can't happen.
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 

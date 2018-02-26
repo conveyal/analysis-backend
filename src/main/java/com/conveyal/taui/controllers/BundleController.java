@@ -58,7 +58,7 @@ public class BundleController {
             bundle.name = files.get("Name").get(0).getString("UTF-8");
             bundle.regionId = files.get("regionId").get(0).getString("UTF-8");
         } catch (Exception e) {
-            throw AnalysisServerException.BadRequest(e.getMessage());
+            throw AnalysisServerException.badRequest(e.getMessage());
         }
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
@@ -113,7 +113,7 @@ public class BundleController {
             Persistence.bundles.put(bundle);
             bundleFile.delete();
 
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
 
         // process async
@@ -140,7 +140,7 @@ public class BundleController {
                             bundle.status = Bundle.Status.ERROR;
                             bundle.errorCode = e.getMessage();
                             Persistence.bundles.put(bundle);
-                            throw AnalysisServerException.Unknown(e);
+                            throw AnalysisServerException.unknown(e);
                         }
                     })
                     .collect(Collectors.toMap(f -> f.id, f -> f));
