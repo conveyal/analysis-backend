@@ -64,8 +64,8 @@ class ModificationStop {
             stops.add(new ModificationStop(firstSegment.geometry.getCoordinates()[0], firstSegment.fromStopId, 0));
         }
 
-        double distanceToLastStop = 0;
-        double distanceToLineSegmentStart = 0;
+        double distanceToLastStop = 0; // distance to previously created stop, from start of pattern
+        double distanceToLineSegmentStart = 0; // from start of pattern
         for (Segment segment : segments) {
             Coordinate[] coords = segment.geometry.getCoordinates();
             int spacing = segment.spacing;
@@ -80,7 +80,8 @@ class ModificationStop {
                 }
 
                 if (spacing > 0) {
-                    // Auto-created stops
+                    // Auto-create stops while this segment includes at least one point that is more than 'spacing'
+                    // meters farther along the pattern than the previously created stop
                     while (distanceToLastStop + spacing < distanceToLineSegmentStart + distanceThisLineSegment) {
                         double frac = (distanceToLastStop + spacing - distanceToLineSegmentStart) / distanceThisLineSegment;
                         if (frac < 0) frac = 0;
