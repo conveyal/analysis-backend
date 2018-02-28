@@ -113,7 +113,8 @@ class ModificationStop {
                 Coordinate endCoord = coords[coords.length - 1];
                 ModificationStop toStop = new ModificationStop(endCoord, segment.toStopId, distanceToLineSegmentStart);
                 stops.add(toStop);
-                distanceToLastStop = distanceToLineSegmentStart;
+                // restart the spacing
+                distanceToLastStop = distanceToLineSegmentStart; // distanceToLineSegmentStart was already set to the next line segment
             }
         }
 
