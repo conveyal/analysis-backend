@@ -102,8 +102,8 @@ class ModificationStop {
             }
 
             if (segment.stopAtEnd) {
-                // If the last auto-generated stop was too close, pop it
-                if (stops.size() > 0) {
+                // If the last auto-generated stop was too close to a manually created stop (other than the first stop), pop it
+                if (stops.size() > 1) {
                     ModificationStop lastStop = stops.peek();
                     if (lastStop.id == null && (distanceToLineSegmentStart - distanceToLastStop) / spacing < MIN_SPACING_PERCENTAGE) {
                         stops.pop();
