@@ -113,9 +113,8 @@ class ModificationStop {
                 Coordinate endCoord = coords[coords.length - 1];
                 ModificationStop toStop = new ModificationStop(endCoord, segment.toStopId, distanceToLineSegmentStart);
                 stops.add(toStop);
+                distanceToLastStop = distanceToLineSegmentStart;
             }
-
-            distanceToLastStop = distanceToLineSegmentStart;
         }
 
         return new ArrayList<>(stops);
