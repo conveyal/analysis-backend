@@ -30,6 +30,15 @@ after_success:
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-latest.jar; fi
 
-#cache:
-#  directories:
-#  - $HOME/.m2/repository
+# Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
+# This forces download of fresh SNAPSHOT artifacts on the next build.
+after_script: rm -rf $HOME/.m2/repository/com/conveyal
+
+# We want to cache the local Maven repo and PIP directories.
+# The Maven dependencies and plugins take a long time to download, as does AWSCLI which is installed via PIP.
+cache:
+  directories:
+  - $HOME/.m2
+  - $HOME/.local
+  - $HOME/.cache/pip
+
