@@ -30,6 +30,6 @@ after_success:
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-latest.jar; fi
 
-cache:
-  directories:
-  - $HOME/.m2/repository
+#cache:
+#  directories:
+#  - $HOME/.m2/repository
