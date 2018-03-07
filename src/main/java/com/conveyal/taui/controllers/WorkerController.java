@@ -138,6 +138,7 @@ public class WorkerController {
             LOG.info("Returning worker response to UI.");
             return entity.getContent();
         } catch (Exception e) {
+            // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             return jsonResponse(response, HttpStatus.SERVER_ERROR_500, "Exception while talking to worker: " + e.toString());
         }
     }

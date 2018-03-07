@@ -141,26 +141,15 @@ public class Broker {
         jobs.insertAtTail(job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
-        if (!workersAvailable(job.workerCategory)) {
-            // FIXME whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
-            // FIXME FIXME FIXME! We should make this an asynchronous operation.
+        if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
             createWorkersInCategory(job.workerCategory);
-        }
-    }
-
-    private boolean workersAvailable (WorkerCategory category) {
-        // Ensure we don't assign work to dead workers.
-        workerCatalog.purgeDeadWorkers();
-
-        if (workOffline) {
-            return !workerCatalog.workersByGraph.get(category.graphId).isEmpty();
-        } else {
-            return !workerCatalog.workersByCategory.get(category).isEmpty();
         }
     }
 
     /**
      * Create workers for a given job, if need be.
+     * Whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
+     * FIXME FIXME FIXME! We should make this an asynchronous operation.
      */
     private void createWorkersInCategory (WorkerCategory category) {
 
@@ -171,7 +160,7 @@ public class Broker {
             return;
         }
 
-        if (workerCatalog.observationsByWorkerId.size() >= maxWorkers) {
+        if (workerCatalog.totalWorkerCount() >= maxWorkers) {
             LOG.warn("{} workers already started, not starting more; jobs will not complete on {}", maxWorkers, category);
             return;
         }
@@ -340,24 +329,19 @@ public class Broker {
      * Given a worker commit ID and transport network, return the IP or DNS name of a worker that has that software
      * and network already loaded. If none exist, return null and try to start one.
      */
-    public String getWorkerAddress(WorkerCategory workerCategory) {
+    public synchronized String getWorkerAddress(WorkerCategory workerCategory) {
         if (workOffline) {
             return "localhost";
         }
         // First try to get a worker that's already loaded the right network.
-        Collection<String> workerIds = workerCatalog.workersByCategory.get(workerCategory);
-        if (!workerIds.isEmpty()) {
-            WorkerObservation observation = workerCatalog.observationsByWorkerId.get(workerIds.iterator().next());
-            return observation.status.ipAddress;
-        }
-        // Fall back on any existing worker, including a local one if running in local mode.
-//        for (WorkerObservation observation : workerCatalog.observationsByWorkerId.values()) {
-//            return observation.status.ipAddress;
-//        }
+        String workerAddress = workerCatalog.getSinglePointWorkerAddressForCategory(workerCategory);
+
         // There are no workers that can handle this request. Request some.
         // FIXME parts of the following method assume that it's synchronized
-        createWorkersInCategory(workerCategory);
-        return null;
+        if (workerAddress == null) {
+            createWorkersInCategory(workerCategory);
+        }
+        return workerAddress;
     }
 
 
@@ -366,7 +350,7 @@ public class Broker {
      * The returned objects are designed to be serializable so they can be returned over an HTTP API.
      */
     public Collection<WorkerObservation> getWorkerObservations () {
-        return workerCatalog.observationsByWorkerId.values();
+        return workerCatalog.getAllWorkerObservations();
     }
 
     /**
