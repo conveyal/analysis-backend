@@ -22,9 +22,10 @@ import java.util.Locale;
  * Manages storing OSM data in S3.
  */
 public class OSMPersistence {
-    public static final OSMCache cache =
-            new OSMCache(AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket,
-                new File(AnalysisServerConfig.localCacheDirectory));
+
+    public static final OSMCache cache = new OSMCache(
+            AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket,
+            new File(AnalysisServerConfig.localCacheDirectory));
 
     public static OSM retrieveOSMFromVexForBounds(Bounds bounds, String key) throws Exception {
         File temporaryFile = File.createTempFile("osm", ".pbf");

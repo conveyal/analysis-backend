@@ -33,6 +33,7 @@ public abstract class AnalysisServerConfig {
     }
 
     // We intentionally don't supply any defaults here - any 'defaults' should be shipped in an example config file.
+    // FIXME this is so so much static...
     public static final String serverAddress = getProperty("server-address", true);
     public static final String bundleBucket = getProperty("bundle-bucket", true);
     public static final String databaseName = getProperty("database-name", true);
