@@ -19,7 +19,16 @@ env:
   - secure: K6pKEzbUZOpxoxq1YvXYOrbmPlKyHsK7JmehA3e2SS8/tpGUJJDUzqOlbpBUuWdg3G4b2STHgCUqTS3x2cDS/Uf+Gv6CsGwr/a5TwgyvyRSQf1ElNF9o45RU0h5myoYbOLXJKu07vSJMMzXxU0waE38V1o+5PzT5lQfypTM3kKmFJciIAvpaJoahO9L/LbE003UWhKxGNG3l+gk7mZRz7l0P0MqMN3cV5qqYwKGhHO8X08Yxs9pjBoE4+RCMGO+/fN0YsPI8geXe2MAEdvHX8kUEOExLURDFiZYW1VzAq2b8mWTDkfDaAT372kmwLh2UEeaPfceGizAnjrdKnoXrBpfWBzZCEdqGfltOtxvSL0DjFHEw+9ekql4v98FDqVdm5kRK2MzdUUZkKFBYf28cd8evF7ztlBR1KozCBj2gw+WEVd6zckn1w1QzwiO6b9LpvZJLKI55OfjhRFEOgTfoUzwfSTGZ7sNG9GJGzw1GqaW7whQXs4HQx/fN9BjjXhfcjgFeNp1AqYYgGNmoGQAOK/IhKWLtR0FwvpGh0WdRE2W8AJaqhkuiBPfWEHxMyLLDoUxujWlO/6ssbnIFdA+SVNxTcEPeCNFJs091xaH3uxfd3jJxCP4Je1Ga0ddUVkGRhXehS9jsaMz/d/sshgK5FxLncYN/8kFcd6cOFcSTpWc=
   - secure: n6F0vhJUcDk+w+0DmCOZdHZltf3xATTQN/dlKHO+Mu9HF2+u/hYmx0Jqo4F5HSVc79gmRsjzF5Opi8G3RAktO9DacpA/wnRVbk6u8PjILmSilqr02o3gUf3B9GUuovQD4AnrcEhU2GCuHk7eVaL18ZwLkIN75q3LeLmnAuuA1/a8Nft9vvZOi/BfdgvtS1WMxEYqWriCJq7jkJ++eZ0p7x6ecSCPeG8mShrq0IBOu1yDuywfgdm2LrqQGCXTvkuU2qC2cC9AkTnd2nNdFIvTLpc1wX+sqUCU/cTTmc3GEANkXtHG0P1sKs6LyRRSKBqyHPUbuygM6tM/0grjeIfbG442XYIvSD58eM/cngSFcdtX/w5y2k8N14bEZqraKumNkdq0jnbkzV9mLaL/z/fLdo5yeZ8xM3YlrOORbqF7Rd+vXyFxaawLS8r1mBVg2xqmYPJ19ayc86b0rYhMvtdnPEppruwCMz1lqW+/s0N8+LQaveqonhmvYVJ+nCwsy24YiRpy8GJl2dLEjvahUxc/w6hfSpwaowL+yWOsvjy3qsJoytA+z1ZCo1+OuFtNSWcWosir78PZSRXi8dhpufuvLFk2bdREsbNKTnPZbV7pVlUEKqzEPy7Ehu8FyGgqzsuq1ieoZN1lHxCUvGVuJwO1DGyAaLQMwB5s1M/cu8f2uXg=
 
-script: mvn package
+# Replace Travis's default Maven installation step with a no-op.
+# This avoids redundantly pre-running 'mvn install -DskipTests' before every build.
+install: true
+
+script:
+  - mvn package
+  # Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
+  # This forces download of fresh SNAPSHOT artifacts on the next build.
+  # The cache seems to be uploaded immediately after the Travis stage "script" so we include this deletion in the script.
+  - rm -rf $HOME/.m2/repository/com/conveyal
 
 after_success:
   # Upload coverage results to codecov
@@ -29,10 +38,6 @@ after_success:
   # TODO once we have tags use git describe
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analyst-latest.jar; fi
-
-# Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
-# This forces download of fresh SNAPSHOT artifacts on the next build.
-after_script: rm -rf $HOME/.m2/repository/com/conveyal
 
 # We want to cache the local Maven repo and PIP directories.
 # The Maven dependencies and plugins take a long time to download, as does AWSCLI which is installed via PIP.
