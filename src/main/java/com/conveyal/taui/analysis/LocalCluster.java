@@ -1,12 +1,10 @@
 package com.conveyal.taui.analysis;
 
 import com.conveyal.gtfs.BaseGTFSCache;
-import com.conveyal.osmlib.OSMCache;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.streets.OSMCache;
 import com.conveyal.r5.transit.TransportNetworkCache;
 import com.conveyal.taui.AnalysisServerConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +33,7 @@ public class LocalCluster {
         workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
         workerConfig.setProperty("cache-dir", AnalysisServerConfig.localCacheDirectory);
         workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
+        workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
 
         TransportNetworkCache transportNetworkCache = new TransportNetworkCache(gtfsCache, osmCache);
         for (int i = 0; i < nWorkers; i++) {
