@@ -22,6 +22,8 @@ public class Job {
 
     private static final Logger LOG = LoggerFactory.getLogger(Job.class);
 
+    // TODO Reimplement re-delivery - jobs can get stuck with a few undelivered tasks if something happens to a worker.
+
     public static final int REDELIVERY_WAIT_MSEC = 2 * 60 * 1000;
 
     public static final int MAX_REDELIVERIES = 2;

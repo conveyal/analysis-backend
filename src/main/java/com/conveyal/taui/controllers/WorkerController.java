@@ -89,7 +89,8 @@ public class WorkerController {
      * typically come from an interactive session where the user is moving the origin point around in the web UI.
      * Unlike regional jobs where workers pull tasks from a queue, single point tasks work like a proxy or load balancer.
      * Note that we are using an Apache HTTPComponents client to contact the worker, within a Spark (Jetty) handler.
-     * We could use the Jetty HTTP client, but since Spark wraps the internal Jetty request/response objects, we
+     * We could use the Jetty HTTP client (which would facilitate exactly replicating request and response headers when
+     * we forward the request to a worker), but since Spark wraps the internal Jetty request/response objects, we
      * don't gain much. We should probably switch to the Jetty HTTP client some day when we get rid of Spark.
      * There is also a Jetty proxy module that may be too simple for what we're doing here.
      * @return whatever the worker responds, usually an input stream. Spark serializer chain can properly handle streams.
