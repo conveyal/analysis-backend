@@ -4,7 +4,6 @@ import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.mongodb.QueryBuilder;
-import org.mongojack.DBSort;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,7 +34,6 @@ public class Region extends Model implements Cloneable {
     public List<Bundle> getBundles () {
         return Persistence.bundles
                 .find(QueryBuilder.start("regionId").is(_id).get())
-                .sort(DBSort.asc("name"))
                 .toArray();
     }
 
@@ -43,7 +41,6 @@ public class Region extends Model implements Cloneable {
     public List<Project> getProjects () {
         return Persistence.projects
                 .find(QueryBuilder.start("regionId").is(_id).get())
-                .sort(DBSort.asc("name"))
                 .toArray();
     }
 

@@ -8,6 +8,7 @@ import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import org.bson.types.ObjectId;
 import org.mongojack.DBCursor;
+import org.mongojack.DBSort;
 import org.mongojack.JacksonDBCollection;
 import org.mongojack.WriteResult;
 import org.slf4j.Logger;
@@ -84,8 +85,11 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         ).get()).toArray();
     }
 
+    /**
+     * All Models have a createdAt field. By default, sort by that field.
+     */
     public DBCursor<V> find(DBObject query) {
-        return wrappedCollection.find(query);
+        return wrappedCollection.find(query).sort(DBSort.desc("createdAt"));
     }
 
     /** Get all objects where property == value */
