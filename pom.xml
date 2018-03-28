@@ -154,7 +154,7 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>gtfs-api</artifactId>
-            <version>3.1.1</version>
+            <version>3.1.2</version>
         </dependency>
 
         <dependency>
@@ -163,6 +163,7 @@
             <version>1.13</version>
         </dependency>
 
+        <!-- TODO reinstate seamless census support -->
         <!--<dependency>-->
             <!--<groupId>com.conveyal.data.census</groupId>-->
             <!--<artifactId>seamless-census</artifactId>-->
