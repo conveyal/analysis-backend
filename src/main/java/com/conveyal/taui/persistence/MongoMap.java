@@ -7,6 +7,8 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import org.bson.types.ObjectId;
+import org.mongojack.DBCursor;
+import org.mongojack.DBSort;
 import org.mongojack.JacksonDBCollection;
 import org.mongojack.WriteResult;
 import org.slf4j.Logger;
@@ -75,18 +77,21 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     }
 
     public Collection<V> findAllForRequest(Request req) {
-        return find(QueryBuilder.start("accessGroup").is(req.attribute("accessGroup")).get());
+        return find(QueryBuilder.start("accessGroup").is(req.attribute("accessGroup")).get()).toArray();
     }
 
     public Collection<V> findPermitted(DBObject query, String accessGroup) {
         return find(QueryBuilder.start().and(
                 query,
                 QueryBuilder.start("accessGroup").is(accessGroup).get()
-        ).get());
+        ).get()).toArray();
     }
 
-    public Collection<V> find(DBObject query) {
-        return wrappedCollection.find(query).toArray();
+    /**
+     * All Models have a createdAt field. By default, sort by that field.
+     */
+    public DBCursor<V> find(DBObject query) {
+        return wrappedCollection.find(query).sort(DBSort.desc("createdAt"));
     }
 
     /** Get all objects where property == value */
