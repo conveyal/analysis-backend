@@ -3,11 +3,12 @@ package com.conveyal.taui.models;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.mongodb.QueryBuilder;
+import org.mongojack.DBSort;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Represents a region, which is a set of GTFS, OSM, and land use data for a particular location.
@@ -30,22 +31,20 @@ public class Region extends Model implements Cloneable {
     public String statusMessage;
 
     // don't persist to DB but do expose to API
-    // TODO Don't use "values"
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
-        return Persistence.bundles.values()
-                .stream()
-                .filter(b -> _id.equals(b.regionId))
-                .collect(Collectors.toList());
+        return Persistence.bundles
+                .find(QueryBuilder.start("regionId").is(_id).get())
+                .sort(DBSort.asc("name"))
+                .toArray();
     }
 
-    // TODO Don't use "values"
     @JsonView(JsonViews.Api.class)
     public List<Project> getProjects () {
-        return Persistence.projects.values()
-                .stream()
-                .filter(s -> _id.equals(s.regionId))
-                .collect(Collectors.toList());
+        return Persistence.projects
+                .find(QueryBuilder.start("regionId").is(_id).get())
+                .sort(DBSort.asc("name"))
+                .toArray();
     }
 
     @JsonView(JsonViews.Api.class)
