@@ -31,6 +31,7 @@ after_success:
 
 # We want to cache the local Maven repo and PIP directories.
 # The Maven dependencies and plugins take a long time to download, as does AWSCLI which is installed via PIP.
+# The Conveyal Maven subdirectory is deleted above to prevent retaining Conveyal snapshot artifacts across builds.
 cache:
   directories:
   - $HOME/.m2
