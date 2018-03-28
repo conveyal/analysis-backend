@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.GridExporter;
@@ -33,6 +34,7 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -152,20 +154,22 @@ public class OpportunityDatasetsController {
                     status.totalGrids = grids.size();
                     LOG.info("Uploading opportunity dataset to S3");
                     List<Region.OpportunityDataset> opportunities = writeOpportunityDatasetToS3(grids, regionId, dataSet, status);
+                    // FIXME this cloning and protective copying appears to be compensating for the MapDB instance cache.
+                    // We are no longer using MapDB. Our system for retrieving Java objects from Mongo is probably
+                    // already creating new instances for every get operation.
                     Region region = Persistence.regions.get(regionId).clone();
+                    // Make a protective copy of existing datasets, handling the case where there are none.
+                    if (region.opportunityDatasets == null) {
+                        region.opportunityDatasets = Collections.EMPTY_LIST;
+                    }
                     region.opportunityDatasets = new ArrayList<>(region.opportunityDatasets);
                     region.opportunityDatasets.addAll(opportunities);
                     Persistence.regions.updateByUserIfPermitted(region, email, accessGroup);
                     return opportunities;
                 }
-            } catch (HaltException e) {
-                status.status = Status.ERROR;
-                status.message = e.getBody();
-                status.completed();
-                return null;
             } catch (Exception e) {
                 status.status = Status.ERROR;
-                status.message = e.getMessage();
+                status.message = ExceptionUtils.asString(e);
                 status.completed();
                 return null;
             }

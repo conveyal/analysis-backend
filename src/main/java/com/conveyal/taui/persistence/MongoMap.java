@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Make an attempt at simulating a MapDB-style interface
+ * An attempt at simulating a MapDB-style interface, for storing Java objects in MongoDB.
+ *
+ * TODO this is using org.mongojack.JacksonDBCollection. I believe Mongo Java client library now provides POJO storage.
  */
 public class MongoMap<V extends Model> implements Map<String, V> {
     private static Logger LOG = LoggerFactory.getLogger(MongoMap.class);
