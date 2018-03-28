@@ -140,13 +140,12 @@ public class RegionController {
 
         if (boundsChanged || customOSM) {
             region.statusCode = Region.StatusCode.STARTED;
-            region = Persistence.regions.put(region);
 
             // Fetch data and update the statuses separately
             fetchOsmAndCensusDataInThread(region._id, files, boundsChanged);
         }
 
-        return region;
+        return Persistence.regions.put(region);
     }
 
     public static Region deleteRegion (Request req, Response res) {
