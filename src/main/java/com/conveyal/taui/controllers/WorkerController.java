@@ -103,6 +103,7 @@ public class WorkerController {
         // We already know the user is authenticated, and we need not check if they have access to the graphs etc,
         // as they're all coded with UUIDs which contain significantly more entropy than any human's account password.
         final String accessGroup = request.attribute("accessGroup");
+        final String userEmail = request.attribute("email");
         AnalysisRequest analysisRequest = objectFromRequestBody(request, AnalysisRequest.class);
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         // Transform the analysis UI/backend task format into a slightly different type for R5 workers.
@@ -118,6 +119,9 @@ public class WorkerController {
         WorkerCategory workerCategory = task.getWorkerCategory();
         String address = broker.getWorkerAddress(workerCategory);
         if (address == null) {
+            // There are no workers that can handle this request. Request some.
+            // FIXME parts of the following method assume that it's synchronized
+            broker.createWorkersInCategory(workerCategory, accessGroup, userEmail);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting workers, try again later.");

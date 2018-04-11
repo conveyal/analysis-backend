@@ -12,6 +12,7 @@ import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -130,8 +131,11 @@ public class Broker {
     /**
      * Enqueue a set of tasks for a regional analysis.
      * Only a single task is passed in, and the broker expands it into all the individual tasks for a regional job.
+     * TODO push the creation of the RegionalTask down into this method and eliminate the caller?
+     * @param regionalAnalysis the model object from which the analysis task was built. This is only passed in here to
+     *                         provide access to user/group metadata for this regional analysis.
      */
-    public synchronized void enqueueTasksForRegionalJob(RegionalTask templateTask) {
+    public synchronized void enqueueTasksForRegionalJob(RegionalTask templateTask, RegionalAnalysis regionalAnalysis) {
         LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
         if (findJob(templateTask.jobId) != null) {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
@@ -142,7 +146,7 @@ public class Broker {
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createWorkersInCategory(job.workerCategory);
+            createWorkersInCategory(job.workerCategory, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
         }
     }
 
@@ -150,8 +154,10 @@ public class Broker {
      * Create workers for a given job, if need be.
      * Whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
      * FIXME FIXME FIXME! We should make this an asynchronous operation.
+     * @param user only used to tag the newly created instance
+     * @param group only used to tag the newly created instance
      */
-    private void createWorkersInCategory (WorkerCategory category) {
+    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user) {
 
         String clientToken = UUID.randomUUID().toString().replaceAll("-", "");
 
@@ -189,8 +195,7 @@ public class Broker {
         // It's fine to just modify the worker config without a protective copy because this method is synchronized.
         workerConfig.setProperty("initial-graph-id", category.graphId);
         // Tell the worker where to get its R5 JAR. This is a Conveyal S3 bucket with HTTP access turned on.
-        String workerDownloadUrl = String.format("https://r5-builds.s3.amazonaws.com/%s.jar",
-                category.workerVersion);
+        String workerDownloadUrl = String.format("https://r5-builds.s3.amazonaws.com/%s.jar", category.workerVersion);
 
         ByteArrayOutputStream cfg = new ByteArrayOutputStream();
         try {
@@ -235,7 +240,9 @@ public class Broker {
                 new Tag("Name","Analysis Worker"),
                 new Tag("Project", "Analysis"),
                 new Tag("networkId", category.graphId),
-                new Tag("workerVersion", category.workerVersion)
+                new Tag("workerVersion", category.workerVersion),
+                new Tag("group", group),
+                new Tag("user", user)
         );
         // TODO check and log result of request.
         RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
@@ -334,13 +341,8 @@ public class Broker {
             return "localhost";
         }
         // First try to get a worker that's already loaded the right network.
+        // This value will be null if no workers exist in this category - caller should attempt to create some.
         String workerAddress = workerCatalog.getSinglePointWorkerAddressForCategory(workerCategory);
-
-        // There are no workers that can handle this request. Request some.
-        // FIXME parts of the following method assume that it's synchronized
-        if (workerAddress == null) {
-            createWorkersInCategory(workerCategory);
-        }
         return workerAddress;
     }
 

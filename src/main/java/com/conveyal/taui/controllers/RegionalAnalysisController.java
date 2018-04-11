@@ -239,7 +239,7 @@ public class RegionalAnalysisController {
         templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask);
+        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis);
     }
 
     public static void register () {
