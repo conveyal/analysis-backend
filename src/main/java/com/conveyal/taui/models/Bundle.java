@@ -42,6 +42,10 @@ public class Bundle extends Model implements Cloneable {
 
     public String errorCode;
 
+    public static String bundleScopeFeedId (String feedId, String bundleId) {
+        return String.format("%s_%s", feedId, bundleId);
+    }
+
     private static final AmazonS3 s3 = new AmazonS3Client();
 
     public void writeManifestToCache () throws IOException {
@@ -80,9 +84,9 @@ public class Bundle extends Model implements Cloneable {
         public LocalDate serviceEnd;
         public long checksum;
 
-        public FeedSummary(GTFSFeed feed, Bundle bundle) {
+        public FeedSummary(GTFSFeed feed, String bundleId) {
             feedId = feed.feedId;
-            bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle._id);
+            bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
         }

@@ -5,6 +5,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.models.Bundle;
@@ -52,7 +53,7 @@ public class BundleController {
             bundle.name = files.get("Name").get(0).getString("UTF-8");
             bundle.regionId = files.get("regionId").get(0).getString("UTF-8");
         } catch (Exception e) {
-            throw AnalysisServerException.badRequest(e.getMessage());
+            throw AnalysisServerException.badRequest(ExceptionUtils.asString(e));
         }
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
@@ -103,7 +104,7 @@ public class BundleController {
             bundleFile.delete();
         } catch (Exception e) {
             bundle.status = Bundle.Status.ERROR;
-            bundle.errorCode = e.getMessage();
+            bundle.errorCode = ExceptionUtils.asString(e);
             Persistence.bundles.put(bundle);
             bundleFile.delete();
 
