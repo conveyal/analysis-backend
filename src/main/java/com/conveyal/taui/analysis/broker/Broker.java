@@ -249,7 +249,7 @@ public class Broker {
 
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
-        LOG.info("Requested {} workers", nWorkers);
+        LOG.info("Requested {} workers for user {} of group {}", nWorkers, user, group);
     }
 
     /**
