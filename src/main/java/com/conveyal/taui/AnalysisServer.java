@@ -3,6 +3,7 @@ package com.conveyal.taui;
 import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
@@ -18,7 +19,6 @@ import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
 import org.apache.commons.fileupload.FileUploadException;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.joda.time.DateTime;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -188,7 +188,7 @@ public class AnalysisServer {
         try {
             jwt = verifier.verify(authComponents[1]);
         } catch (Exception e) {
-            throw AnalysisServerException.forbidden("Login failed to verify with our authorization provider. " + e.getMessage());
+            throw AnalysisServerException.forbidden("Login failed to verify with our authorization provider. " + ExceptionUtils.asString(e));
         }
 
         if (!jwt.containsKey("analyst")) {
@@ -199,7 +199,7 @@ public class AnalysisServer {
         try {
             group = (String) ((Map<String, Object>) jwt.get("analyst")).get("group");
         } catch (Exception e) {
-            throw AnalysisServerException.forbidden("Access denied. User is not associated with any group. " + e.getMessage());
+            throw AnalysisServerException.forbidden("Access denied. User is not associated with any group. " + ExceptionUtils.asString(e));
         }
 
         if (group == null) {
@@ -212,7 +212,7 @@ public class AnalysisServer {
     }
 
     public static void respondToException(Exception e, Request request, Response response, String type, String message, int code) {
-        String stack = ExceptionUtils.getStackTrace(e);
+        String stack = ExceptionUtils.asString(e);
 
         LOG.error("{} {} -> {} {} by {} of {}", type, message, request.requestMethod(), request.pathInfo(), request.attribute("email"), request.attribute("accessGroup"));
         LOG.error(stack);

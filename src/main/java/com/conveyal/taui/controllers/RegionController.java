@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Region;
@@ -48,7 +49,7 @@ public class RegionController {
             ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
             return sfu.parseParameterMap(req.raw());
         } catch (FileUploadException e) {
-            throw AnalysisServerException.fileUpload("Error uploading files. " + e.getMessage());
+            throw AnalysisServerException.fileUpload("Error uploading files. " + ExceptionUtils.asString(e));
         }
     }
 
@@ -60,7 +61,7 @@ public class RegionController {
 
             return region;
         } catch (IOException e) {
-            throw AnalysisServerException.badRequest("Error parsing region. " + e.getMessage());
+            throw AnalysisServerException.badRequest("Error parsing region. " + ExceptionUtils.asString(e));
         }
     }
 
@@ -98,10 +99,10 @@ public class RegionController {
                 Persistence.regions.put(region);
             } catch (Exception e) {
                 region.statusCode = Region.StatusCode.ERROR;
-                region.statusMessage = "Error while fetching data. " + e.getMessage();
+                region.statusMessage = "Error while fetching data. " + ExceptionUtils.asString(e);
                 Persistence.regions.put(region);
 
-                LOG.error("Error while fetching OSM. " + e.getMessage());
+                LOG.error("Error while fetching OSM. " + ExceptionUtils.asString(e));
                 e.printStackTrace();
             }
         }).start();

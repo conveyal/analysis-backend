@@ -336,7 +336,7 @@ public class OpportunityDatasetsController {
                 LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
             } catch (IOException e) {
                 status.status = Status.ERROR;
-                status.message = e.getMessage();
+                status.message = ExceptionUtils.asString(e);
                 status.completed();
                 throw AnalysisServerException.unknown(e);
             }
