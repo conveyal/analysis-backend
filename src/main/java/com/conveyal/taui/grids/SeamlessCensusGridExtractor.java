@@ -4,8 +4,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.ThreadPool;
 import com.conveyal.taui.models.Bounds;
 import com.conveyal.taui.models.Region;
 import org.slf4j.Logger;
@@ -15,16 +15,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -40,10 +31,6 @@ public class SeamlessCensusGridExtractor {
     // The Web Mercator zoom level of the census data grids that will be created.
     public static final int ZOOM = 9;
 
-    // A pool of threads that upload newly created grids to S3. The pool is shared between all GridFetchers.
-    // The default policy when the pool's work queue is full is to abort with an exception.
-    // We shouldn't use the caller-runs policy because that will cause deadlocks.
-    private static final ThreadPoolExecutor s3Upload = new ThreadPoolExecutor(4, 8, 90, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1024));
     private static final AmazonS3 s3 = new AmazonS3Client();
 
     /** Prepare an outputstream on S3, set up to gzip and upload whatever is uploaded in a thread. */
@@ -57,7 +44,7 @@ public class SeamlessCensusGridExtractor {
         PutObjectRequest request = new PutObjectRequest(gridBucket, s3Key, inputStream, metadata);
 
         // upload to s3 in a separate thread so that we don't deadlock
-        s3Upload.execute(() -> s3.putObject(request));
+        ThreadPool.run(() -> s3.putObject(request));
 
         return new GZIPOutputStream(outputStream);
     }

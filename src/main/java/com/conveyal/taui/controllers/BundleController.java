@@ -8,6 +8,7 @@ import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.ThreadPool;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -112,7 +113,7 @@ public class BundleController {
         }
 
         // process async
-        new Thread(() -> {
+        ThreadPool.run(() -> {
             try {
                 TDoubleList lats = new TDoubleArrayList();
                 TDoubleList lons = new TDoubleArrayList();
@@ -162,7 +163,7 @@ public class BundleController {
 
             Persistence.bundles.put(bundle);
             directory.delete();
-        }).start();
+        });
 
         return bundle;
     }
