@@ -1,22 +1,27 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.analysis.broker.Broker;
+import com.conveyal.taui.analysis.broker.JobStatus;
+import com.conveyal.taui.analysis.broker.WorkerObservation;
 import com.conveyal.taui.models.AnalysisRequest;
+import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+import com.mongodb.QueryBuilder;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -27,11 +32,13 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static spark.Spark.get;
-import static spark.Spark.head;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
@@ -77,9 +84,9 @@ public class WorkerController {
      */
     public void register () {
         head("", this::headHandler);
-        get("/internal/jobs", this::getAllJobs);
-        get("/internal/workers", this::getAllWorkers);
         post("/internal/poll", this::workerPoll);
+        get("/api/jobs", this::getAllJobs);
+        get("/api/workers", this::getAllWorkers);
         post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
     }
 
@@ -185,18 +192,83 @@ public class WorkerController {
         }
     }
 
+    private static class ExtendedJobStatus extends JobStatus {
+        public RegionalAnalysis regionalAnalysis;
+
+        public ExtendedJobStatus(JobStatus js) {
+            super();
+            this.jobId = js.jobId;
+            this.graphId = js.graphId;
+            this.workerCommit = js.workerCommit;
+            this.total = js.total;
+            this.complete = js.complete;
+            this.incomplete = js.incomplete;
+            this.deliveries = js.deliveries;
+            this.deliveryPass = js.deliveryPass;
+        }
+    }
+
     /**
      * Fetch status of all unfinished jobs as a JSON list.
      */
     private String getAllJobs(Request request, Response response) {
-        return jsonResponse(response, HttpStatus.OK_200, broker.getJobSummary());
+        String accessGroup = request.attribute("accessGroup");
+        if (!AnalysisServerConfig.adminAccessGroup.equals(accessGroup)) {
+            response.status(401);
+            return "You do not have access.";
+        }
+
+        List<ExtendedJobStatus> extendedJobStatuses = new ArrayList<>();
+        Collection<JobStatus> jobStatuses = broker.getJobSummary();
+        for (JobStatus js : jobStatuses) {
+            ExtendedJobStatus extendedJobStatus = new ExtendedJobStatus(js);
+            if (!js.jobId.equals("SUM")) {
+                extendedJobStatus.regionalAnalysis = Persistence.regionalAnalyses
+                        .find(QueryBuilder.start("_id").is(js.jobId).get()).next();
+            }
+            extendedJobStatuses.add(extendedJobStatus);
+        }
+
+        return jsonResponse(response, HttpStatus.OK_200, extendedJobStatuses);
+    }
+
+    private static class ExtendedWorkerObservation extends WorkerObservation {
+        public final List<Bundle> bundles;
+
+        public ExtendedWorkerObservation (WorkerObservation observation, List<Bundle> bundles) {
+            super(observation.status);
+            this.bundles = bundles;
+        }
     }
 
     /**
      * Report all workers that have recently contacted the broker as JSON list.
      */
     private String getAllWorkers(Request request, Response response) {
-        return jsonResponse(response, HttpStatus.OK_200, broker.getWorkerObservations());
+        String accessGroup = request.attribute("accessGroup");
+        if (!AnalysisServerConfig.adminAccessGroup.equals(accessGroup)) {
+            response.status(401);
+            return "You do not have access.";
+        }
+
+        Collection<WorkerObservation> observations = broker.getWorkerObservations();
+        List<ExtendedWorkerObservation> ewo = new ArrayList<>();
+
+        Map<String, Bundle> bundleMap = new HashMap<>();
+        for (WorkerObservation observation : observations) {
+            List<Bundle> bundles = new ArrayList<>();
+            for (String networkString : observation.status.networks) {
+                Bundle bundle = bundleMap.get(networkString);
+                if (bundle == null) {
+                    bundle = Persistence.bundles.find(QueryBuilder.start("_id").is(networkString).get()).next();
+                    bundleMap.put(networkString, bundle);
+                }
+                bundles.add(bundle);
+            }
+            ewo.add(new ExtendedWorkerObservation(observation, bundles));
+        }
+
+        return jsonResponse(response, HttpStatus.OK_200, ewo);
     }
 
     /**
