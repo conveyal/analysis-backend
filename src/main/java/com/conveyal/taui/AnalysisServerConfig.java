@@ -51,6 +51,7 @@ public abstract class AnalysisServerConfig {
     public static final String resultsBucket = getProperty("results-bucket", true);
     public static final String awsRegion = getProperty("aws-region", true);
     public static final String workerLogGroup = getProperty("worker-log-group", true);
+    public static final int maxThreads = Integer.parseInt(getProperty("max-threads", true));
     public static final int maxWorkers = Integer.parseInt(getProperty("max-workers", true));
 
     // AWS specific stuff. This should be moved to another config object when we make this portable to other environments.

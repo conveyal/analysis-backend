@@ -52,6 +52,9 @@ local-cache=cache
 # Internet since it also runs the frontend server)
 server-address=10.0.0.123
 
+# Maximum Java threads to execute concurrently.
+max-threads=1
+
 # Max number of instances to start.
 # If there are more than this number running more instances will not be started.
 # This limit doesn't work very well because if you've manually started 200 workers on one graph,

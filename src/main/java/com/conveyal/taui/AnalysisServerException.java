@@ -1,13 +1,10 @@
 package com.conveyal.taui;
 
+import com.conveyal.r5.util.ExceptionUtils;
 import graphql.GraphQLError;
-import org.apache.commons.lang.exception.ExceptionUtils;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import spark.Response;
 
-import java.io.IOException;
 import java.util.List;
 
 public class AnalysisServerException extends RuntimeException {
@@ -66,7 +63,7 @@ public class AnalysisServerException extends RuntimeException {
     }
 
     public static AnalysisServerException unknown(Exception e) {
-        return new AnalysisServerException(TYPE.UNKNOWN, e.getMessage(), 400);
+        return new AnalysisServerException(TYPE.UNKNOWN, ExceptionUtils.asString(e), 400);
     }
 
     public static AnalysisServerException unknown(String message) {
@@ -75,7 +72,7 @@ public class AnalysisServerException extends RuntimeException {
 
     public AnalysisServerException(Exception e, String message) {
         this(message);
-        LOG.error(e.getMessage());
+        LOG.error(ExceptionUtils.asString(e));
     }
 
     public AnalysisServerException(String message) {
