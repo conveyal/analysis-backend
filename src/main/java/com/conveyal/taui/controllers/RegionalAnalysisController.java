@@ -12,6 +12,7 @@ import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -25,9 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 
-import static spark.Spark.delete;
-import static spark.Spark.get;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 /**
  * Spark HTTP handler methods that allow launching new regional analyses, as well as deleting them and fetching
@@ -242,12 +241,20 @@ public class RegionalAnalysisController {
         broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis);
     }
 
+    public static RegionalAnalysis updateRegionalAnalysis(Request request, Response response) throws IOException {
+        final String accessGroup = request.attribute("accessGroup");
+        final String email = request.attribute("email");
+        RegionalAnalysis regionalAnalysis = JsonUtil.objectMapper.readValue(request.body(), RegionalAnalysis.class);
+        return Persistence.regionalAnalyses.updateByUserIfPermitted(regionalAnalysis, email, accessGroup);
+    }
+
     public static void register () {
         get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/:comparisonId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
+        put("/api/regional/:_id", RegionalAnalysisController::updateRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
     }
 
 }
