@@ -90,7 +90,7 @@ public class Broker {
      * keep track of which graphs we have launched workers on and how long ago we launched them,
      * so that we don't re-request workers which have been requested.
      */
-    private TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
+    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
 
     public Broker () {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
@@ -147,6 +147,9 @@ public class Broker {
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
             createWorkersInCategory(job.workerCategory, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
+        } else {
+            // Workers exist in this category, clear out any record that we're waiting for one to start up.
+            recentlyRequestedWorkers.remove(job.workerCategory);
         }
     }
 
