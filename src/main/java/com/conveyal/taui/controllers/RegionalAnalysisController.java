@@ -148,13 +148,6 @@ public class RegionalAnalysisController {
         final String email = req.attribute("email");
 
         AnalysisRequest analysisRequest = JsonUtil.objectMapper.readValue(req.body(), AnalysisRequest.class);
-        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
-        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
-
-        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
-        task.x = 0;
-        task.y = 0;
-
         // If the UI has requested creation of a "static site", set all the necessary switches on the requests
         // that will go to the worker: break travel time down into waiting, riding, and walking, record paths to
         // destinations, and save results on S3.
@@ -162,6 +155,20 @@ public class RegionalAnalysisController {
             // Hidden feature: allows us to run static sites experimentally without exposing a checkbox to all users.
             analysisRequest.makeStaticSite = true;
         }
+
+        // Create an internal RegionalTask and RegionalAnalysis from the AnalysisRequest sent by the client.
+        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
+        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
+
+        // Set the destination grid.
+        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+
+        // Why are these being set to zero instead of leaving them at their default of -1?
+        // Why does a regional analysis have an x and y at all since it represents many different tasks?
+        task.x = 0;
+        task.y = 0;
+
+        // Making a static site implies several different processes - turn them all on if requested.
         if (analysisRequest.makeStaticSite) {
             task.makeStaticSite = true;
             task.travelTimeBreakdown = true;
@@ -174,6 +181,8 @@ public class RegionalAnalysisController {
         // In fact, there are three separate classes all containing almost the same info:
         // AnalysisRequest, RegionalTask, RegionalAnalysis.
         RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
+
+        regionalAnalysis.request = task;
 
         regionalAnalysis.height = task.height;
         regionalAnalysis.north = task.north;
@@ -188,7 +197,6 @@ public class RegionalAnalysisController {
         regionalAnalysis.name = analysisRequest.name;
         regionalAnalysis.projectId = analysisRequest.projectId;
         regionalAnalysis.regionId = project.regionId;
-        regionalAnalysis.request = task;
         regionalAnalysis.travelTimePercentile = analysisRequest.travelTimePercentile;
         regionalAnalysis.variant = analysisRequest.variantIndex;
         regionalAnalysis.workerVersion = analysisRequest.workerVersion;
