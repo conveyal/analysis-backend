@@ -130,7 +130,7 @@ public class Broker {
 
     /**
      * Enqueue a set of tasks for a regional analysis.
-     * Only a single task is passed in, and the broker expands it into all the individual tasks for a regional job.
+     * Only a single task is passed in, which the broker will expand into all the individual tasks for a regional job.
      * We pass in the group and user only to tag any newly created workers. This should probably be done in the caller.
      * TODO push the creation of the TemplateTask down into this method, to avoid last two parameters?
      */
