@@ -111,16 +111,19 @@ public class AnalysisRequest {
         task.graphId = project.bundleId;
         task.workerVersion = workerVersion;
 
-        Bounds b = bounds;
-        if (b == null) {
+        Bounds bounds = this.bounds;
+        if (bounds == null) {
+            // If no bounds were speicified, fall back on the bounds of the entire region.
             Region region = Persistence.regions.findByIdIfPermitted(project.regionId, project.accessGroup);
-            b = region.bounds;
+            bounds = region.bounds;
         }
 
-        int east = Grid.lonToPixel(b.east, ZOOM);
-        int north = Grid.latToPixel(b.north, ZOOM);
-        int south = Grid.latToPixel(b.south, ZOOM);
-        int west = Grid.lonToPixel(b.west, ZOOM);
+        // TODO define class with static factory function WebMercatorGridBounds.fromLatLonBounds(). Also include getIndex(x, y), getX(index), getY(index), totalTasks()
+
+        int east = Grid.lonToPixel(bounds.east, ZOOM);
+        int north = Grid.latToPixel(bounds.north, ZOOM);
+        int south = Grid.latToPixel(bounds.south, ZOOM);
+        int west = Grid.lonToPixel(bounds.west, ZOOM);
 
         task.height = south - north;
         task.north = north;
