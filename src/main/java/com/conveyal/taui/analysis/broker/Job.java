@@ -79,7 +79,7 @@ public class Job {
         // In the future we'll set origin coords from a PointSet object.
         task.x = taskNumber % templateTask.width;
         task.y = taskNumber / templateTask.width;
-        task.taskId = taskNumber++; //FIXME workers and broker expect this to be globally unique, not job-unique
+        task.taskId = taskNumber;
         task.fromLat = Grid.pixelToCenterLat(task.north + task.y, task.zoom);
         task.fromLon = Grid.pixelToCenterLon(task.west + task.x, task.zoom);
         return task;
