@@ -3,7 +3,6 @@ package com.conveyal.taui.controllers;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
