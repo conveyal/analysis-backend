@@ -13,12 +13,11 @@ env:
 # This avoids redundantly pre-running 'mvn install -DskipTests' before every build.
 install: true
 
-script:
-  - mvn package
-  # Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
-  # This forces download of fresh SNAPSHOT artifacts on the next build.
-  # The cache seems to be uploaded immediately after the Travis stage "script" so we include this deletion in the script.
-  - rm -rf $HOME/.m2/repository/com/conveyal
+script: mvn package
+
+# Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
+# This forces download of fresh SNAPSHOT artifacts on the next build.
+before_cache: rm -rf $HOME/.m2/repository/com/conveyal
 
 after_success:
   # Upload coverage results to codecov
