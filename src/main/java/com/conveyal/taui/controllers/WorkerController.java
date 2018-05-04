@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.io.InputStream;
 import java.util.List;
 
 import static spark.Spark.get;
@@ -144,7 +145,12 @@ public class WorkerController {
             response.header("Content-Encoding", "gzip");
             HttpEntity entity = workerResponse.getEntity();
             LOG.info("Returning worker response to UI.");
-            return entity.getContent();
+            InputStream entityContent = entity.getContent();
+            try {
+                return entityContent;
+            } finally {
+                entityContent.close();
+            }
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             return jsonResponse(response, HttpStatus.SERVER_ERROR_500, "Exception while talking to worker: " + e.toString());
