@@ -6,15 +6,7 @@ import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
-import com.conveyal.taui.controllers.AggregationAreaController;
-import com.conveyal.taui.controllers.BundleController;
-import com.conveyal.taui.controllers.GraphQLController;
-import com.conveyal.taui.controllers.ModificationController;
-import com.conveyal.taui.controllers.OpportunityDatasetsController;
-import com.conveyal.taui.controllers.RegionController;
-import com.conveyal.taui.controllers.RegionalAnalysisController;
-import com.conveyal.taui.controllers.ProjectController;
-import com.conveyal.taui.controllers.WorkerController;
+import com.conveyal.taui.controllers.*;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -98,6 +90,7 @@ public class AnalysisServer {
         OpportunityDatasetsController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
+        TimetableController.register();
 
         // TODO wire up Spark without using static methods:
 //        spark.Service httpService = spark.Service.ignite()
