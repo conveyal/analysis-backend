@@ -47,7 +47,7 @@ public class TimetableController {
                     JSONObject m = new JSONObject();
                     m.put("_id", modification._id);
                     m.put("name", modification.name);
-                    m.put("segments", tripPattern.segments);
+                    m.put("segments", JsonUtil.objectMapper.valueToTree(tripPattern.segments));
                     JSONArray modificationTimetables = new JSONArray();
                     for (AddTripPattern.Timetable timetable : tripPattern.timetables) {
                         modificationTimetables.add(JsonUtil.objectMapper.valueToTree(timetable));
