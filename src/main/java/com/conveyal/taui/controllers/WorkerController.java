@@ -3,7 +3,6 @@ package com.conveyal.taui.controllers;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
@@ -17,16 +16,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.InputStream;
 import java.util.List;
 
 import static spark.Spark.get;
@@ -60,7 +59,7 @@ public class WorkerController {
     private ObjectMapper jsonMapper = JsonUtilities.objectMapper;
 
     /** This HTTP client contacts workers to send them single-point tasks for immediate processing. */
-    private static HttpClient httpClient = AnalystWorker.makeHttpClient();
+    private static CloseableHttpClient httpClient = HttpClients.createDefault();
 
     public WorkerController (Broker broker) {
         this.broker = broker;
@@ -138,18 +137,17 @@ public class WorkerController {
         try {
             // Serialize and send the R5-specific task (not the one the UI sends to the broker)
             httpPost.setEntity(new ByteArrayEntity(JsonUtil.objectMapper.writeValueAsBytes(task)));
-            HttpResponse workerResponse = httpClient.execute(httpPost);
+            CloseableHttpResponse workerResponse = httpClient.execute(httpPost);
             response.status(workerResponse.getStatusLine().getStatusCode());
             // TODO Should we exactly mimic these headers coming back from the worker?
             response.header("Content-Type", "application/octet-stream");
             response.header("Content-Encoding", "gzip");
             HttpEntity entity = workerResponse.getEntity();
-            LOG.info("Returning worker response to UI.");
-            InputStream entityContent = entity.getContent();
             try {
-                return entityContent;
+                LOG.info("Returning worker response to UI.");
+                return entity.getContent();
             } finally {
-                entityContent.close();
+                workerResponse.close();
             }
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
