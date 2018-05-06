@@ -13,7 +13,10 @@ env:
 # This avoids redundantly pre-running 'mvn install -DskipTests' before every build.
 install: true
 
-script: mvn package
+script:
+  # copy the example config file
+  - cp analysis.properties.tmp analysis.properties
+  - mvn package
 
 # Wipe out all the Conveyal artifacts in the local Maven repo before they get cached.
 # This forces download of fresh SNAPSHOT artifacts on the next build.

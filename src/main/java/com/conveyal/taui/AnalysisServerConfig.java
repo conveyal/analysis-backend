@@ -24,7 +24,7 @@ public abstract class AnalysisServerConfig {
 
     static {
         try {
-            FileInputStream is = new FileInputStream("analysis.properties.tmp");
+            FileInputStream is = new FileInputStream("analysis.properties");
             config.load(is);
             is.close();
         } catch (Exception e) {
