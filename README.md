@@ -1,31 +1,31 @@
-# Analyst
+# Analysis
 
-This is the server component of Conveyal's analysis platform.
+This is the server component of the [Conveyal Analysis](http://conveyal.com/analysis) platform.
 
 **Please note:** At this time Conveyal does not provide support for third-party deployments of Analysis. We provide paid subscriptions to a hosted deployment of this system, as well as transportation planning consulting for subscribers.
 
 For now, the project is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in planning and decision making processes. It is likely that over time the system will become easier to deploy by third parties, but we do not plan to provide technical support for such deployments.
 
-## Setup
+## Configuration
 
-In production we use Auth0 for authentication and S3 for storage; set the following variables, either in application.conf
-in the working directory, or as environment variables.
+Conveyal Analysis can be run locally (e.g. on your laptop) or on the cloud (e.g. on AWS), depending on the configuration set in analysis.properties.  To get started, copy the template configuration (`analysis.properties.tmp`) to `analysis.properties`.
 
-- `AUTH0_CLIENT_ID`: your Auth0 client ID
-- `AUTH0_CLIENT_SECRET`: your Auth0 client secret
-- `MONGOLAB_URI`: URI to your Mongo cluster
-- `BUNDLE_BUCKET`: S3 bucket to store bundles in
-- `GRID_BUCKET`: S3 bucket to store grids in
-- `RESULTS_BUCKET`: S3 bucket to store results in
-- `RESULTS_QUEUE`: SQS queue to use to return results
+To run locally, use the default values in `analysis.properties`. `offline = true` will create a local instance that does not need cloud-based storage, database, or authentication services.  By default, analysis-backend will use the `scenario-editor` database in a local MongoDB instance, so you'll need to install and start a MongoDB instance.
 
-Alternatively, omit all of that and set `OFFLINE=true`. For now, in offline mode you still need an S3 grid bucket and SQS results queue, those parts do not yet work offline. This means that regional jobs will write and read from the specified queue - be careful not to configure any development or staging instance with the same queue names used in production! For that matter, never configure any two instances to use the same queue.
+To run on the cloud, we use Auth0 for authentication and S3 for storage; configure these services as needed, then set the corresponding variables including:
 
-You will need to have S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets in use, including the seamless census data bucket. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment or in application.conf to choose which AWS credentials profile will be used.
+- `auth0-client-id`: your Auth0 client ID
+- `auth0-secret`: your Auth0 client secret
+- `database-uri`: URI to your Mongo cluster
+- `bundle_bucket`: S3 bucket for storing GTFS bundles and built transport networks
+- `grid_bucket`: S3 bucket for storing opportunity dataset grids
+- `results_bucket`: S3 bucket for storing regional analysis results
 
-By default it will use the `scenario-editor` database in your Mongo instance. You can set `DATABASE_NAME` to change that.
+You will need S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets in use, including the seamless census data bucket. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment to choose which AWS credentials profile will be used.
 
-Once you have configured your environment or `application.conf`, build the application with `mvn package` and start it with
+## Building and running
+
+Once you have configured `analysis.properties` and started mongo locally, build the application with `mvn package` and start it with
 `java -Xmx2g -jar target/analyst.jar`
 
 You can then start the [frontend](https://github.com/conveyal/analysis-ui) with `yarn start`
@@ -42,9 +42,7 @@ on your local R5. This way, any changes you make to R5 will also be reflected wh
 You can then create a run configuration for `com.conveyal.taui.AnalysisServer`, which is the main class. You will need to
 configure the options mentioned above; I recommend using environment variables in the run configuration rather than messing
 with config files for local development. If you set `OFFLINE=true`, you won't need to run the R5 `BrokerMain` and
-`AnalystWorker` classses separately. You will need to configure an `GRID_BUCKET`, `RESULTS_QUEUE` and `RESULTS_BUCKET`,
+`AnalystWorker` classses separately. You will need to configure an `GRID_BUCKET` and `RESULTS_BUCKET`,
 and AWS credentials to access them, as these do not yet have offline equivalents.
 
 You can then follow the instructions to get the [frontend](https://github.com/conveyal/analysis-ui) started up.
-
-You'll also need a MongoDB instance running locally.
