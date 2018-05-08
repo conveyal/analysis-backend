@@ -12,7 +12,6 @@ import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Project;
-import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -26,7 +25,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 
-import static spark.Spark.*;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Spark HTTP handler methods that allow launching new regional analyses, as well as deleting them and fetching
