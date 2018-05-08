@@ -125,6 +125,10 @@ public class WorkerController {
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting workers, try again later.");
+        } else {
+            // Workers exist in this category, clear out any record that we're waiting for one to start up.
+            // FIXME the tracking of which workers are starting up should really be encapsulated using a "start up if needed" method.
+            broker.recentlyRequestedWorkers.remove(workerCategory);
         }
         String workerUrl = "http://" + address + ":7080/single";
         LOG.info("Re-issuing HTTP request from UI to worker at {}", workerUrl);
@@ -150,7 +154,7 @@ public class WorkerController {
 
 
     /**
-     * TODO respond to HEAD requests - for some reason we needed to supply this - proxy or cache?
+     * TODO respond to HEAD requests. For some reason we needed to implement HEAD, for proxy or cache?
      */
     private Object headHandler(Request request, Response response) {
         return null;

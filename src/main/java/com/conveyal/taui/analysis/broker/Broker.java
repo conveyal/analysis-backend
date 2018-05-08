@@ -90,7 +90,7 @@ public class Broker {
      * keep track of which graphs we have launched workers on and how long ago we launched them,
      * so that we don't re-request workers which have been requested.
      */
-    private TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
+    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
 
     public Broker () {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
@@ -130,12 +130,11 @@ public class Broker {
 
     /**
      * Enqueue a set of tasks for a regional analysis.
-     * Only a single task is passed in, and the broker expands it into all the individual tasks for a regional job.
-     * TODO push the creation of the RegionalTask down into this method and eliminate the caller?
-     * @param regionalAnalysis the model object from which the analysis task was built. This is only passed in here to
-     *                         provide access to user/group metadata for this regional analysis.
+     * Only a single task is passed in, which the broker will expand into all the individual tasks for a regional job.
+     * We pass in the group and user only to tag any newly created workers. This should probably be done in the caller.
+     * TODO push the creation of the TemplateTask down into this method, to avoid last two parameters?
      */
-    public synchronized void enqueueTasksForRegionalJob(RegionalTask templateTask, RegionalAnalysis regionalAnalysis) {
+    public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, String accessGroup, String createdBy) {
         LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
         if (findJob(templateTask.jobId) != null) {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
@@ -146,7 +145,10 @@ public class Broker {
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createWorkersInCategory(job.workerCategory, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
+            createWorkersInCategory(job.workerCategory, accessGroup, createdBy);
+        } else {
+            // Workers exist in this category, clear out any record that we're waiting for one to start up.
+            recentlyRequestedWorkers.remove(job.workerCategory);
         }
     }
 

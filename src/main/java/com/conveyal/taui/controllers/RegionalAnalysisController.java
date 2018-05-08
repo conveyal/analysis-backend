@@ -139,18 +139,16 @@ public class RegionalAnalysisController {
         return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
     }
 
+    /**
+     * Deserialize a description of a new regional analysis (an AnalysisRequest object) POSTed as JSON over the HTTP API.
+     * Derive an internal RegionalAnalysis object, which is enqueued in the broker and also returned to the caller
+     * in the body of the HTTP response.
+     */
     public static RegionalAnalysis createRegionalAnalysis (Request req, Response res) throws IOException {
         final String accessGroup = req.attribute("accessGroup");
         final String email = req.attribute("email");
 
         AnalysisRequest analysisRequest = JsonUtil.objectMapper.readValue(req.body(), AnalysisRequest.class);
-        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
-        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
-
-        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
-        task.x = 0;
-        task.y = 0;
-
         // If the UI has requested creation of a "static site", set all the necessary switches on the requests
         // that will go to the worker: break travel time down into waiting, riding, and walking, record paths to
         // destinations, and save results on S3.
@@ -158,6 +156,20 @@ public class RegionalAnalysisController {
             // Hidden feature: allows us to run static sites experimentally without exposing a checkbox to all users.
             analysisRequest.makeStaticSite = true;
         }
+
+        // Create an internal RegionalTask and RegionalAnalysis from the AnalysisRequest sent by the client.
+        Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
+        RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
+
+        // Set the destination grid.
+        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+
+        // Why are these being set to zero instead of leaving them at their default of -1?
+        // Why does a regional analysis have an x and y at all since it represents many different tasks?
+        task.x = 0;
+        task.y = 0;
+
+        // Making a static site implies several different processes - turn them all on if requested.
         if (analysisRequest.makeStaticSite) {
             task.makeStaticSite = true;
             task.travelTimeBreakdown = true;
@@ -165,9 +177,13 @@ public class RegionalAnalysisController {
         }
 
         // TODO remove duplicate fields from RegionalAnalysis that are already in the nested task.
+        // The RegionalAnalysis should just be a minimal wrapper around the template task, adding the origin point set.
         // The RegionalAnalysis object contains a reference to the template task itself.
-        // In fact, there are three separate classes all containing almost the same info: AnalysisRequest, RegionalTask, RegionalAnalysis.
+        // In fact, there are three separate classes all containing almost the same info:
+        // AnalysisRequest, RegionalTask, RegionalAnalysis.
         RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
+
+        regionalAnalysis.request = task;
 
         regionalAnalysis.height = task.height;
         regionalAnalysis.north = task.north;
@@ -182,31 +198,22 @@ public class RegionalAnalysisController {
         regionalAnalysis.name = analysisRequest.name;
         regionalAnalysis.projectId = analysisRequest.projectId;
         regionalAnalysis.regionId = project.regionId;
-        regionalAnalysis.request = task;
         regionalAnalysis.travelTimePercentile = analysisRequest.travelTimePercentile;
         regionalAnalysis.variant = analysisRequest.variantIndex;
         regionalAnalysis.workerVersion = analysisRequest.workerVersion;
         regionalAnalysis.zoom = task.zoom;
 
+        // Persist this newly created RegionalAnalysis to Mongo.
+        // Why are we overwriting regionalAnalysis with the result of saving it?
         regionalAnalysis = Persistence.regionalAnalyses.create(regionalAnalysis);
-        enqueue(regionalAnalysis);
-        return regionalAnalysis;
-    }
 
-    /**
-     * This function is called with a single RegionalAnalysis object that actually represents a lot of individual
-     * accessibility tasks at many different origin points, typically on a grid.
-     *
-     * Before passing that object on to the Broker (which distributes tasks to workers and tracks progress), this method
-     * removes the details of the transportation scenario, replacing it with a unique ID. This avoids repeatedly sending
-     * the scenario details to the worker in every task, as they are often quite voluminous.
-     */
-    public static void enqueue (RegionalAnalysis regionalAnalysis) {
-
-        // First, replace the details of the scenario with only its unique ID to save time and bandwidth.
-        // The workers can fetch the scenario once and cache it based on its ID only.
-        // We protectively clone this task because we're going to null out its scenario field, and don't want to affect
-        // the reference held by the caller, which contains all the scenario details.
+        // The single RegionalAnalysis object represents a lot of individual accessibility tasks at many different
+        // origin points, typically on a grid. Before passing that object on to the Broker (which distributes tasks to
+        // workers and tracks progress), we remove the details of the scenario, substituting the scenario's unique ID
+        // to save time and bandwidth. This avoids repeatedly sending the scenario details to the worker in every task,
+        // as they are often quite voluminous. The workers will fetch the scenario once from S3 and cache it based on
+        // its ID only. We protectively clone this task because we're going to null out its scenario field, and don't
+        // want to affect the original object which contains all the scenario details.
         RegionalTask templateTask = regionalAnalysis.request.clone();
         Scenario scenario = templateTask.scenario;
         templateTask.scenarioId = scenario.id;
@@ -224,8 +231,8 @@ public class RegionalAnalysisController {
             s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
         }
 
-        // Fill in all the fields that will remain the same across all tasks in a job.
-        // Re-setting all these fields may not be necessary (they might already be set by the caller),
+        // Fill in all the fields in the template task that will remain the same across all tasks in a job.
+        // Re-setting all these fields may not be necessary (they might already be set previously),
         // but we can't eliminate these lines without thoroughly checking that assumption.
         templateTask.jobId = regionalAnalysis._id;
         templateTask.graphId = regionalAnalysis.bundleId;
@@ -240,7 +247,9 @@ public class RegionalAnalysisController {
         templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis);
+        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
+
+        return regionalAnalysis;
     }
 
     public static RegionalAnalysis updateRegionalAnalysis(Request request, Response response) throws IOException {

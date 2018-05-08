@@ -1,6 +1,11 @@
 package com.conveyal.taui.models;
 
+/**
+ * Represents a bounding box in degrees in the HTTP API.
+ */
 public class Bounds {
+
+    /** The latitude of the north edge and south edge, the longitude of the east edge and west edge of the box. */
     public double north, east, south, west;
 
     @Override
@@ -14,4 +19,5 @@ public class Bounds {
         return Math.abs(north - o.north) <= tolerance && Math.abs(east - o.east) <= tolerance &&
                 Math.abs(south - o.south) <= tolerance && Math.abs(west - o.west) <= tolerance;
     }
+
 }
