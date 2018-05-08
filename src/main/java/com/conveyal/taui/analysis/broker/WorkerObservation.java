@@ -2,9 +2,12 @@ package com.conveyal.taui.analysis.broker;
 
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
+import com.conveyal.taui.models.Bundle;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+
+import java.util.List;
 
 /**
  * Updated each time the worker contacts the broker.
@@ -24,6 +27,8 @@ public class WorkerObservation {
 
     @JsonUnwrapped // The workerStatus fields will be serialized as if they were part of this root object
     public final WorkerStatus status;
+
+    public List<Bundle> bundles;
 
     // Eventually observation should probably be merged with the status it contains.
     public WorkerObservation (WorkerStatus status) {

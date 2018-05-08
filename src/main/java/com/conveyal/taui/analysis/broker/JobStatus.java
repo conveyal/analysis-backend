@@ -1,5 +1,7 @@
 package com.conveyal.taui.analysis.broker;
 
+import com.conveyal.taui.models.RegionalAnalysis;
+
 /**
  * Describes the status of a Job in a REST API response.
  */
@@ -28,6 +30,9 @@ public class JobStatus {
 
     /** The number of times we have started over at the beginning to redeliver tasks never marked complete. */
     public int deliveryPass;
+
+    /** The regional analysis associated with this job */
+    public RegionalAnalysis regionalAnalysis;
 
     /** default constructor for JSON deserialization */
     public JobStatus () { /* do nothing */ }

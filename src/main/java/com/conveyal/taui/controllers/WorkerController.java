@@ -27,6 +27,8 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -192,22 +194,6 @@ public class WorkerController {
         }
     }
 
-    private static class ExtendedJobStatus extends JobStatus {
-        public RegionalAnalysis regionalAnalysis;
-
-        public ExtendedJobStatus(JobStatus js) {
-            super();
-            this.jobId = js.jobId;
-            this.graphId = js.graphId;
-            this.workerCommit = js.workerCommit;
-            this.total = js.total;
-            this.complete = js.complete;
-            this.incomplete = js.incomplete;
-            this.deliveries = js.deliveries;
-            this.deliveryPass = js.deliveryPass;
-        }
-    }
-
     /**
      * Fetch status of all unfinished jobs as a JSON list.
      */
@@ -218,27 +204,15 @@ public class WorkerController {
             return "You do not have access.";
         }
 
-        List<ExtendedJobStatus> extendedJobStatuses = new ArrayList<>();
         Collection<JobStatus> jobStatuses = broker.getJobSummary();
-        for (JobStatus js : jobStatuses) {
-            ExtendedJobStatus extendedJobStatus = new ExtendedJobStatus(js);
-            if (!js.jobId.equals("SUM")) {
-                extendedJobStatus.regionalAnalysis = Persistence.regionalAnalyses
-                        .find(QueryBuilder.start("_id").is(js.jobId).get()).next();
+        for (JobStatus jobStatus : jobStatuses) {
+            if (!jobStatus.jobId.equals("SUM")) {
+                jobStatus.regionalAnalysis = Persistence.regionalAnalyses
+                        .find(QueryBuilder.start("_id").is(jobStatus.jobId).get()).next();
             }
-            extendedJobStatuses.add(extendedJobStatus);
         }
 
-        return jsonResponse(response, HttpStatus.OK_200, extendedJobStatuses);
-    }
-
-    private static class ExtendedWorkerObservation extends WorkerObservation {
-        public final List<Bundle> bundles;
-
-        public ExtendedWorkerObservation (WorkerObservation observation, List<Bundle> bundles) {
-            super(observation.status);
-            this.bundles = bundles;
-        }
+        return jsonResponse(response, HttpStatus.OK_200, jobStatuses);
     }
 
     /**
@@ -252,23 +226,21 @@ public class WorkerController {
         }
 
         Collection<WorkerObservation> observations = broker.getWorkerObservations();
-        List<ExtendedWorkerObservation> ewo = new ArrayList<>();
-
-        Map<String, Bundle> bundleMap = new HashMap<>();
+        Map<String, Bundle> bundleForNetworkId = new HashMap<>();
         for (WorkerObservation observation : observations) {
             List<Bundle> bundles = new ArrayList<>();
-            for (String networkString : observation.status.networks) {
-                Bundle bundle = bundleMap.get(networkString);
+            for (String networkId : observation.status.networks) {
+                Bundle bundle = bundleForNetworkId.get(networkId);
                 if (bundle == null) {
-                    bundle = Persistence.bundles.find(QueryBuilder.start("_id").is(networkString).get()).next();
-                    bundleMap.put(networkString, bundle);
+                    bundle = Persistence.bundles.find(QueryBuilder.start("_id").is(networkId).get()).next();
+                    bundleForNetworkId.put(networkId, bundle);
                 }
                 bundles.add(bundle);
             }
-            ewo.add(new ExtendedWorkerObservation(observation, bundles));
+            observation.bundles = bundles;
         }
 
-        return jsonResponse(response, HttpStatus.OK_200, ewo);
+        return jsonResponse(response, HttpStatus.OK_200, observations);
     }
 
     /**
