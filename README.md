@@ -26,7 +26,7 @@ You will need S3 credentials set up in your environment or in `~/.aws` for an id
 ## Building and running
 
 Once you have configured `analysis.properties` and started mongo locally, build the application with `mvn package` and start it with
-`java -Xmx2g -jar target/analyst.jar`
+`java -Xmx2g -jar target/analysis.jar`
 
 You can then start the [frontend](https://github.com/conveyal/analysis-ui) with `yarn start`
 
