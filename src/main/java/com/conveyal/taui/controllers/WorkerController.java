@@ -22,6 +22,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.QueryBuilder;
+import com.google.common.io.ByteStreams;
+import org.apache.commons.fileupload.util.Streams;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -29,6 +31,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -89,7 +92,7 @@ public class WorkerController {
         post("/internal/poll", this::workerPoll);
         get("/api/jobs", this::getAllJobs);
         get("/api/workers", this::getAllWorkers);
-        post("/api/analysis", this::singlePoint); // TODO rename to "single" or something
+        post("/api/analysis", this::singlePoint); // TODO rename HTTP path to "single" or something
     }
 
     /**
@@ -134,12 +137,17 @@ public class WorkerController {
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting workers, try again later.");
+        } else {
+            // Workers exist in this category, clear out any record that we're waiting for one to start up.
+            // FIXME the tracking of which workers are starting up should really be encapsulated using a "start up if needed" method.
+            broker.recentlyRequestedWorkers.remove(workerCategory);
         }
         String workerUrl = "http://" + address + ":7080/single";
         LOG.info("Re-issuing HTTP request from UI to worker at {}", workerUrl);
         HttpPost httpPost = new HttpPost(workerUrl);
         // httpPost.setHeader("Accept", "application/x-analysis-time-grid");
         httpPost.setHeader("Accept-Encoding", "gzip"); // TODO copy all headers from request? Is this unzipping and re-zipping the result?
+        HttpEntity entity = null;
         try {
             // Serialize and send the R5-specific task (not the one the UI sends to the broker)
             httpPost.setEntity(new ByteArrayEntity(JsonUtil.objectMapper.writeValueAsBytes(task)));
@@ -148,18 +156,27 @@ public class WorkerController {
             // TODO Should we exactly mimic these headers coming back from the worker?
             response.header("Content-Type", "application/octet-stream");
             response.header("Content-Encoding", "gzip");
-            HttpEntity entity = workerResponse.getEntity();
+            entity = workerResponse.getEntity();
             LOG.info("Returning worker response to UI.");
-            return entity.getContent();
+            // If you return a stream to the Spark Framework, its SerializerChain will copy that stream out to the
+            // client, but does not then close the stream. HttpClient waits for the stream to be closed to return the
+            // connection to the pool. In order to be able to close the stream in code we control, we buffer the
+            // response in a byte buffer before resending it. The fact that we're buffering before re-sending
+            // probably degrades the perceived responsiveness of single-point requests.
+            return ByteStreams.toByteArray(entity.getContent());
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             return jsonResponse(response, HttpStatus.SERVER_ERROR_500, "Exception while talking to worker: " + e.toString());
+        } finally {
+            // If the HTTP respoonse entity is non-null close the associated input stream, which causes the HttpClient
+            // to release the TCP connection back to its pool. This is critical to avoid exhausting the pool.
+            EntityUtils.consumeQuietly(entity);
         }
     }
 
 
     /**
-     * TODO respond to HEAD requests - for some reason we needed to supply this - proxy or cache?
+     * TODO respond to HEAD requests. For some reason we needed to implement HEAD, for proxy or cache?
      */
     private Object headHandler(Request request, Response response) {
         return null;
