@@ -14,23 +14,19 @@ import com.conveyal.taui.analysis.broker.WorkerObservation;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
-import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
-import com.mongodb.QueryBuilder;
 import com.google.common.io.ByteStreams;
-import org.apache.commons.fileupload.util.Streams;
+import com.mongodb.QueryBuilder;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static spark.Spark.*;
+import static spark.Spark.get;
+import static spark.Spark.head;
+import static spark.Spark.post;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
