@@ -1,15 +1,18 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.analysis.broker.Broker;
+import com.conveyal.taui.analysis.broker.JobStatus;
+import com.conveyal.taui.analysis.broker.WorkerObservation;
 import com.conveyal.taui.models.AnalysisRequest;
+import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
@@ -18,7 +21,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
-import org.apache.commons.fileupload.util.Streams;
+import com.mongodb.QueryBuilder;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -30,7 +33,11 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static spark.Spark.get;
 import static spark.Spark.head;
@@ -80,9 +87,9 @@ public class WorkerController {
      */
     public void register () {
         head("", this::headHandler);
-        get("/internal/jobs", this::getAllJobs);
-        get("/internal/workers", this::getAllWorkers);
         post("/internal/poll", this::workerPoll);
+        get("/api/jobs", this::getAllJobs);
+        get("/api/workers", this::getAllWorkers);
         post("/api/analysis", this::singlePoint); // TODO rename HTTP path to "single" or something
     }
 
@@ -206,14 +213,49 @@ public class WorkerController {
      * Fetch status of all unfinished jobs as a JSON list.
      */
     private String getAllJobs(Request request, Response response) {
-        return jsonResponse(response, HttpStatus.OK_200, broker.getJobSummary());
+        String accessGroup = request.attribute("accessGroup");
+        if (!AnalysisServerConfig.adminAccessGroup.equals(accessGroup)) {
+            response.status(401);
+            return "You do not have access.";
+        }
+
+        Collection<JobStatus> jobStatuses = broker.getJobSummary();
+        for (JobStatus jobStatus : jobStatuses) {
+            if (!jobStatus.jobId.equals("SUM")) {
+                jobStatus.regionalAnalysis = Persistence.regionalAnalyses
+                        .find(QueryBuilder.start("_id").is(jobStatus.jobId).get()).next();
+            }
+        }
+
+        return jsonResponse(response, HttpStatus.OK_200, jobStatuses);
     }
 
     /**
      * Report all workers that have recently contacted the broker as JSON list.
      */
     private String getAllWorkers(Request request, Response response) {
-        return jsonResponse(response, HttpStatus.OK_200, broker.getWorkerObservations());
+        String accessGroup = request.attribute("accessGroup");
+        if (!AnalysisServerConfig.adminAccessGroup.equals(accessGroup)) {
+            response.status(401);
+            return "You do not have access.";
+        }
+
+        Collection<WorkerObservation> observations = broker.getWorkerObservations();
+        Map<String, Bundle> bundleForNetworkId = new HashMap<>();
+        for (WorkerObservation observation : observations) {
+            List<Bundle> bundles = new ArrayList<>();
+            for (String networkId : observation.status.networks) {
+                Bundle bundle = bundleForNetworkId.get(networkId);
+                if (bundle == null) {
+                    bundle = Persistence.bundles.find(QueryBuilder.start("_id").is(networkId).get()).next();
+                    bundleForNetworkId.put(networkId, bundle);
+                }
+                bundles.add(bundle);
+            }
+            observation.bundles = bundles;
+        }
+
+        return jsonResponse(response, HttpStatus.OK_200, observations);
     }
 
     /**
