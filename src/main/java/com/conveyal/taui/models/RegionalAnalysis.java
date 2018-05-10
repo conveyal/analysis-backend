@@ -2,7 +2,8 @@ package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.analysis.RegionalAnalysisManager;
+import com.conveyal.taui.analysis.RegionalAnalysisStatus;
+import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
@@ -51,15 +52,15 @@ public class RegionalAnalysis extends Model implements Cloneable {
 
     // TODO do statuses differently
     @JsonView(JsonViews.Api.class)
-    public RegionalAnalysisManager.RegionalAnalysisStatus getStatus () {
-        return RegionalAnalysisManager.getStatus(this._id);
+    public RegionalAnalysisStatus getStatus () {
+        return RegionalAnalysisController.broker.getJobStatus(this._id);
     }
 
     /**
      * Using JsonViews doesn't work in the database currently due to https://github.com/mongojack/mongojack/issues/145,
      * so the status is saved in the db if anything about the regional analysis is changed.
      */
-    public void setStatus (RegionalAnalysisManager.RegionalAnalysisStatus status) {
+    public void setStatus (RegionalAnalysisStatus status) {
         // status is not intended to be persisted, ignore it.
     }
 
@@ -82,7 +83,7 @@ public class RegionalAnalysis extends Model implements Cloneable {
         try {
             return (RegionalAnalysis) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 }

@@ -66,14 +66,14 @@ public class AggregationAreaController {
 
         String fileName = filesByName.keySet().stream().filter(f -> f.endsWith(".shp")).findAny().orElse(null);
         if (fileName == null) {
-            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
+            throw AnalysisServerException.fileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
         String baseName = fileName.substring(0, fileName.length() - 4);
 
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
+            throw AnalysisServerException.fileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         String regionId = req.params("regionId");

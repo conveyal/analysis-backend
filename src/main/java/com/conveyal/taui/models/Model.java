@@ -6,7 +6,9 @@ import javax.persistence.Id;
 import java.util.Date;
 
 /**
- * Created by matthewc on 2/9/16.
+ * Shared superclass for data model classes that are serialized to communicate between the UI and the backend,
+ * and generally stored in the application MongoDB.
+ * Other objects that are serialized and sent to the workers are not subclasses of this.
  */
 public abstract class Model implements Cloneable {
     @Id

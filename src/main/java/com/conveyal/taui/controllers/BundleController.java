@@ -5,8 +5,10 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.ThreadPool;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -24,13 +26,7 @@ import spark.Response;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static spark.Spark.delete;
@@ -58,7 +54,7 @@ public class BundleController {
             bundle.name = files.get("Name").get(0).getString("UTF-8");
             bundle.regionId = files.get("regionId").get(0).getString("UTF-8");
         } catch (Exception e) {
-            throw AnalysisServerException.BadRequest(e.getMessage());
+            throw AnalysisServerException.badRequest(ExceptionUtils.asString(e));
         }
 
         bundle.status = Bundle.Status.PROCESSING_GTFS;
@@ -109,84 +105,65 @@ public class BundleController {
             bundleFile.delete();
         } catch (Exception e) {
             bundle.status = Bundle.Status.ERROR;
-            bundle.errorCode = e.getMessage();
+            bundle.errorCode = ExceptionUtils.asString(e);
             Persistence.bundles.put(bundle);
             bundleFile.delete();
 
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
 
         // process async
-        new Thread(() -> {
-            TDoubleList lats = new TDoubleArrayList();
-            TDoubleList lons = new TDoubleArrayList();
+        ThreadPool.run(() -> {
+            try {
+                TDoubleList lats = new TDoubleArrayList();
+                TDoubleList lons = new TDoubleArrayList();
+                Set<String> seenFeedIds = new HashSet<>();
 
-            bundle.feeds = new ArrayList<>();
-            bundle.totalFeeds = localFiles.size();
+                bundle.feeds = new ArrayList<>();
+                bundle.totalFeeds = localFiles.size();
 
-            Map<String, FeedSource> feeds = localFiles.stream()
-                    .map(file -> {
-                        try {
-                            FeedSource fs = ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundle._id), file);
-                            bundle.feedsComplete += 1;
-                            Persistence.bundles.put(bundle);
-                            return fs;
-                        } catch (Exception e) {
-                            // This catches any error while processing a feed with the GTFS Api and needs to be more
-                            // robust in bubbling up the specific errors to the UI. Really, we need to separate out the
-                            // idea of bundles, track uploads of single feeds at a time, and allow the creation of a
-                            // "bundle" at a later point. This updated error handling is a stopgap until we improve that
-                            // flow.
-                            bundle.status = Bundle.Status.ERROR;
-                            bundle.errorCode = e.getMessage();
-                            Persistence.bundles.put(bundle);
-                            throw AnalysisServerException.Unknown(e);
-                        }
-                    })
-                    .collect(Collectors.toMap(f -> f.id, f -> f));
 
-            Set<String> seenFeedIds = new HashSet<>();
+                for (File file : localFiles) {
+                    FeedSource fs = ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundle._id), file);
+                    if (seenFeedIds.contains(fs.feed.feedId)) {
+                        throw new Exception("Duplicate Feed ID found when uploading bundle");
+                    }
 
-            for (FeedSource fs : feeds.values()) {
-                if (seenFeedIds.contains(fs.feed.feedId)) {
-                    bundle.status = Bundle.Status.ERROR;
-                    bundle.errorCode = "duplicate-feed-_id";
+                    bundle.feeds.add(new Bundle.FeedSummary(fs.feed, bundle._id));
+                    fs.feed.stops.values().forEach(s -> {
+                        lats.add(s.stop_lat);
+                        lons.add(s.stop_lon);
+                    });
+
+                    bundle.feedsComplete += 1;
                     Persistence.bundles.put(bundle);
-                    return;
                 }
 
-                seenFeedIds.add(fs.feed.feedId);
+                // find the median stop location
+                // use a median because it is robust to outliers
+                lats.sort();
+                lons.sort();
+                // not a true median as we don't handle the case when there is an even number of stops
+                // and we are supposed to average the two middle value, but close enough
+                bundle.centerLat = lats.get(lats.size() / 2);
+                bundle.centerLon = lons.get(lons.size() / 2);
 
-                bundle.feeds.add(new Bundle.FeedSummary(fs.feed, bundle));
-
-                fs.feed.stops.values().forEach(s -> {
-                    lats.add(s.stop_lat);
-                    lons.add(s.stop_lon);
-                });
-            }
-
-            // find the median stop location
-            // use a median because it is robust to outliers
-            lats.sort();
-            lons.sort();
-            // not a true median as we don't handle the case when there is an even number of stops
-            // and we are supposed to average the two middle value, but close enough
-            bundle.centerLat = lats.get(lats.size() / 2);
-            bundle.centerLon = lons.get(lons.size() / 2);
-
-            try {
                 bundle.writeManifestToCache();
                 bundle.status = Bundle.Status.DONE;
-            } catch (IOException e) {
-                LOG.error("Error writing bundle manifest to cache", e);
+            } catch (Exception e) {
+                // This catches any error while processing a feed with the GTFS Api and needs to be more
+                // robust in bubbling up the specific errors to the UI. Really, we need to separate out the
+                // idea of bundles, track uploads of single feeds at a time, and allow the creation of a
+                // "bundle" at a later point. This updated error handling is a stopgap until we improve that
+                // flow.
+                LOG.error("Error creating bundle", e);
                 bundle.status = Bundle.Status.ERROR;
-                bundle.errorCode = "cache-write-error";
+                bundle.errorCode = ExceptionUtils.asString(e);
             }
 
             Persistence.bundles.put(bundle);
-
             directory.delete();
-        }).start();
+        });
 
         return bundle;
     }

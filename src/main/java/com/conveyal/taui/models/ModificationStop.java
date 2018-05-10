@@ -1,6 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.scenario.StopSpec;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.geotools.geometry.jts.JTS;
@@ -76,7 +77,7 @@ class ModificationStop {
                 try {
                     distanceThisLineSegment = JTS.orthodromicDistance(c0, c1, crs);
                 } catch (TransformException e) {
-                    throw AnalysisServerException.Unknown(e.getMessage());
+                    throw AnalysisServerException.unknown(ExceptionUtils.asString(e));
                 }
 
                 if (spacing > 0) {

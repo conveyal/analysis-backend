@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.GridExporter;
@@ -33,6 +34,7 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -113,7 +115,7 @@ public class OpportunityDatasetsController {
             query = sfu.parseParameterMap(req.raw());
             dataSet = query.get("Name").get(0).getString("UTF-8");
         } catch (Exception e) {
-            throw AnalysisServerException.FileUpload("Unable to create opportunity dataset. " + e.getMessage());
+            throw AnalysisServerException.fileUpload("Unable to create opportunity dataset. " + e.getMessage());
         }
 
         String regionId = req.params("regionId");
@@ -152,20 +154,22 @@ public class OpportunityDatasetsController {
                     status.totalGrids = grids.size();
                     LOG.info("Uploading opportunity dataset to S3");
                     List<Region.OpportunityDataset> opportunities = writeOpportunityDatasetToS3(grids, regionId, dataSet, status);
+                    // FIXME this cloning and protective copying appears to be compensating for the MapDB instance cache.
+                    // We are no longer using MapDB. Our system for retrieving Java objects from Mongo is probably
+                    // already creating new instances for every get operation.
                     Region region = Persistence.regions.get(regionId).clone();
+                    // Make a protective copy of existing datasets, handling the case where there are none.
+                    if (region.opportunityDatasets == null) {
+                        region.opportunityDatasets = Collections.EMPTY_LIST;
+                    }
                     region.opportunityDatasets = new ArrayList<>(region.opportunityDatasets);
                     region.opportunityDatasets.addAll(opportunities);
                     Persistence.regions.updateByUserIfPermitted(region, email, accessGroup);
                     return opportunities;
                 }
-            } catch (HaltException e) {
-                status.status = Status.ERROR;
-                status.message = e.getBody();
-                status.completed();
-                return null;
             } catch (Exception e) {
                 status.status = Status.ERROR;
-                status.message = e.getMessage();
+                status.message = ExceptionUtils.asString(e);
                 status.completed();
                 return null;
             }
@@ -181,7 +185,7 @@ public class OpportunityDatasetsController {
         boolean removed = region.opportunityDatasets.removeIf((od) -> od.key.equals(gridId));
 
         if (!removed) {
-            throw AnalysisServerException.NotFound("Opportunity dataset could not be found.");
+            throw AnalysisServerException.notFound("Opportunity dataset could not be found.");
         } else {
             Persistence.regions.updateByUserIfPermitted(region, request.attribute("email"), request.attribute("accessGroup"));
             s3.deleteObject(BUCKET, gridId);
@@ -200,7 +204,7 @@ public class OpportunityDatasetsController {
         List<FileItem> file = query.get("files");
 
         if (file.size() != 1) {
-            throw AnalysisServerException.FileUpload("CSV upload only supports one file at a time.");
+            throw AnalysisServerException.fileUpload("CSV upload only supports one file at a time.");
         }
 
         // create a temp file because we have to loop over it twice
@@ -242,7 +246,7 @@ public class OpportunityDatasetsController {
         if (!filesByName.containsKey(baseName + ".shp") ||
                 !filesByName.containsKey(baseName + ".prj") ||
                 !filesByName.containsKey(baseName + ".dbf")) {
-            throw AnalysisServerException.FileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
+            throw AnalysisServerException.fileUpload("Shapefile upload must contain .shp, .prj, and .dbf");
         }
 
         File tempDir = Files.createTempDir();
@@ -290,7 +294,7 @@ public class OpportunityDatasetsController {
         if (!s3.doesObjectExist(BUCKET, String.format("%s.%s", gridPath, format))) {
             // if this grid is not on S3 in the requested format, try to get the .grid format
             if (!s3.doesObjectExist(BUCKET, String.format("%s.grid", gridPath))) {
-                throw AnalysisServerException.NotFound("This grid does not exist.");
+                throw AnalysisServerException.notFound("This grid does not exist.");
             } else {
                 // get the grid and convert it to the requested format
                 S3Object s3Grid = s3.getObject(BUCKET, String.format("%s.grid", gridPath));
@@ -332,9 +336,9 @@ public class OpportunityDatasetsController {
                 LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
             } catch (IOException e) {
                 status.status = Status.ERROR;
-                status.message = e.getMessage();
+                status.message = ExceptionUtils.asString(e);
                 status.completed();
-                throw AnalysisServerException.Unknown(e);
+                throw AnalysisServerException.unknown(e);
             }
 
             Region.OpportunityDataset opportunityDataset = new Region.OpportunityDataset();

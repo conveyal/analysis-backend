@@ -37,7 +37,7 @@ public abstract class GridExporter {
     public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
 
     private static void haltWithIncorrectFormat (String format) {
-        throw AnalysisServerException.BadRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
+        throw AnalysisServerException.badRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
     }
 
     /**
@@ -49,14 +49,16 @@ public abstract class GridExporter {
      * @return cleaned up version of redirectText
      */
     public static boolean checkRedirectAndFormat(String redirectText, String format){
+        // FIXME replace string matching with enum type
         if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
             haltWithIncorrectFormat(format);
         }
-
         boolean redirect;
-        if (redirectText == null || "" .equals(redirectText)) redirect = true;
-        else redirect = parseBoolean(redirectText);
-
+        if (redirectText == null || "" .equals(redirectText)) {
+            redirect = true;
+        } else {
+            redirect = parseBoolean(redirectText);
+        }
         return redirect;
     }
 
@@ -75,7 +77,7 @@ public abstract class GridExporter {
         PipedOutputStream pos = new PipedOutputStream(pis);
 
         ObjectMetadata om = new ObjectMetadata();
-
+        // FIXME replace string matching with enum type
         if ("grid".equals(format)) {
             om.setContentType("application/octet-stream");
             om.setContentEncoding("gzip");

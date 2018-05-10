@@ -42,13 +42,17 @@ public class Bundle extends Model implements Cloneable {
 
     public String errorCode;
 
+    public static String bundleScopeFeedId (String feedId, String bundleId) {
+        return String.format("%s_%s", feedId, bundleId);
+    }
+
     private static final AmazonS3 s3 = new AmazonS3Client();
 
     public void writeManifestToCache () throws IOException {
         BundleManifest manifest = new BundleManifest();
         manifest.osmId = this.regionId;
         manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
-        File cacheDir = new File(AnalysisServerConfig.localCache);
+        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
         String manifestFileName = GTFSCache.cleanId(this._id) + ".json";
         File manifestFile = new File(cacheDir, manifestFileName);
         JsonUtil.objectMapper.writeValue(manifestFile, manifest);
@@ -63,7 +67,7 @@ public class Bundle extends Model implements Cloneable {
         try {
             return (Bundle) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw AnalysisServerException.Unknown(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 
@@ -80,9 +84,9 @@ public class Bundle extends Model implements Cloneable {
         public LocalDate serviceEnd;
         public long checksum;
 
-        public FeedSummary(GTFSFeed feed, Bundle bundle) {
+        public FeedSummary(GTFSFeed feed, String bundleId) {
             feedId = feed.feedId;
-            bundleScopedFeedId = String.format("%s_%s", feed.feedId, bundle._id);
+            bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
         }
@@ -94,7 +98,7 @@ public class Bundle extends Model implements Cloneable {
             try {
                 return (FeedSummary) super.clone();
             } catch (CloneNotSupportedException e) {
-                throw AnalysisServerException.Unknown(e);
+                throw AnalysisServerException.unknown(e);
             }
         }
     }

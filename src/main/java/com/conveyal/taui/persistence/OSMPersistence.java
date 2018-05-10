@@ -1,7 +1,7 @@
 package com.conveyal.taui.persistence;
 
 import com.conveyal.osmlib.OSM;
-import com.conveyal.osmlib.OSMCache;
+import com.conveyal.r5.streets.OSMCache;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.models.Bounds;
@@ -22,8 +22,10 @@ import java.util.Locale;
  * Manages storing OSM data in S3.
  */
 public class OSMPersistence {
-    public static final OSMCache cache =
-            new OSMCache(AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket, new File(AnalysisServerConfig.localCache));
+
+    public static final OSMCache cache = new OSMCache(
+            AnalysisServerConfig.offline ? null : AnalysisServerConfig.bundleBucket,
+            new File(AnalysisServerConfig.localCacheDirectory));
 
     public static OSM retrieveOSMFromVexForBounds(Bounds bounds, String key) throws Exception {
         File temporaryFile = File.createTempFile("osm", ".pbf");
@@ -39,7 +41,7 @@ public class OSMPersistence {
             res = HttpUtil.httpClient.execute(get);
 
             if (res.getStatusLine().getStatusCode() != 200) {
-                throw AnalysisServerException.Unknown("Could not retrieve OSM. " + res.getStatusLine());
+                throw AnalysisServerException.unknown("Could not retrieve OSM. " + res.getStatusLine());
             }
 
             InputStream is = res.getEntity().getContent();

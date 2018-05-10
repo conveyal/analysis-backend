@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 public class Persistence {
     private static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
 
-    // TODO deprecated but needed for MongoJack
     private static MongoClient mongo;
     private static DB db;
 
@@ -41,20 +40,16 @@ public class Persistence {
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB...");
-        // allow configurable db connection params
         if (AnalysisServerConfig.databaseUri != null) {
-            MongoClientOptions.Builder builder = MongoClientOptions.builder()
-                    .sslEnabled(true);
-            mongo = new MongoClient(new MongoClientURI(AnalysisServerConfig.databaseUri, builder));
             LOG.info("Connecting to remote MongoDB instance...");
-        }
-        else {
+            MongoClientOptions.Builder builder = MongoClientOptions.builder().sslEnabled(true);
+            mongo = new MongoClient(new MongoClientURI(AnalysisServerConfig.databaseUri, builder));
+        } else {
             LOG.info("Connecting to local MongoDB instance...");
             mongo = new MongoClient();
         }
-
+        // TODO Find another solution - MongoClient is deprecated but needed for MongoJack.
         db = mongo.getDB(AnalysisServerConfig.databaseName);
-
         modifications = getTable("modifications", Modification.class);
         projects = getTable("projects", Project.class);
         bundles = getTable("bundles", Bundle.class);
@@ -64,11 +59,12 @@ public class Persistence {
         aggregationAreas = getTable("aggregationAreas", AggregationArea.class);
     }
 
-    /** connect to a table using MongoJack */
+    /** Connect to a Mongo table using MongoJack, which persists Java objects into Mongo. */
     private static <V extends Model> MongoMap<V> getTable (String name, Class clazz) {
         DBCollection collection = db.getCollection(name);
         ObjectMapper om = JsonUtil.getObjectMapper(JsonViews.Db.class, true);
         JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class, om);
         return new MongoMap<>(coll);
     }
+
 }

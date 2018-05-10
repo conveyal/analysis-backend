@@ -65,7 +65,7 @@ public class GraphQLController {
         List<GraphQLError> errs = er.getErrors();
         errs.addAll(context.getErrors());
         if (!errs.isEmpty()) {
-            throw AnalysisServerException.GraphQL(errs);
+            throw AnalysisServerException.graphQL(errs);
         }
 
         return er.getData();
@@ -156,7 +156,7 @@ public class GraphQLController {
         ExecutionContext context = (ExecutionContext) environment.getContext();
         return bundle.feeds.stream()
                 .map(summary -> {
-                    String bundleScopedFeedId = String.format("%s_%s", summary.feedId, bundle._id); // : summary.bundleScopedFeedId;
+                    String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
                     try {
                         FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
                         FeedInfo ret;
