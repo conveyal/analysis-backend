@@ -163,12 +163,11 @@
             <version>1.13</version>
         </dependency>
 
-        <!-- TODO reinstate seamless census support -->
-        <!--<dependency>-->
-            <!--<groupId>com.conveyal.data.census</groupId>-->
-            <!--<artifactId>seamless-census</artifactId>-->
-            <!--<version>1.0-20170720.160719-2</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>com.conveyal.data.census</groupId>
+            <artifactId>seamless-census</artifactId>
+            <version>1.0-20180514.201754-3</version>
+        </dependency>
 
         <dependency>
             <groupId>commons-fileupload</groupId>
