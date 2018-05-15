@@ -10,7 +10,7 @@ For now, the project is open source primarily to prevent vendor lock-in for our 
 
 Conveyal Analysis can be run locally (e.g. on your laptop) or on the cloud (e.g. on AWS), depending on the configuration set in analysis.properties.  To get started, copy the template configuration (`analysis.properties.tmp`) to `analysis.properties`.
 
-To run locally, use the default values in `analysis.properties`. `offline = true` will create a local instance that does not need cloud-based storage, database, or authentication services.  By default, analysis-backend will use the `scenario-editor` database in a local MongoDB instance, so you'll need to install and start a MongoDB instance.
+To run locally, use the default values in `analysis.properties`. `offline = true` will create a local instance that avoids cloud-based storage, database, or authentication services.  By default, analysis-backend will use the `analysis` database in a local MongoDB instance, so you'll need to install and start a MongoDB instance.
 
 To run on the cloud, we use Auth0 for authentication and S3 for storage; configure these services as needed, then set the corresponding variables including:
 
@@ -21,7 +21,7 @@ To run on the cloud, we use Auth0 for authentication and S3 for storage; configu
 - `grid_bucket`: S3 bucket for storing opportunity dataset grids
 - `results_bucket`: S3 bucket for storing regional analysis results
 
-You will need S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets in use, including the seamless census data bucket. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment to choose which AWS credentials profile will be used.
+You will need S3 credentials set up in your environment or in `~/.aws` for an identity that is allowed to access all the buckets above. If you have multiple profiles, you can use the `AWS_PROFILE` variable in the environment to choose which AWS credentials profile will be used.
 
 ## Building and running
 
