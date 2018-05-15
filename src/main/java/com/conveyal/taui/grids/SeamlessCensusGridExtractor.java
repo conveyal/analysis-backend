@@ -63,9 +63,6 @@ public class SeamlessCensusGridExtractor {
      */
     public static List<Region.OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
         long startTime = System.currentTimeMillis();
-
-        //It pulls in a huge number of SDK modules all of older versions.
-
         S3SeamlessSource source = new S3SeamlessSource(seamlessCensusBucket);
         Map<Long, GeobufFeature> features;
 
