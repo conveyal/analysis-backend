@@ -139,15 +139,17 @@ public class RegionController {
 
         // Set updatedBy
         region.updatedBy = req.attribute("email");
+        // And update the `nonce` and `updatedAt`
+        Persistence.regions.put(region);
 
         if (boundsChanged || customOSM) {
             region.statusCode = Region.StatusCode.STARTED;
-
+            Persistence.regions.put(region);
             // Fetch data and update the statuses separately
             fetchOsmAndCensusDataInThread(region._id, files, boundsChanged);
         }
 
-        return Persistence.regions.put(region);
+        return region;
     }
 
     public static Region deleteRegion (Request req, Response res) {
