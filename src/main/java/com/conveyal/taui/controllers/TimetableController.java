@@ -53,13 +53,19 @@ public class TimetableController {
                         modificationTimetables.add(JsonUtil.objectMapper.valueToTree(timetable));
                     }
                     m.put("timetables", modificationTimetables);
-                    projectModifications.add(m);
+                    if (modificationTimetables.size() > 0) {
+                        projectModifications.add(m);
+                    }
                 }
                 p.put("modifications", projectModifications);
-                regionProjects.add(p);
+                if (projectModifications.size() > 0) {
+                    regionProjects.add(p);
+                }
             }
             r.put("projects", regionProjects);
-            json.add(r);
+            if (regionProjects.size() > 0) {
+                json.add(r);
+            }
         }
 
         return json.toString();
