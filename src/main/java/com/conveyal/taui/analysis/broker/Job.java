@@ -38,7 +38,6 @@ public class Job {
     // On the other hand, working on tasks from the same geographic area might be more efficient because
     // they probably use all the same transit lines and roads, which will already be in cache.
     // So let's just keep track of where we're at in the sequence.
-
     private int nextTaskToDeliver;
 
     /* A unique identifier for this job, we use random UUIDs. */
@@ -46,10 +45,6 @@ public class Job {
 
     // This can be derived from other fields but is provided as a convenience.
     public final int nTasksTotal;
-
-//    // Each task will be checked off when it is delivered to a worker for processing.
-//    // It may need to be redelivered if the worker shuts down or otherwise fails and never returns a result.
-//    private final BitSet deliveredTasks;
 
     // Each task will be checked off when it a result is returned by the worker.
     // Once the worker has returned a result, the task will never be redelivered.
@@ -92,7 +87,7 @@ public class Job {
      */
     public final WorkerCategory workerCategory;
 
-    // The last time tasks were delivered to a worker, in milliseconds since the epoch.
+    // The last time a non-empty set of tasks was delivered to a worker, in milliseconds since the epoch.
     // Enables a quiet period after all tasks have been delivered, before we attempt any re-delivery.
     long lastDeliveryTime = 0;
 
@@ -140,13 +135,27 @@ public class Job {
             }
             nextTaskToDeliver += 1;
         }
-        this.lastDeliveryTime = System.currentTimeMillis();
+        if (!tasks.isEmpty()) {
+            this.lastDeliveryTime = System.currentTimeMillis();
+        }
         nTasksDelivered += tasks.size();
         return tasks;
     }
 
     public boolean hasTasksToDeliver() {
-        return nTasksCompleted < nTasksTotal && nextTaskToDeliver < nTasksTotal;
+        if (this.isComplete()) {
+            return false;
+        }
+        if (nextTaskToDeliver < nTasksTotal) {
+            return true;
+        }
+        // Check whether we should start redelivering tasks - this will be triggered by workers polling.
+        // The method that generates more tasks to deliver knows to skip already completed tasks.
+        if (System.currentTimeMillis() >= lastDeliveryTime + REDELIVERY_WAIT_MSEC) {
+            nextTaskToDeliver = 0;
+            return true;
+        }
+        return false;
     }
 
     /**
