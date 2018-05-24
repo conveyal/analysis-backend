@@ -2,7 +2,6 @@ package com.conveyal.taui.analysis.broker;
 
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +23,9 @@ public class Job {
 
     // TODO Reimplement re-delivery - jobs can get stuck with a few undelivered tasks if something happens to a worker.
 
-    public static final int REDELIVERY_WAIT_MSEC = 2 * 60 * 1000;
+    public static final int REDELIVERY_WAIT_SEC = 2 * 60;
 
-    public static final int MAX_REDELIVERIES = 2;
+    public static final int MAX_DELIVERY_PASSES = 5;
 
     // In order to provide realistic estimates of job processing time, we don't want to deliver the tasks to
     // workers in row-by-row geographic order, because spatial patterns exist in the world that make some areas
@@ -151,8 +150,15 @@ public class Job {
         }
         // Check whether we should start redelivering tasks - this will be triggered by workers polling.
         // The method that generates more tasks to deliver knows to skip already completed tasks.
-        if (System.currentTimeMillis() >= lastDeliveryTime + REDELIVERY_WAIT_MSEC) {
+        if (System.currentTimeMillis() >= lastDeliveryTime + (REDELIVERY_WAIT_SEC * 1000)) {
+            if (deliveryPass >= MAX_DELIVERY_PASSES) {
+                LOG.error("Job {} has been delivered {} times and it's still not finished. Not redelivering.", jobId, deliveryPass);
+                return false;
+            }
             nextTaskToDeliver = 0;
+            deliveryPass += 1;
+            LOG.warn("Delivered all tasks for job {}, but {} seconds later {} results have not been received. Starting redelivery pass {}.",
+                    jobId, REDELIVERY_WAIT_SEC, nTasksTotal - nTasksCompleted, deliveryPass);
             return true;
         }
         return false;
@@ -167,4 +173,13 @@ public class Job {
         }
     }
 
+    @Override
+    public String toString() {
+        return "Job{" +
+                "jobId='" + jobId + '\'' +
+                ", nTasksTotal=" + nTasksTotal +
+                ", nTasksCompleted=" + nTasksCompleted +
+                ", deliveryPass=" + deliveryPass +
+                '}';
+    }
 }
