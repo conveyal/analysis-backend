@@ -13,17 +13,16 @@ import java.util.Properties;
 /**
  * Start up all the components of an analyst cluster locally.
  */
-public class LocalCluster {
-
-    public List<Thread> workerThreads = new ArrayList<>();
+public abstract class LocalCluster {
 
     /**
      * This used to start up a separate broker thread. This is no longer necessary because the broker actions are
      * just performed in HTTP handler threads.
      * @param nWorkers cannot currently start more than 1 worker because the IDs are static, see AnalystWorker.machineId
      */
-    public LocalCluster(BaseGTFSCache gtfsCache, OSMCache osmCache, int nWorkers) {
+    public static List<Thread> start (BaseGTFSCache gtfsCache, OSMCache osmCache, int nWorkers) {
 
+        List<Thread> workerThreads = new ArrayList<>();
         Properties workerConfig = new Properties();
 
         // Do not auto-shutdown the local machine
@@ -35,6 +34,14 @@ public class LocalCluster {
         workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
         workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
 
+        if (AnalysisServerConfig.testTaskRedelivery) {
+            // When testing we want multiple workers,
+            // which will be set to not conflict with one another despite being on one machine.
+            nWorkers = 4;
+            // Tell the workers to return fake results, but fail part of the time.
+            workerConfig.setProperty("test-task-redelivery", "true");
+        }
+
         TransportNetworkCache transportNetworkCache = new TransportNetworkCache(gtfsCache, osmCache);
         for (int i = 0; i < nWorkers; i++) {
             AnalystWorker worker = new AnalystWorker(workerConfig, transportNetworkCache);
@@ -43,5 +50,6 @@ public class LocalCluster {
             workerThread.start();
         }
 
+        return workerThreads;
     }
 }

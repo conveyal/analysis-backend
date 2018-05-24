@@ -61,6 +61,9 @@ public abstract class AnalysisServerConfig {
     public static final String workerIamRole = getProperty("worker-iam-role", true);
     public static final InstanceType workerInstanceType = InstanceType.valueOf(getProperty("worker-type", true));
 
+    // For use in testing - setting this field will activate alternate code paths that cause intentional failures.
+    public static boolean testTaskRedelivery = false;
+
     private static String getProperty (String key, boolean require) {
         String value = config.getProperty(key);
         if (require && value == null) {
