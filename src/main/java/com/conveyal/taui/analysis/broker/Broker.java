@@ -12,6 +12,7 @@ import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
+import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
@@ -133,6 +134,7 @@ public class Broker {
      * Only a single task is passed in, which the broker will expand into all the individual tasks for a regional job.
      * We pass in the group and user only to tag any newly created workers. This should probably be done in the caller.
      * TODO push the creation of the TemplateTask down into this method, to avoid last two parameters?
+     * TODO make the tags a simple Map from String -> String here and for worker startup.
      */
     public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, String accessGroup, String createdBy) {
         LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
@@ -144,6 +146,10 @@ public class Broker {
         jobs.insertAtTail(job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
+        if (AnalysisServerConfig.testTaskRedelivery) {
+            // This is a fake job for testing, don't confuse the worker startup code below with null graph ID.
+            return;
+        }
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
             createWorkersInCategory(job.workerCategory, accessGroup, createdBy);
         } else {
@@ -403,4 +409,16 @@ public class Broker {
         }
     }
 
+    public boolean anyJobsActive () {
+        for (Job job : jobs) {
+            if (!job.isComplete()) return true;
+        }
+        return false;
+    }
+
+    public void logJobStatus() {
+        for (Job job : jobs) {
+            LOG.info(job.toString());
+        }
+    }
 }
