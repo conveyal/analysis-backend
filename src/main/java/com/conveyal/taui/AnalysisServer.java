@@ -110,9 +110,7 @@ public class AnalysisServer {
 //        httpService.redirect.any("/hi", "/hello");
 
         // TODO pass in non-static Analysis server config
-        Broker broker = new Broker();
-        RegionalAnalysisController.broker = broker;
-        new WorkerController(broker).register();
+        new WorkerController(RegionalAnalysisController.broker).register();
 
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
