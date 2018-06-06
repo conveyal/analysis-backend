@@ -54,9 +54,9 @@ compatible with the version of analysis-backend you are using.
 
 In order to do development on the frontend, backend, or on [R5](https://github.com/conveyal/r5), which we use for
 performing the analyses, you'll want a local development environment. We use [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-(free/community version is fine). First, clone the project with `git`, and add it as a project to IntelliJ. Do the same with
-R5; add it as another module _in the same IntelliJ project_. Using the Maven panel in INtelliJ, you can then substitute 
-your cloned copy of R5 for the version downloaded as a dependency via the analysis-backend `pom.xml`.  
+(free/community version is fine). We typically clone the project with `git`, then use the green plus button in the Maven
+panel of IntelliJ to add R5 as a Maven Project within the same IntelliJ project. Check to make sure that the version of 
+R5 matches the version specified in the analysis-backend `pom.xml`.  
 
 You can then create a run configuration for `com.conveyal.taui.AnalysisServer`, which is the main class. You will need to
 configure the options mentioned above.
