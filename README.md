@@ -46,7 +46,7 @@ Once you have configured `analysis.properties` and started mongo locally, build 
 start it with `java -Xmx2g -jar target/analysis.jar`
 
 You can then follow the instructions to get the [analysis-ui frontend](https://github.com/conveyal/analysis-ui) started 
-with `yarn start`. If you want to avoid starting the frontend yourself, you the default value of `frontend-url` will use 
+with `yarn start`. If you want to avoid starting the frontend yourself, the default value of `frontend-url` will use 
 a prebuilt copy of the frontend provided by Conveyal, but there are no guarantees this version of the frontend will be 
 compatible with the version of analysis-backend you are using. 
 
@@ -54,9 +54,9 @@ compatible with the version of analysis-backend you are using.
 
 In order to do development on the frontend, backend, or on [R5](https://github.com/conveyal/r5), which we use for
 performing the analyses, you'll want a local development environment. We use [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-(free/community version is fine). We typically clone the project with `git`, then use the green plus button in the Maven
-panel of IntelliJ to add R5 as a Maven Project within the same IntelliJ project. Check to make sure that the version of 
-R5 matches the version specified in the analysis-backend `pom.xml`.  
+(free/community version is fine) and add analysis-backend as a new project from existing sources. We also typically clone
+R5 with `git`, then use the green plus button in the Maven panel to add R5 as a Maven Project within the same IntelliJ project. 
+Check to make sure that the version of R5 matches the version specified in the analysis-backend `pom.xml`.  
 
 You can then create a run configuration for `com.conveyal.taui.AnalysisServer`, which is the main class. You will need to
 configure the options mentioned above.
