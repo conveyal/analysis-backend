@@ -42,7 +42,8 @@ public class RegionalAnalysisController {
     private static AmazonS3 s3 = new AmazonS3Client();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
-    public static Broker broker;
+    // FIXME hackish - all other components can use the broker via this public field.
+    public static final Broker broker = new Broker();
 
     public static Collection<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
         return Persistence.regionalAnalyses.findPermitted(

@@ -11,7 +11,7 @@ admin-access-group=OFFLINE
 # database-uri=mongodb://127.0.0.1:27017
 
 # The name of the database in the Mongo instance.
-database-name=scenario-editor
+database-name=analysis
 
 # The URL where the frontend is hosted.
 # In production this should point to a cached CDN for speed. e.g. https://d1uqjuy3laovxb.cloudfront.net
@@ -31,7 +31,6 @@ seamless-census-bucket=lodes-data-2014
 
 # When offline is true, authentication and other services are not used.
 # This is only partially true - regional results will still be saved on S3.
-# This is intended for local testing.
 offline=true
 
 # The AWS region in which the server is running, and in which you want to run worker machines.
@@ -67,8 +66,7 @@ worker-iam-role=arn:aws:iam::abcdef123456
 
 # Type of EC2 instance to start up, in AWS Java SDK enum format (first letter and letter after period capitalized).
 # e.g. R3Xlarge which has 16gb of memory and is not too costly. Additional CPU power doesn't buy us much.
-# TODO The version of the AWS SDK we currently use in R5 does not support r4.* instances, we should upgrade.
-worker-type=R3Xlarge
+worker-type=R4Xlarge
 
 # The AWS Cloudwatch log group for worker EC2 instances.
 # Each worker creates its own log stream within this log group at startup.

@@ -110,9 +110,7 @@ public class AnalysisServer {
 //        httpService.redirect.any("/hi", "/hello");
 
         // TODO pass in non-static Analysis server config
-        Broker broker = new Broker();
-        RegionalAnalysisController.broker = broker;
-        new WorkerController(broker).register();
+        new WorkerController(RegionalAnalysisController.broker).register();
 
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
@@ -154,11 +152,10 @@ public class AnalysisServer {
         if (AnalysisServerConfig.offline) {
             LOG.info("Running in OFFLINE mode...");
             FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCacheDirectory);
-
             LOG.info("Starting local cluster of Analysis workers...");
-            // TODO port is hardwired here and also in SinglePointAnalysisController
-            // You have to make the worker machineId non-static if you want to launch more than one worker.
-            LocalCluster localCluster = new LocalCluster(feedSourceCache, OSMPersistence.cache, 1);
+            // You have to make the worker machineId non-static if you want to launch more than one worker,
+            // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
+            LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
         } else {
             ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCacheDirectory);
         }
