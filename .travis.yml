@@ -1,5 +1,8 @@
 language: java
 
+# Install mongoDB to perform persistence tests
+services: mongodb
+
 jdk:
   - oraclejdk8
 
