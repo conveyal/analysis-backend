@@ -1,5 +1,11 @@
 package com.conveyal.taui;
 
+import com.conveyal.taui.models.AddTripPattern;
+import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.Region;
+import com.conveyal.taui.persistence.Persistence;
+import com.mongodb.MongoClient;
+import com.mongodb.client.MongoDatabase;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +14,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * A few tests of some basic routes of the server.
@@ -45,6 +53,12 @@ public class AnalysisServerTest {
             StandardCopyOption.REPLACE_EXISTING
         );
 
+        // drop the database to start fresh
+        LOG.info("dropping test database");
+        MongoClient mongoClient = new MongoClient();
+        MongoDatabase db = mongoClient.getDatabase(AnalysisServerConfig.databaseName);
+        db.drop();
+
         // Start a server using the configuration in the root of the project.
         String[] args = {};
         AnalysisServer.main(args);
@@ -58,6 +72,64 @@ public class AnalysisServerTest {
                 StandardCopyOption.REPLACE_EXISTING
             );
         }
+
+        // load database with some sample data
+        LOG.info("loading test database with sample data");
+        String accessGroup = "OFFLINE";
+
+        Region regionWithProjects = new Region();
+        regionWithProjects.accessGroup = accessGroup;
+        regionWithProjects.name = "test-region-with-projects";
+
+        Persistence.regions.create(regionWithProjects);
+
+        Region regionWithNoProjects = new Region();
+        regionWithNoProjects.accessGroup = accessGroup;
+        regionWithNoProjects.name = "test-region-with-no-projects";
+
+        Persistence.regions.create(regionWithNoProjects);
+
+        Project projectWithModications = new Project();
+        projectWithModications.accessGroup = accessGroup;
+        projectWithModications.name = "project-with-modifications";
+        projectWithModications.regionId = regionWithProjects._id;
+
+        Persistence.projects.create(projectWithModications);
+
+        Project projectWithNoModications = new Project();
+        projectWithNoModications.accessGroup = accessGroup;
+        projectWithNoModications.name = "project-with-no-modifications";
+        projectWithNoModications.regionId = regionWithProjects._id;
+
+        Persistence.projects.create(projectWithNoModications);
+
+        AddTripPattern modificationWithTimetables = new AddTripPattern();
+        modificationWithTimetables.accessGroup = accessGroup;
+        modificationWithTimetables.name = "modification-with-timetables";
+        modificationWithTimetables.projectId = projectWithModications._id;
+        AddTripPattern.Timetable timetable = new AddTripPattern.Timetable();
+        timetable.name = "weekday";
+        timetable.startTime = 12345;
+        timetable.endTime = 23456;
+        timetable.headwaySecs = 1234;
+        timetable.monday = true;
+        timetable.tuesday = true;
+        timetable.wednesday = true;
+        timetable.thursday = true;
+        timetable.friday = true;
+        timetable.saturday = false;
+        timetable.sunday = false;
+        modificationWithTimetables.timetables = Arrays.asList(timetable);
+
+        Persistence.modifications.create(modificationWithTimetables);
+
+        AddTripPattern modificationWithNoTimetables = new AddTripPattern();
+        modificationWithNoTimetables.accessGroup = accessGroup;
+        modificationWithNoTimetables.name = "modification-with-no-timetables";
+        modificationWithNoTimetables.projectId = projectWithModications._id;
+        modificationWithNoTimetables.timetables = new ArrayList<>();
+
+        Persistence.modifications.create(modificationWithNoTimetables);
 
         setUpIsDone = true;
     }
