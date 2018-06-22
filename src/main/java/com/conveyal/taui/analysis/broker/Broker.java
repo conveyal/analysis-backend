@@ -1,11 +1,16 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.regions.*;
 import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2Client;
-import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
+import com.amazonaws.services.ec2.model.ResourceType;
+import com.amazonaws.services.ec2.model.RunInstancesRequest;
+import com.amazonaws.services.ec2.model.RunInstancesResult;
+import com.amazonaws.services.ec2.model.ShutdownBehavior;
+import com.amazonaws.services.ec2.model.Tag;
+import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -13,19 +18,28 @@ import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
-import com.conveyal.taui.controllers.RegionalAnalysisController;
-import com.conveyal.taui.models.RegionalAnalysis;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+
 
 /**
  * This class distributes the tasks making up regional jobs to workers.
