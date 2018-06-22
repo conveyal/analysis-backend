@@ -5,6 +5,7 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -117,7 +118,7 @@ public class Broker {
 
         this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
-        ec2 = new AmazonEC2Client();
+        AmazonEC2ClientBuilder ec2Builder = AmazonEC2ClientBuilder.standard();
 
         // When running on an EC2 instance, default to the AWS region of that instance
         Region region = null;
@@ -125,8 +126,9 @@ public class Broker {
             region = Regions.getCurrentRegion();
         }
         if (region != null) {
-            ec2.setRegion(region);
+            ec2Builder.setRegion(region.getName());
         }
+        ec2 = ec2Builder.build();
     }
 
     /**
