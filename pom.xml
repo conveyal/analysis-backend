@@ -174,7 +174,7 @@
         <dependency>
             <groupId>com.conveyal.data.census</groupId>
             <artifactId>seamless-census</artifactId>
-            <version>1.0-20180514.201754-3</version>
+            <version>1.0-20180622.043101-4</version>
         </dependency>
 
         <dependency>
