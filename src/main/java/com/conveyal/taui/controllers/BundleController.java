@@ -1,7 +1,7 @@
 package com.conveyal.taui.controllers;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
@@ -40,7 +40,7 @@ import static spark.Spark.put;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     public static Bundle create (Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);

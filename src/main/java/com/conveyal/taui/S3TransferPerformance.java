@@ -1,7 +1,7 @@
 package com.conveyal.taui;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.TransferManager;
@@ -33,7 +33,7 @@ public class S3TransferPerformance {
 
     private static long beginTime;
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     private static final TransferManager s3TransferManager = TransferManagerBuilder.defaultTransferManager();
 

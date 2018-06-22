@@ -2,7 +2,7 @@ package com.conveyal.taui.controllers;
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.r5.analyst.Grid;
@@ -51,7 +51,7 @@ import static spark.Spark.post;
 public class AggregationAreaController {
     private static final Logger LOG = LoggerFactory.getLogger(AggregationAreaController.class);
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 

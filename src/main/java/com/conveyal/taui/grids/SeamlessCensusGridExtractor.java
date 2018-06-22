@@ -1,7 +1,7 @@
 package com.conveyal.taui.grids;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.r5.analyst.Grid;
@@ -40,7 +40,7 @@ public class SeamlessCensusGridExtractor {
     // The Web Mercator zoom level of the census data grids that will be created.
     public static final int ZOOM = 9;
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     /** Prepare an outputstream on S3, set up to gzip and upload whatever is uploaded in a thread. */
     private static OutputStream getOutputStream (String s3Key) throws IOException {
