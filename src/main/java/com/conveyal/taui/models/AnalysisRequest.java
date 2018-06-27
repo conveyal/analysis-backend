@@ -2,6 +2,7 @@ package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
 import com.conveyal.r5.analyst.scenario.Modification;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.api.util.LegMode;
@@ -64,6 +65,8 @@ public class AnalysisRequest {
     public Integer travelTimePercentile;
     // Save all results in a regional analysis to S3 for display in a "static site".
     public boolean makeStaticSite = false;
+    public int maxFare;
+    public InRoutingFareCalculator inRoutingFareCalculator;
 
     /**
      * Get all of the modifications for a project id that are in the Variant and map them to their corresponding r5 mod
@@ -107,9 +110,10 @@ public class AnalysisRequest {
         task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
-
         task.graphId = project.bundleId;
         task.workerVersion = workerVersion;
+        task.maxFare = this.maxFare;
+        task.inRoutingFareCalculator = this.inRoutingFareCalculator;
 
         Bounds bounds = this.bounds;
         if (bounds == null) {
