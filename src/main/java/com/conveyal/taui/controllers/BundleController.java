@@ -27,7 +27,6 @@ import spark.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static spark.Spark.delete;
 import static spark.Spark.get;
@@ -40,7 +39,11 @@ import static spark.Spark.put;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
+    private static final String awsRegion = AnalysisServerConfig.awsRegion;
+
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(awsRegion)
+            .build();
 
     public static Bundle create (Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
