@@ -141,6 +141,8 @@ public class Broker {
         }
         if (region != null) {
             ec2Builder.setRegion(region.getName());
+        } else {
+            ec2Builder.withRegion(AnalysisServerConfig.awsRegion);
         }
         ec2 = ec2Builder.build();
     }
