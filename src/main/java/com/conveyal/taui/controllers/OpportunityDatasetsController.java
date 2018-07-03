@@ -55,7 +55,12 @@ import static spark.Spark.post;
 public class OpportunityDatasetsController {
     private static final Logger LOG = LoggerFactory.getLogger(OpportunityDatasetsController.class);
 
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
+    private static final String awsRegion = AnalysisServerConfig.awsRegion;
+
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(awsRegion)
+            .build();
+
     private static final String BUCKET = AnalysisServerConfig.gridBucket;
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
