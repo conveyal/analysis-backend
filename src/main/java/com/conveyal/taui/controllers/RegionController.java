@@ -78,17 +78,14 @@ public class RegionController {
                     files.get("customOpenStreetMapData").get(0).write(customOsmData);
                     OSMPersistence.cache.put(region._id, customOsmData);
                     customOsmData.delete();
+                } else {
+                    region.statusCode = Region.StatusCode.ERROR;
+                    region.statusMessage = "An OSM network is required but was not uploaded.";
+                    Persistence.regions.put(region);
+                    //  return;
                 }
 
                 if (newBounds) {
-                    if (!customOsm) {
-                        // Set the region status
-                        region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
-                        Persistence.regions.put(region);
-
-                        // Retrieve and save the OSM for the region bounds at the given _id
-                        OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
-                    }
 
                     // Download census data
                     region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
