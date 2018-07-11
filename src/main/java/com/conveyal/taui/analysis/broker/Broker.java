@@ -126,6 +126,7 @@ public class Broker {
             workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
             workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
             workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
+            workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
             // Tell the workers to shut themselves down automatically when no longer busy.
             workerConfig.setProperty("auto-shutdown", "true");
         }
