@@ -106,7 +106,7 @@ public abstract class GridExporter {
 
         // not using S3Util.streamToS3 because we need to make sure the put completes before we return
         // the URL, as the client will go to it immediately.
-        s3.putObject(bucket, String.format("%s.%s",key, format), pis, om);
+        s3.putObject(bucket, key, pis, om);
     }
 
     /**

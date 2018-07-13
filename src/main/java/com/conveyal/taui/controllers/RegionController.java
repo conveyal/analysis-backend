@@ -93,7 +93,7 @@ public class RegionController {
                     // Download census data
                     region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
                     Persistence.regions.put(region); // save the status
-                    region.opportunityDatasets = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
+                    // TODO FIX region.opportunityDatasets = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
                 }
 
                 region.statusCode = Region.StatusCode.DONE;

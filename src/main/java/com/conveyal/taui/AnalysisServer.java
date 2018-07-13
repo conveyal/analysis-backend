@@ -4,13 +4,12 @@ import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
-import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
-import com.conveyal.taui.controllers.OpportunityDatasetsController;
+import com.conveyal.taui.controllers.OpportunityDatasetController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.ProjectController;
@@ -95,7 +94,7 @@ public class AnalysisServer {
         ProjectController.register();
         GraphQLController.register();
         BundleController.register();
-        OpportunityDatasetsController.register();
+        OpportunityDatasetController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
 

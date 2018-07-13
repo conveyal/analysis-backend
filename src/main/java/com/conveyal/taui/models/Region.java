@@ -54,8 +54,6 @@ public class Region extends Model implements Cloneable {
         return Persistence.aggregationAreas.getByProperty("regionId", _id);
     }
 
-    public List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
-
     public Region clone () {
         try {
             return (Region) super.clone();
@@ -63,18 +61,6 @@ public class Region extends Model implements Cloneable {
             // can't happen.
             throw AnalysisServerException.unknown(e);
         }
-    }
-
-    /** Represents an Opportunity Dataset */
-    public static class OpportunityDataset {
-        /** The human-readable name of the data source from which this came */
-        public String dataSource;
-
-        /** The human readable name of the dataset */
-        public String name;
-
-        /** The key on S3 */
-        public String key;
     }
 
     /** Represents the status of OSM and Census loading */

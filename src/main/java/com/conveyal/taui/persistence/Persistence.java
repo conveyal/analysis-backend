@@ -7,6 +7,7 @@ import com.conveyal.taui.models.JsonViews;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
+import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
@@ -37,6 +38,7 @@ public class Persistence {
     public static MongoMap<RegionalAnalysis> regionalAnalyses;
     public static MongoMap<Bookmark> bookmarks;
     public static MongoMap<AggregationArea> aggregationAreas;
+    public static MongoMap<OpportunityDataset> opportunityDatasets;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB...");
@@ -57,6 +59,7 @@ public class Persistence {
         regionalAnalyses = getTable("regional-analyses", RegionalAnalysis.class);
         bookmarks = getTable("bookmarks", Bookmark.class);
         aggregationAreas = getTable("aggregationAreas", AggregationArea.class);
+        opportunityDatasets = getTable("opportunityDatasets", OpportunityDataset.class);
     }
 
     /** Connect to a Mongo table using MongoJack, which persists Java objects into Mongo. */

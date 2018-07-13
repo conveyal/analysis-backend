@@ -7,6 +7,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.ThreadPool;
 import com.conveyal.taui.models.Bounds;
+import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Region;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +53,7 @@ public class SeamlessCensusGridExtractor {
     /**
      * Retrieve data for bounds and save to a bucket under a given key
      */
-    public static List<Region.OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
+    public static List<OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
         long startTime = System.currentTimeMillis();
 
 // FIXME temporarily disabled until we fix the AWS SDK dependencies in seamless-census project
