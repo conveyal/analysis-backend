@@ -11,10 +11,8 @@ import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.FastThreadPool;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
-import com.conveyal.taui.controllers.RegionalAnalysisController;
-import com.conveyal.taui.models.RegionalAnalysis;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -252,7 +250,7 @@ public class Broker {
                 new Tag("user", user)
         );
         // TODO check and log result of request.
-        FastThreadPool.run(() -> {
+        ExecutorServices.light.execute(() -> {
                     RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
         });
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
