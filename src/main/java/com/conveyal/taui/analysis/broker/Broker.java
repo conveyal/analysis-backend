@@ -13,13 +13,17 @@ import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -56,8 +60,7 @@ public class Broker {
 
     private static final Logger LOG = LoggerFactory.getLogger(Broker.class);
 
-    // TODO replace with Multimap
-    public final CircularList<Job> jobs = new CircularList<>();
+    public final ListMultimap<WorkerCategory, Job> jobs = MultimapBuilder.hashKeys().arrayListValues().build();
 
     /** The most tasks to deliver to a worker at a time. */
     public final int MAX_TASKS_PER_WORKER = 16;
@@ -142,7 +145,7 @@ public class Broker {
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
         Job job = new Job(templateTask);
-        jobs.insertAtTail(job);
+        jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (AnalysisServerConfig.testTaskRedelivery) {
@@ -264,14 +267,14 @@ public class Broker {
      */
     public synchronized List<RegionalTask> getSomeWork (WorkerCategory workerCategory) {
         Job job;
-        // FIXME use workOffline boolean instead of examining workerVersion
-        if (workerCategory.graphId == null || "UNKNOWN".equalsIgnoreCase(workerCategory.workerVersion)) {
-            // This worker has no loaded networks or no specified version, get tasks from the first job that has any.
-            // FIXME Note that this is ignoring worker version number! This is useful for debugging though.
-            job = jobs.advanceToElement(j -> j.hasTasksToDeliver());
+        if (AnalysisServerConfig.offline) {
+            // Working in offline mode; get tasks from the first job that has any tasks to deliver.
+            job = jobs.values().stream()
+                    .filter(j -> j.hasTasksToDeliver()).findFirst().orElse(null);
         } else {
             // This worker has a preferred network, get tasks from a job on that network.
-            job = jobs.advanceToElement(j -> j.workerCategory.equals(workerCategory) && j.hasTasksToDeliver());
+            job = jobs.get(workerCategory).stream()
+                    .filter(j -> j.hasTasksToDeliver()).findFirst().orElse(null);
         }
         if (job == null) {
             // No matching job was found.
@@ -302,19 +305,14 @@ public class Broker {
         // Once the last task is marked as completed, the job is finished. Purge it from the list to free memory.
         if (job.isComplete()) {
             job.verifyComplete();
-            jobs.remove(job);
+            jobs.remove(job.workerCategory, job);
         }
         return true;
     }
 
     /** Find the job for the given jobId, returning null if that job does not exist. */
     public Job findJob (String jobId) {
-        for (Job job : jobs) {
-            if (job.jobId.equals(jobId)) {
-                return job;
-            }
-        }
-        return null;
+        return jobs.values().stream().filter(job -> job.jobId.equals(jobId)).findFirst().orElse(null);
     }
 
     /**
@@ -324,7 +322,7 @@ public class Broker {
         // Remove the job from the broker so we stop distributing its tasks to workers.
         Job job = findJob(jobId);
         if (job == null) return false;
-        boolean success = jobs.remove(job);
+        boolean success = jobs.remove(job.workerCategory, job);
         // Shut down the object used for assembling results, removing its associated temporary disk file.
         // TODO just put the assembler in the Job object
         GridResultAssembler assembler = resultAssemblers.remove(jobId);
@@ -367,7 +365,7 @@ public class Broker {
      */
     public Collection<JobStatus> getJobSummary() {
         List<JobStatus> jobStatusList = new ArrayList<>();
-        for (Job job : this.jobs) {
+        for (Job job : this.jobs.values()) {
             jobStatusList.add(new JobStatus(job));
         }
         // Add a summary of all jobs to the list.
@@ -408,14 +406,14 @@ public class Broker {
     }
 
     public boolean anyJobsActive () {
-        for (Job job : jobs) {
+        for (Job job : jobs.values()) {
             if (!job.isComplete()) return true;
         }
         return false;
     }
 
     public void logJobStatus() {
-        for (Job job : jobs) {
+        for (Job job : jobs.values()) {
             LOG.info(job.toString());
         }
     }
