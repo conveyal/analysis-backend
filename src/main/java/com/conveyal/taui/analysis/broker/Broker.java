@@ -11,6 +11,7 @@ import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.FastThreadPool;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.models.RegionalAnalysis;
@@ -160,8 +161,6 @@ public class Broker {
 
     /**
      * Create workers for a given job, if need be.
-     * Whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
-     * FIXME FIXME FIXME! We should make this an asynchronous operation.
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
@@ -253,8 +252,9 @@ public class Broker {
                 new Tag("user", user)
         );
         // TODO check and log result of request.
-        RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
-
+        FastThreadPool.run(() -> {
+                    RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
+        });
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
         LOG.info("Requested {} workers for user {} of group {}", nWorkers, user, group);
