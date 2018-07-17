@@ -8,7 +8,7 @@ import com.conveyal.gtfs.api.models.FeedSource;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.ThreadPool;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -27,7 +27,6 @@ import spark.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static spark.Spark.delete;
 import static spark.Spark.get;
@@ -113,7 +112,7 @@ public class BundleController {
         }
 
         // process async
-        ThreadPool.run(() -> {
+        ExecutorServices.heavy.execute(() -> {
             try {
                 TDoubleList lats = new TDoubleArrayList();
                 TDoubleList lons = new TDoubleArrayList();

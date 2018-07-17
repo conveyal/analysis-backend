@@ -2,7 +2,7 @@ package com.conveyal.taui.controllers;
 
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.ThreadPool;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.OSMPersistence;
@@ -68,7 +68,7 @@ public class RegionController {
 
     public static void fetchOsmAndCensusDataInThread (String _id, Map<String, List<FileItem>> files, boolean newBounds) {
         boolean customOsm = files.containsKey("customOpenStreetMapData");
-        ThreadPool.run(() -> {
+        ExecutorServices.heavy.execute(() -> {
             final Region region = Persistence.regions.get(_id);
 
             try {
