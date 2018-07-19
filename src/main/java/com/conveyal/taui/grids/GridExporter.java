@@ -34,7 +34,7 @@ public abstract class GridExporter {
     private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     /** How long request URLs are good for */
-    public static final int REQUEST_TIMEOUT_MSEC = 15 * 1000;
+    public static final int REQUEST_TIMEOUT_MSEC = 300 * 1000;
 
     private static void haltWithIncorrectFormat (String format) {
         throw AnalysisServerException.badRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");

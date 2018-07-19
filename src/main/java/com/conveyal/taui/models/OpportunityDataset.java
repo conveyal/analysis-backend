@@ -29,6 +29,6 @@ public class OpportunityDataset extends Model {
         return String.format("%s/%s.%s", this.regionId, this.key == null ? this._id : this.key, format);
     }
 
-    /** Region this dataSet was uploaded in */
+    /** Region this dataset was uploaded in */
     public String regionId;
 }

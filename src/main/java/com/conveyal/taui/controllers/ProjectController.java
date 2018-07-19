@@ -39,11 +39,11 @@ public class ProjectController {
     }
 
     public static Project create(Request req, Response res) throws IOException {
-        return Persistence.projects.createFromJSONRequest(req, Project.class);
+        return Persistence.projects.createFromJSONRequest(req);
     }
 
     public static Project update(Request req, Response res) throws IOException {
-        return Persistence.projects.updateFromJSONRequest(req, Project.class);
+        return Persistence.projects.updateFromJSONRequest(req);
     }
 
     public static Collection<Modification> modifications (Request req, Response res) {

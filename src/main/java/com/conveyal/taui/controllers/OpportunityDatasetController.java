@@ -66,7 +66,7 @@ public class OpportunityDatasetController {
         );
     }
 
-    public static Collection<OpportunityDataset> getRegionDataSets(Request req, Response res) {
+    public static Collection<OpportunityDataset> getRegionDatasets(Request req, Response res) {
         return Persistence.opportunityDatasets.findPermitted(
                 QueryBuilder.start("regionId").is(req.params("regionId")).get(),
                 req.attribute("accessGroup")
@@ -74,13 +74,13 @@ public class OpportunityDatasetController {
     }
 
     public static Object getOpportunityDataset(Request req, Response res) {
-        OpportunityDataset dataSet = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
+        OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
 
         String redirectText = req.queryParams("redirect");
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, "grid");
 
         // TODO handle offline mode
-        return GridExporter.downloadFromS3(s3, dataSet.bucketName, dataSet.getKey("grid"), redirect, res);
+        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey("grid"), redirect, res);
     }
 
     public static List<OpportunityDatasetUploadStatus> getRegionUploadStatuses(Request req, Response res) {
@@ -160,25 +160,24 @@ public class OpportunityDatasetController {
                             }
                         }
 
-                        // Create new opportunity dataSet object
-                        OpportunityDataset dataSet = new OpportunityDataset();
-                        dataSet.bucketName = BUCKET;
-                        dataSet.sourceName = sourceName;
-                        dataSet.sourceId = sourceId;
-                        dataSet.name = entry.getKey();
-                        dataSet.createdBy = email;
-                        dataSet.accessGroup = accessGroup;
-                        dataSet.regionId = regionId;
-                        dataSet.north = grid.north;
-                        dataSet.west = grid.west;
-                        dataSet.width = grid.width;
-                        dataSet.height = grid.height;
-                        dataSet.totalOpportunities = totalOpportunities;
-                        Persistence.opportunityDatasets.create(dataSet);
+                        // Create new opportunity dataset object
+                        OpportunityDataset dataset = new OpportunityDataset();
+                        dataset.bucketName = BUCKET;
+                        dataset.sourceName = sourceName;
+                        dataset.sourceId = sourceId;
+                        dataset.name = entry.getKey();
+                        dataset.createdBy = email;
+                        dataset.accessGroup = accessGroup;
+                        dataset.regionId = regionId;
+                        dataset.north = grid.north;
+                        dataset.west = grid.west;
+                        dataset.width = grid.width;
+                        dataset.height = grid.height;
+                        dataset.totalOpportunities = totalOpportunities;
 
                         // Upload to S3
                         try {
-                            GridExporter.writeToS3(grid, s3, dataSet.bucketName, dataSet.getKey("grid"), "grid");
+                            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey("grid"), "grid");
                             status.uploadedGrids += 1;
                             if (status.uploadedGrids == status.totalGrids) {
                                 status.status = Status.DONE;
@@ -191,6 +190,8 @@ public class OpportunityDatasetController {
                             status.completed();
                             throw AnalysisServerException.unknown(e);
                         }
+
+                        Persistence.opportunityDatasets.create(dataset);
                     });
                 }
             } catch (Exception e) {
@@ -205,36 +206,51 @@ public class OpportunityDatasetController {
         return status;
     }
 
+    public static OpportunityDataset editOpportunityDataset(Request request, Response response) throws IOException {
+        return Persistence.opportunityDatasets.updateFromJSONRequest(request);
+    }
+
     public static Collection<OpportunityDataset> deleteSourceSet(Request request, Response response) {
         String sourceId = request.params("sourceId");
         String accessGroup = request.attribute("accessGroup");
-        Collection<OpportunityDataset> dataSets = Persistence.opportunityDatasets.findPermitted(
+        Collection<OpportunityDataset> datasets = Persistence.opportunityDatasets.findPermitted(
                 QueryBuilder.start("sourceId").is(sourceId).get(), accessGroup);
 
-        dataSets.forEach(dataSet -> deleteDataSet(dataSet._id, accessGroup));
+        datasets.forEach(dataset -> deleteDataset(dataset._id, accessGroup));
 
-        return dataSets;
+        return datasets;
     }
 
     public static OpportunityDataset deleteOpportunityDataset(Request request, Response response) {
-        String opportunityDataSetId = request.params("_id");
-        return deleteDataSet(opportunityDataSetId, request.attribute("accessGroup"));
+        String opportunityDatasetId = request.params("_id");
+        return deleteDataset(opportunityDatasetId, request.attribute("accessGroup"));
     }
 
-    private static OpportunityDataset deleteDataSet(String id, String accessGroup) {
-        OpportunityDataset dataSet = Persistence.opportunityDatasets.removeIfPermitted(id, accessGroup);
+    /**
+     * Delete an Opportunity Dataset from the database and all formats from S3
+     * @param id
+     * @param accessGroup
+     * @return
+     */
+    private static OpportunityDataset deleteDataset(String id, String accessGroup) {
+        OpportunityDataset dataset = Persistence.opportunityDatasets.removeIfPermitted(id, accessGroup);
 
-        if (dataSet == null) {
-            throw AnalysisServerException.notFound("Opportunity data set could not be found.");
+        if (dataset == null) {
+            throw AnalysisServerException.notFound("Opportunity dataset could not be found.");
         } else {
-            deleteFormatIfExists(dataSet.bucketName, dataSet.getKey("grid"));
-            deleteFormatIfExists(dataSet.bucketName, dataSet.getKey("png"));
-            deleteFormatIfExists(dataSet.bucketName, dataSet.getKey("tiff"));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey("grid"));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey("png"));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey("tiff"));
         }
 
-        return dataSet;
+        return dataset;
     }
 
+    /**
+     * Delete the OD grid format if it exists.
+     * @param bucketName
+     * @param key
+     */
     private static void deleteFormatIfExists (String bucketName, String key) {
         if (s3.doesObjectExist(bucketName, key)) {
             s3.deleteObject(bucketName, key);
@@ -325,32 +341,32 @@ public class OpportunityDatasetController {
     /**
      * Respond to a request with a redirect to a downloadable file.
      *
-     * @req should specify regionId, opportunityDataSetId, and an available download format (.tiff or .grid)
+     * @req should specify regionId, opportunityDatasetId, and an available download format (.tiff or .grid)
      *
      */
     private static Object downloadOpportunityDataset (Request req, Response res) throws IOException {
         final String format = req.params("format");
         if (format.equals("grid")) return getOpportunityDataset(req, res);
 
-        final OpportunityDataset opportunityDataSet = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
-        final String bucketName = opportunityDataSet.bucketName;
+        final OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
+        final String bucketName = opportunityDataset.bucketName;
 
         String redirectText = req.queryParams("redirect");
         boolean redirect = redirectText == null || "".equals(redirectText) || parseBoolean(redirectText);
 
-        if (!s3.doesObjectExist(bucketName, opportunityDataSet.getKey(format))) {
+        if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(format))) {
             // if this grid is not on S3 in the requested format, try to get the .grid format
-            if (!s3.doesObjectExist(bucketName, opportunityDataSet.getKey("grid"))) {
+            if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey("grid"))) {
                 throw AnalysisServerException.notFound("This grid does not exist.");
             }
 
             // get the grid and convert it to the requested format
-            S3Object s3Grid = s3.getObject(bucketName, opportunityDataSet.getKey("grid"));
+            S3Object s3Grid = s3.getObject(bucketName, opportunityDataset.getKey("grid"));
             InputStream rawInput = s3Grid.getObjectContent();
             Grid grid = Grid.read(new GZIPInputStream(rawInput));
-            GridExporter.writeToS3(grid, s3, bucketName, opportunityDataSet.getKey(format), format);
+            GridExporter.writeToS3(grid, s3, bucketName, opportunityDataset.getKey(format), format);
         }
-        return GridExporter.downloadFromS3(s3, bucketName, opportunityDataSet.getKey(format), redirect, res);
+        return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format), redirect, res);
     }
 
     private static class OpportunityDatasetUploadStatus {
@@ -387,10 +403,11 @@ public class OpportunityDatasetController {
             post("", OpportunityDatasetController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/region/:regionId/status", OpportunityDatasetController::getRegionUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
             delete("/region/:regionId/status/:statusId", OpportunityDatasetController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
-            get("/region/:regionId", OpportunityDatasetController::getRegionDataSets, JsonUtil.objectMapper::writeValueAsString);
+            get("/region/:regionId", OpportunityDatasetController::getRegionDatasets, JsonUtil.objectMapper::writeValueAsString);
             delete("/source/:sourceId", OpportunityDatasetController::deleteSourceSet, JsonUtil.objectMapper::writeValueAsString);
             delete("/:_id", OpportunityDatasetController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id", OpportunityDatasetController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            put("/:id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
         });
     }

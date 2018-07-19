@@ -180,7 +180,7 @@ public class BundleController {
     }
 
     public static Bundle update (Request req, Response res) throws IOException {
-        return Persistence.bundles.updateFromJSONRequest(req, Bundle.class);
+        return Persistence.bundles.updateFromJSONRequest(req);
     }
 
     public static Object getBundle (Request req, Response res) {

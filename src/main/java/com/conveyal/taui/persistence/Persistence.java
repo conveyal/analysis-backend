@@ -67,7 +67,7 @@ public class Persistence {
         DBCollection collection = db.getCollection(name);
         ObjectMapper om = JsonUtil.getObjectMapper(JsonViews.Db.class, true);
         JacksonDBCollection<V, String> coll = JacksonDBCollection.wrap(collection, clazz, String.class, om);
-        return new MongoMap<>(coll);
+        return new MongoMap<>(coll, clazz);
     }
 
 }
