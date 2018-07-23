@@ -42,7 +42,8 @@ public class AnalysisServerTest {
         // copy actual analysis.properties so we don't overwrite it
         if (analysisPropertiesFileExistedBeforeTesting) {
             LOG.info("moving existing analysis.properties file");
-            Files.move(Paths.get("analysis.properties"), Paths.get("analysis.properties.original"));
+            Files.move(Paths.get("analysis.properties"), Paths.get("analysis.properties.original"),
+                    StandardCopyOption.REPLACE_EXISTING);
         }
 
         // copy test version of analysis.properties to use in starting up server

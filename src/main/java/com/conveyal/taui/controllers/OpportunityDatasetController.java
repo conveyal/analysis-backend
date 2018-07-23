@@ -1,7 +1,7 @@
 package com.conveyal.taui.controllers;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.ExceptionUtils;
@@ -53,7 +53,12 @@ import static spark.Spark.put;
 public class OpportunityDatasetController {
     private static final Logger LOG = LoggerFactory.getLogger(OpportunityDatasetController.class);
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final String awsRegion = AnalysisServerConfig.awsRegion;
+
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(awsRegion)
+            .build();
+
     private static final String BUCKET = AnalysisServerConfig.gridBucket;
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();

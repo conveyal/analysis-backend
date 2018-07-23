@@ -153,13 +153,15 @@ public class AnalysisServer {
 
         if (AnalysisServerConfig.offline) {
             LOG.info("Running in OFFLINE mode...");
-            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCacheDirectory);
+            FeedSourceCache feedSourceCache = ApiMain.initialize(null, null, AnalysisServerConfig.localCacheDirectory);
             LOG.info("Starting local cluster of Analysis workers...");
             // You have to make the worker machineId non-static if you want to launch more than one worker,
             // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
             LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
         } else {
-            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCacheDirectory);
+            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
+                    null, AnalysisServerConfig
+                    .localCacheDirectory);
         }
 
         LOG.info("Conveyal Analysis server is ready.");

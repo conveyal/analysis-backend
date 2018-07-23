@@ -1,7 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.r5.analyst.cluster.BundleManifest;
@@ -46,7 +46,7 @@ public class Bundle extends Model implements Cloneable {
         return String.format("%s_%s", feedId, bundleId);
     }
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     public void writeManifestToCache () throws IOException {
         BundleManifest manifest = new BundleManifest();
