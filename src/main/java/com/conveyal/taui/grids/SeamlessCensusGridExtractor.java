@@ -6,7 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.ThreadPool;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.models.Bounds;
 import com.conveyal.taui.models.Region;
 import com.conveyal.data.census.S3SeamlessSource;
@@ -53,7 +53,7 @@ public class SeamlessCensusGridExtractor {
         PutObjectRequest request = new PutObjectRequest(gridBucket, s3Key, inputStream, metadata);
 
         // upload to s3 in a separate thread so that we don't deadlock
-        ThreadPool.run(() -> s3.putObject(request));
+        ExecutorServices.light.execute(() -> s3.putObject(request));
 
         return new GZIPOutputStream(outputStream);
     }
