@@ -55,7 +55,7 @@ server-address=10.0.0.123
 light-threads=3
 
 # Java threads for heavy operations
-heavy-threads=1
+heavy-threads=3
 
 # Max number of instances to start.
 # If there are more than this number running more instances will not be started.
