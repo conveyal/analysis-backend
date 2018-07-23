@@ -1,10 +1,16 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.regions.*;
 import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2Client;
-import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
+import com.amazonaws.services.ec2.model.ResourceType;
+import com.amazonaws.services.ec2.model.RunInstancesRequest;
+import com.amazonaws.services.ec2.model.RunInstancesResult;
+import com.amazonaws.services.ec2.model.ShutdownBehavior;
+import com.amazonaws.services.ec2.model.Tag;
+import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -27,7 +33,16 @@ import java.io.InputStream;
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+
 
 /**
  * This class distributes the tasks making up regional jobs to workers.
@@ -113,13 +128,14 @@ public class Broker {
             workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
             workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
             workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
+            workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
             // Tell the workers to shut themselves down automatically when no longer busy.
             workerConfig.setProperty("auto-shutdown", "true");
         }
 
         this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
-        ec2 = new AmazonEC2Client();
+        AmazonEC2ClientBuilder ec2Builder = AmazonEC2ClientBuilder.standard();
 
         // When running on an EC2 instance, default to the AWS region of that instance
         Region region = null;
@@ -127,8 +143,11 @@ public class Broker {
             region = Regions.getCurrentRegion();
         }
         if (region != null) {
-            ec2.setRegion(region);
+            ec2Builder.setRegion(region.getName());
+        } else {
+            ec2Builder.withRegion(AnalysisServerConfig.awsRegion);
         }
+        ec2 = ec2Builder.build();
     }
 
     /**

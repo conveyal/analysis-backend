@@ -51,7 +51,8 @@ public class AnalysisServerException extends RuntimeException {
     }
 
     public static AnalysisServerException nonce() {
-        return new AnalysisServerException(TYPE.NONCE, "The data you attempted to change is out of date and could not be updated.", 400);
+        return new AnalysisServerException(TYPE.NONCE, "The data you attempted to change is out of date and could not be " +
+                "updated. This project may be open by another user or in another browser tab.", 400);
     }
 
     public static AnalysisServerException notFound(String message) {
