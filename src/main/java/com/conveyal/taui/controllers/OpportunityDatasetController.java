@@ -10,6 +10,7 @@ import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.OpportunityDataset;
+import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.Jobs;
 import com.conveyal.taui.util.JsonUtil;
@@ -40,7 +41,11 @@ import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 import static java.lang.Boolean.parseBoolean;
-import static spark.Spark.*;
+import static spark.Spark.delete;
+import static spark.Spark.get;
+import static spark.Spark.path;
+import static spark.Spark.post;
+import static spark.Spark.put;
 
 /**
  * Controller that handles fetching grids.
@@ -94,6 +99,13 @@ public class OpportunityDatasetController {
     public static boolean clearStatus(Request req, Response res) {
         String statusId = req.params("statusId");
         return uploadStatuses.removeIf(s -> s.id.equals(statusId));
+    }
+
+    public static void downloadLODES(Request req, Response res) {
+        Region region = Persistence.regions.findByIdIfPermitted(req.params("regionId"), req.attribute("accessGroup"));
+
+        List<OpportunityDataset> ods = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds();
+        return;
     }
 
     /**
@@ -401,6 +413,7 @@ public class OpportunityDatasetController {
     public static void register() {
         path("/api/opportunities", () -> {
             post("", OpportunityDatasetController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            post("/region/:regionId/download", OpportunityDatasetController::downloadLODES, JsonUtil.objectMapper::writeValueAsString);
             get("/region/:regionId/status", OpportunityDatasetController::getRegionUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
             delete("/region/:regionId/status/:statusId", OpportunityDatasetController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
             get("/region/:regionId", OpportunityDatasetController::getRegionDatasets, JsonUtil.objectMapper::writeValueAsString);

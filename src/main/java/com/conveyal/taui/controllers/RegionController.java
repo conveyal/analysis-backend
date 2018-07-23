@@ -3,7 +3,6 @@ package com.conveyal.taui.controllers;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.ExecutorServices;
-import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
@@ -78,23 +77,14 @@ public class RegionController {
                     files.get("customOpenStreetMapData").get(0).write(customOsmData);
                     OSMPersistence.cache.put(region._id, customOsmData);
                     customOsmData.delete();
-                }
+                } else if (newBounds) {
+                    // Set the region status
+                    region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
+                    Persistence.regions.put(region);
 
-                if (newBounds) {
-                    if (!customOsm) {
-                        // Set the region status
-                        region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
-                        Persistence.regions.put(region);
-
-                        // Retrieve and save the OSM for the region bounds at the given _id
-                        OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
-                    }
-
-                    // Download census data
-                    region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
-                    Persistence.regions.put(region); // save the status
-                    // TODO FIX region.opportunityDatasets = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
-                }
+                    // Retrieve and save the OSM for the region bounds at the given _id
+                    OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
+                 }
 
                 region.statusCode = Region.StatusCode.DONE;
                 Persistence.regions.put(region);
