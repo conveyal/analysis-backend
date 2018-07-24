@@ -106,11 +106,83 @@ public class OpportunityDatasetController {
         return uploadStatuses.removeIf(s -> s.id.equals(statusId));
     }
 
-    public static void downloadLODES(Request req, Response res) {
-        Region region = Persistence.regions.findByIdIfPermitted(req.params("regionId"), req.attribute("accessGroup"));
+    public static List<OpportunityDataset> downloadLODES(Request req, Response res) throws IOException {
+        final String regionId = req.params("regionId");
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
+        Region region = Persistence.regions.findByIdIfPermitted(regionId, accessGroup);
 
-        List<OpportunityDataset> ods = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds();
-        return;
+        Map<String, Grid> grids = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds);
+        final String sourceName = AnalysisServerConfig.seamlessCensusBucket;
+
+        return createDatasetsFromGrids(email, accessGroup, sourceName, regionId, grids);
+    }
+
+    public static List<OpportunityDataset> createDatasetsFromGrids (String email, String accessGroup, String sourceName, String regionId, Map<String, Grid> grids) {
+        final String sourceId = UUID.randomUUID().toString();
+
+        OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, sourceId);
+        addStatusAndRemoveOldStatuses(status);
+
+        status.status = Status.UPLOADING;
+        status.totalGrids = grids.size();
+
+        List<OpportunityDataset> ods = new ArrayList<>();
+        grids.entrySet().forEach(e -> {
+            String name = e.getKey();
+            Grid grid = e.getValue();
+
+            String cleanedName = name
+                    .replaceAll(" ", "_")
+                    .replaceAll("[^a-zA-Z0-9_]", "");
+
+            OpportunityDataset dataset = new OpportunityDataset();
+            dataset.sourceName = sourceName;
+            dataset.sourceId = sourceId;
+            dataset.name = cleanedName;
+            dataset.createdBy = email;
+            dataset.accessGroup = accessGroup;
+            dataset.regionId = regionId;
+
+            ods.add(createOpportunityDatasetFromGrid(dataset, grid, status));
+        });
+
+        return ods;
+    }
+
+    public static OpportunityDataset createOpportunityDatasetFromGrid (OpportunityDataset dataset, Grid grid, OpportunityDatasetUploadStatus status) {
+        double totalOpportunities = 0;
+        for (int i = 0; i < grid.grid.length; i++) {
+            for (int j = 0; j < grid.grid[i].length; j++) {
+                totalOpportunities += grid.grid[i][j];
+            }
+        }
+
+        // Create new opportunity dataset object
+        dataset.bucketName = BUCKET;
+        dataset.north = grid.north;
+        dataset.west = grid.west;
+        dataset.width = grid.width;
+        dataset.height = grid.height;
+        dataset.totalOpportunities = totalOpportunities;
+
+        // Upload to S3
+        try {
+            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey("grid"), "grid");
+            status.uploadedGrids += 1;
+            if (status.uploadedGrids == status.totalGrids) {
+                status.status = Status.DONE;
+                status.completed();
+            }
+            LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
+        } catch (IOException e) {
+            status.status = Status.ERROR;
+            status.message = ExceptionUtils.asString(e);
+            status.completed();
+            throw AnalysisServerException.unknown(e);
+        }
+
+        return Persistence.opportunityDatasets.create(dataset);
     }
 
     /**
@@ -163,53 +235,8 @@ public class OpportunityDatasetController {
                     status.completed();
                     return null;
                 } else {
-                    status.status = Status.UPLOADING;
-                    status.totalGrids = grids.size();
                     LOG.info("Uploading opportunity dataset to S3");
-                    String sourceId = UUID.randomUUID().toString();
-                    grids.entrySet().forEach(entry -> {
-                        Grid grid = entry.getValue();
-
-                        double totalOpportunities = 0;
-                        for (int i = 0; i < grid.grid.length; i++) {
-                            for (int j = 0; j < grid.grid[i].length; j++) {
-                                totalOpportunities += grid.grid[i][j];
-                            }
-                        }
-
-                        // Create new opportunity dataset object
-                        OpportunityDataset dataset = new OpportunityDataset();
-                        dataset.bucketName = BUCKET;
-                        dataset.sourceName = sourceName;
-                        dataset.sourceId = sourceId;
-                        dataset.name = entry.getKey();
-                        dataset.createdBy = email;
-                        dataset.accessGroup = accessGroup;
-                        dataset.regionId = regionId;
-                        dataset.north = grid.north;
-                        dataset.west = grid.west;
-                        dataset.width = grid.width;
-                        dataset.height = grid.height;
-                        dataset.totalOpportunities = totalOpportunities;
-
-                        // Upload to S3
-                        try {
-                            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey("grid"), "grid");
-                            status.uploadedGrids += 1;
-                            if (status.uploadedGrids == status.totalGrids) {
-                                status.status = Status.DONE;
-                                status.completed();
-                            }
-                            LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
-                        } catch (IOException e) {
-                            status.status = Status.ERROR;
-                            status.message = ExceptionUtils.asString(e);
-                            status.completed();
-                            throw AnalysisServerException.unknown(e);
-                        }
-
-                        Persistence.opportunityDatasets.create(dataset);
-                    });
+                    createDatasetsFromGrids(accessGroup, email, sourceName, regionId, grids);
                 }
             } catch (Exception e) {
                 status.status = Status.ERROR;
