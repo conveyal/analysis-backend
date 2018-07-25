@@ -29,7 +29,7 @@ public class Region extends Model implements Cloneable {
     public StatusCode statusCode;
     public String statusMessage;
 
-    // don't persist to DB but do expose to API
+    /* don't persist to DB but do expose to API */
     @JsonView(JsonViews.Api.class)
     public List<Bundle> getBundles () {
         return Persistence.bundles

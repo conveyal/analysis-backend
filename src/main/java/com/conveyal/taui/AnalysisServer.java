@@ -78,7 +78,6 @@ public class AnalysisServer {
             res.type("application/json");
 
             if (AnalysisServerConfig.offline) {
-                // LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");

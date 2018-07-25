@@ -4,6 +4,7 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.util.WrappedURL;
@@ -11,10 +12,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Response;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.net.URL;
+import java.text.Normalizer;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,12 +33,16 @@ import static java.lang.Boolean.parseBoolean;
  */
 public abstract class GridExporter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(GridExporter.class);
-
-    private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
-
     /** How long request URLs are good for */
     public static final int REQUEST_TIMEOUT_MSEC = 300 * 1000;
+
+    public enum Format {
+        GRID, PNG, TIFF
+    }
+
+    public static Format format (String f) {
+        return Format.valueOf(f.toUpperCase());
+    }
 
     private static void haltWithIncorrectFormat (String format) {
         throw AnalysisServerException.badRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
@@ -48,10 +56,10 @@ public abstract class GridExporter {
      * @param format requested format
      * @return cleaned up version of redirectText
      */
-    public static boolean checkRedirectAndFormat(String redirectText, String format){
+    public static boolean checkRedirectAndFormat(String redirectText, Format format){
         // FIXME replace string matching with enum type
-        if (!"grid".equals(format) && !"png".equals(format) && !"tiff".equals(format)) {
-            haltWithIncorrectFormat(format);
+        if (!Format.GRID.equals(format) && !Format.PNG.equals(format) && !Format.TIFF.equals(format)) {
+            haltWithIncorrectFormat(format.toString());
         }
         boolean redirect;
         if (redirectText == null || "" .equals(redirectText)) {
@@ -72,41 +80,26 @@ public abstract class GridExporter {
      * @param format allowable formats include grid (Conveyal flat binary format), png, and tiff.
      * @throws IOException
      */
-    public static void writeToS3(Grid grid, AmazonS3 s3, String bucket, String key, String format) throws IOException {
-        PipedInputStream pis = new PipedInputStream();
-        PipedOutputStream pos = new PipedOutputStream(pis);
-
+    public static void writeToS3(Grid grid, AmazonS3 s3, String bucket, String key, Format format) throws IOException {
+        File s3file = File.createTempFile(key, null);
+        FileOutputStream fop = new FileOutputStream(s3file);
         ObjectMetadata om = new ObjectMetadata();
-        // FIXME replace string matching with enum type
-        if ("grid".equals(format)) {
+
+        if (Format.GRID.equals(format)) {
             om.setContentType("application/octet-stream");
             om.setContentEncoding("gzip");
-        } else if ("png".equals(format)) {
+            grid.write(new GZIPOutputStream(fop));
+        } else if (Format.PNG.equals(format)) {
             om.setContentType("image/png");
-        } else if ("tiff".equals(format)) {
+            grid.writePng(fop);
+        } else if (Format.TIFF.equals(format)) {
             om.setContentType("image/tiff");
+            grid.writeGeotiff(fop);
         }
-        
-        // We run the write task in an executor that runs it in a separate thread mostly because the S3 library requires
-        // an inputstream in putObject, and the geotiff writer library requires an outputstream, so we need to pipe
-        // between threads.
-        executorService.execute(() -> {
-            try {
-                if ("grid".equals(format)) {
-                    grid.write(new GZIPOutputStream(pos));
-                } else if ("png".equals(format)) {
-                    grid.writePng(pos);
-                } else if ("tiff".equals(format)) {
-                    grid.writeGeotiff(pos);
-                }
-            } catch (IOException e) {
-                LOG.info("Error writing percentile to S3", e);
-            }
-        });
 
-        // not using S3Util.streamToS3 because we need to make sure the put completes before we return
-        // the URL, as the client will go to it immediately.
-        s3.putObject(bucket, key, pis, om);
+        PutObjectRequest por = new PutObjectRequest(bucket, key, s3file).withMetadata(om);
+        s3.putObject(por);
+        s3file.delete();
     }
 
     /**

@@ -7,12 +7,12 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.Persistence;
-import com.conveyal.taui.util.Jobs;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.Files;
 import com.mongodb.QueryBuilder;
@@ -20,6 +20,7 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -36,7 +37,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
@@ -53,10 +53,8 @@ import static spark.Spark.put;
 public class OpportunityDatasetController {
     private static final Logger LOG = LoggerFactory.getLogger(OpportunityDatasetController.class);
 
-    private static final String awsRegion = AnalysisServerConfig.awsRegion;
-
     private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-            .withRegion(awsRegion)
+            .withRegion(AnalysisServerConfig.awsRegion)
             .build();
 
     private static final String BUCKET = AnalysisServerConfig.gridBucket;
@@ -87,10 +85,10 @@ public class OpportunityDatasetController {
         OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
 
         String redirectText = req.queryParams("redirect");
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, "grid");
+        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
 
         // TODO handle offline mode
-        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey("grid"), redirect, res);
+        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID), redirect, res);
     }
 
     public static List<OpportunityDatasetUploadStatus> getRegionUploadStatuses(Request req, Response res) {
@@ -106,23 +104,35 @@ public class OpportunityDatasetController {
         return uploadStatuses.removeIf(s -> s.id.equals(statusId));
     }
 
-    public static List<OpportunityDataset> downloadLODES(Request req, Response res) throws IOException {
+    public static OpportunityDatasetUploadStatus downloadLODES(Request req, Response res) throws IOException {
         final String regionId = req.params("regionId");
         final String accessGroup = req.attribute("accessGroup");
         final String email = req.attribute("email");
-        Region region = Persistence.regions.findByIdIfPermitted(regionId, accessGroup);
+        final Region region = Persistence.regions.findByIdIfPermitted(regionId, accessGroup);
 
-        Map<String, Grid> grids = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds);
-        final String sourceName = AnalysisServerConfig.seamlessCensusBucket;
+        final OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, AnalysisServerConfig.seamlessCensusBucket);
+        addStatusAndRemoveOldStatuses(status);
 
-        return createDatasetsFromGrids(email, accessGroup, sourceName, regionId, grids);
+        ExecutorServices.heavy.execute(() -> {
+            try {
+                status.message = "Extracting census data for region";
+                Map<String, Grid> grids = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds);
+
+                createDatasetsFromGrids(email, accessGroup, AnalysisServerConfig.seamlessCensusBucket,
+                        regionId, status, grids);
+            } catch (IOException e) {
+                status.status = Status.ERROR;
+                status.message = ExceptionUtils.asString(e);
+                status.completed();
+                throw AnalysisServerException.unknown(e);
+            }
+        });
+
+        return status;
     }
 
-    public static List<OpportunityDataset> createDatasetsFromGrids (String email, String accessGroup, String sourceName, String regionId, Map<String, Grid> grids) {
-        final String sourceId = UUID.randomUUID().toString();
-
-        OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, sourceId);
-        addStatusAndRemoveOldStatuses(status);
+    public static List<OpportunityDataset> createDatasetsFromGrids (String email, String accessGroup, String sourceName, String regionId, OpportunityDatasetUploadStatus status, Map<String, Grid> grids) {
+        final String sourceId = new ObjectId().toString();
 
         status.status = Status.UPLOADING;
         status.totalGrids = grids.size();
@@ -132,14 +142,10 @@ public class OpportunityDatasetController {
             String name = e.getKey();
             Grid grid = e.getValue();
 
-            String cleanedName = name
-                    .replaceAll(" ", "_")
-                    .replaceAll("[^a-zA-Z0-9_]", "");
-
             OpportunityDataset dataset = new OpportunityDataset();
             dataset.sourceName = sourceName;
             dataset.sourceId = sourceId;
-            dataset.name = cleanedName;
+            dataset.name = name;
             dataset.createdBy = email;
             dataset.accessGroup = accessGroup;
             dataset.regionId = regionId;
@@ -166,9 +172,13 @@ public class OpportunityDatasetController {
         dataset.height = grid.height;
         dataset.totalOpportunities = totalOpportunities;
 
+        // Store in the database
+        Persistence.opportunityDatasets.create(dataset);
+
         // Upload to S3
         try {
-            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey("grid"), "grid");
+            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID), GridExporter.Format.GRID);
+
             status.uploadedGrids += 1;
             if (status.uploadedGrids == status.totalGrids) {
                 status.status = Status.DONE;
@@ -182,7 +192,7 @@ public class OpportunityDatasetController {
             throw AnalysisServerException.unknown(e);
         }
 
-        return Persistence.opportunityDatasets.create(dataset);
+        return dataset;
     }
 
     /**
@@ -208,7 +218,7 @@ public class OpportunityDatasetController {
         OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, sourceName);
         addStatusAndRemoveOldStatuses(status);
 
-        Jobs.service.submit(() -> {
+        ExecutorServices.heavy.execute(() -> {
             try {
                 Map<String, Grid> grids = null;
 
@@ -233,18 +243,15 @@ public class OpportunityDatasetController {
                     status.status = Status.ERROR;
                     status.message = "Unable to create opportunity dataset from the files uploaded.";
                     status.completed();
-                    return null;
                 } else {
                     LOG.info("Uploading opportunity dataset to S3");
-                    createDatasetsFromGrids(accessGroup, email, sourceName, regionId, grids);
+                    createDatasetsFromGrids(accessGroup, email, sourceName, regionId, status, grids);
                 }
             } catch (Exception e) {
                 status.status = Status.ERROR;
                 status.message = ExceptionUtils.asString(e);
                 status.completed();
             }
-
-            return null;
         });
 
         return status;
@@ -282,9 +289,9 @@ public class OpportunityDatasetController {
         if (dataset == null) {
             throw AnalysisServerException.notFound("Opportunity dataset could not be found.");
         } else {
-            deleteFormatIfExists(dataset.bucketName, dataset.getKey("grid"));
-            deleteFormatIfExists(dataset.bucketName, dataset.getKey("png"));
-            deleteFormatIfExists(dataset.bucketName, dataset.getKey("tiff"));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey(GridExporter.Format.GRID));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey(GridExporter.Format.PNG));
+            deleteFormatIfExists(dataset.bucketName, dataset.getKey(GridExporter.Format.TIFF));
         }
 
         return dataset;
@@ -389,31 +396,32 @@ public class OpportunityDatasetController {
      *
      */
     private static Object downloadOpportunityDataset (Request req, Response res) throws IOException {
-        final String format = req.params("format");
-        if (format.equals("grid")) return getOpportunityDataset(req, res);
+        final GridExporter.Format format = GridExporter.Format.valueOf(req.params("format").toUpperCase());
+        if (format.equals(GridExporter.Format.GRID)) return getOpportunityDataset(req, res);
 
         final OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
         final String bucketName = opportunityDataset.bucketName;
+
+        // if this grid is not on S3 in the requested format, try to get the .grid format
+        if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID))) {
+            throw AnalysisServerException.notFound("This grid does not exist.");
+        }
 
         String redirectText = req.queryParams("redirect");
         boolean redirect = redirectText == null || "".equals(redirectText) || parseBoolean(redirectText);
 
         if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(format))) {
-            // if this grid is not on S3 in the requested format, try to get the .grid format
-            if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey("grid"))) {
-                throw AnalysisServerException.notFound("This grid does not exist.");
-            }
-
             // get the grid and convert it to the requested format
-            S3Object s3Grid = s3.getObject(bucketName, opportunityDataset.getKey("grid"));
+            S3Object s3Grid = s3.getObject(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID));
             InputStream rawInput = s3Grid.getObjectContent();
             Grid grid = Grid.read(new GZIPInputStream(rawInput));
             GridExporter.writeToS3(grid, s3, bucketName, opportunityDataset.getKey(format), format);
         }
+
         return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format), redirect, res);
     }
 
-    private static class OpportunityDatasetUploadStatus {
+    public static class OpportunityDatasetUploadStatus {
         public String id;
         public int totalFeatures = 0;
         public int completedFeatures = 0;
@@ -427,7 +435,7 @@ public class OpportunityDatasetController {
         public Date completedAt;
 
         public OpportunityDatasetUploadStatus(String regionId, String name) {
-            this.id = UUID.randomUUID().toString();
+            this.id = new ObjectId().toString();
             this.regionId = regionId;
             this.name = name;
             this.createdAt = new Date();

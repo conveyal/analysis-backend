@@ -86,13 +86,14 @@ public class RegionalAnalysisController {
         String regionalAnalysisId = req.params("_id");
         Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
         // The response file format: PNG, TIFF, or GRID
-        String format = req.params("format").toLowerCase();
+        final String formatString = req.params("format");
+        GridExporter.Format format = GridExporter.format(formatString);
         String redirectText = req.queryParams("redirect");
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
         // Accessibility given X percentile travel time.
         // No need to record what the percentile is, that is currently fixed by the regional analysis.
-        final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, format);
+        final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
         if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
             // The grid has not been built yet, make it.
@@ -116,12 +117,13 @@ public class RegionalAnalysisController {
         String regionalAnalysisId = req.params("_id");
         String comparisonId = req.params("comparisonId");
         String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
-        String format = req.params("format").toLowerCase();
+        final String formatString = req.params("format");
+        GridExporter.Format format = GridExporter.format(req.params("format"));
         String redirectText = req.queryParams("redirect");
 
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
-        String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, format);
+        String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, formatString);
 
         if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", regionalAnalysisId, comparisonId);
