@@ -21,6 +21,6 @@ public class BookmarkController {
     }
 
     public static Bookmark createBookmark (Request request, Response response) throws IOException {
-        return Persistence.bookmarks.createFromJSONRequest(request, Bookmark.class);
+        return Persistence.bookmarks.createFromJSONRequest(request);
     }
 }

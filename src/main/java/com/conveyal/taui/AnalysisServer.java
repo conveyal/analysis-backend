@@ -10,7 +10,7 @@ import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
-import com.conveyal.taui.controllers.OpportunityDatasetsController;
+import com.conveyal.taui.controllers.OpportunityDatasetController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
@@ -78,7 +78,6 @@ public class AnalysisServer {
             res.type("application/json");
 
             if (AnalysisServerConfig.offline) {
-                // LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
@@ -96,7 +95,7 @@ public class AnalysisServer {
         ProjectController.register();
         GraphQLController.register();
         BundleController.register();
-        OpportunityDatasetsController.register();
+        OpportunityDatasetController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
         TimetableController.register();

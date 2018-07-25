@@ -47,6 +47,7 @@ public abstract class AnalysisServerConfig {
     public static final boolean offline = Boolean.parseBoolean(getProperty("offline", true));
     public static final String vexUrl = getProperty("vex-url", true);
     public static final String seamlessCensusBucket = getProperty("seamless-census-bucket", true);
+    public static final String seamlessCensusRegion = getProperty("seamless-census-region", true);
     public static final String gridBucket = getProperty("grid-bucket", true);
     public static final String resultsBucket = getProperty("results-bucket", true);
     public static final String awsRegion = getProperty("aws-region", true);

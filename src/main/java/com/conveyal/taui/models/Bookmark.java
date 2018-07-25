@@ -12,5 +12,5 @@ public class Bookmark extends Model {
     public int isochroneCutoff;
 
     /** The destination grid */
-    public String opportunityDataset;
+    public String opportunityDataset; // TODO update bookmarks
 }
