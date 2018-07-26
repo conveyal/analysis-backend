@@ -1,22 +1,22 @@
 package com.conveyal.taui.grids;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.conveyal.data.census.SeamlessSource;
+import com.conveyal.data.geobuf.GeobufFeature;
+import com.conveyal.r5.analyst.Grid;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.ThreadPool;
+import com.conveyal.taui.controllers.OpportunityDatasetController;
 import com.conveyal.taui.models.Bounds;
-import com.conveyal.taui.models.Region;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
+import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
-import java.util.zip.GZIPOutputStream;
+import java.util.Map;
 
 /**
  * Fetch data from the seamless-census s3 buckets and convert it from block-level vector data (polygons)
@@ -25,127 +25,65 @@ import java.util.zip.GZIPOutputStream;
 public class SeamlessCensusGridExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(SeamlessCensusGridExtractor.class);
 
-    private static final String gridBucket = AnalysisServerConfig.gridBucket;
-    private static final String seamlessCensusBucket = AnalysisServerConfig.seamlessCensusBucket;
-
     // The Web Mercator zoom level of the census data grids that will be created.
     public static final int ZOOM = 9;
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(AnalysisServerConfig.seamlessCensusRegion)
+            .build();
 
-    /** Prepare an outputstream on S3, set up to gzip and upload whatever is uploaded in a thread. */
-    private static OutputStream getOutputStream (String s3Key) throws IOException {
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType("application/octet-stream");
-        metadata.setContentEncoding("gzip");
-        PutObjectRequest request = new PutObjectRequest(gridBucket, s3Key, inputStream, metadata);
-
-        // upload to s3 in a separate thread so that we don't deadlock
-        ThreadPool.run(() -> s3.putObject(request));
-
-        return new GZIPOutputStream(outputStream);
+    private static class S3SeamlessSource extends SeamlessSource {
+        protected InputStream getInputStream(int x, int y) {
+            String key = String.format("%d/%d.pbf.gz", x, y);
+            GetObjectRequest req = new GetObjectRequest(AnalysisServerConfig.seamlessCensusBucket, key);
+            req.setRequesterPays(true);
+            return s3.getObject(req).getObjectContent();
+        }
     }
+
+    private static SeamlessSource source = new S3SeamlessSource();
 
     /**
      * Retrieve data for bounds and save to a bucket under a given key
      */
-    public static List<Region.OpportunityDataset> retrieveAndExtractCensusDataForBounds (Bounds bounds, String s3Key) throws IOException {
+    public static Map<String, Grid> retrieveAndExtractCensusDataForBounds (Bounds bounds) throws IOException {
         long startTime = System.currentTimeMillis();
 
-// FIXME temporarily disabled until we fix the AWS SDK dependencies in seamless-census project
-// It pulls in a huge number of SDK modules all of older versions.
-//
-//        S3SeamlessSource source = new S3SeamlessSource(seamlessCensusBucket);
-//        Map<Long, GeobufFeature> features;
-//
-//        // All the features are buffered in a Map in memory. This could be problematic on large areas.
-//        features = source.extract(bounds.north, bounds.east, bounds.south, bounds.west, false);
-//
-//        if (features.isEmpty()) {
-//            LOG.info("No seamless census data found here, not pre-populating grids");
-//            return Collections.emptyList();
-//        }
-//
-//        // One string naming each attribute (column) in the incoming census data.
-//        Set<String> attributes = new HashSet<>();
-//
-//        for (GeobufFeature feature : features.values()) {
-//            feature.properties.entrySet()
-//                    .stream()
-//                    .filter(e -> e.getValue() instanceof Number)
-//                    .forEach(e -> attributes.add(e.getKey()));
-//        }
-//
-//        // Make an empty grid for each attribute of the source census data.
-//        Map<String, Grid> gridForAttribute = attributes
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        k -> k,
-//                        k -> new Grid(ZOOM, bounds.north, bounds.east, bounds.south, bounds.west)));
-//
-//        // Features are unique because they've been put in a map keyed on feature ID.
-//        // Loop over the features only once here, burning each attribute of the feature into the corresponding grid.
-//        // We previously looped over features multiple times, once for each attribute, but that was very slow.
-//        int featIdx = 0;
-//        for (GeobufFeature feature : features.values()) {
-//            if (++featIdx % 1000 == 0) LOG.info("{} / {} features read", featIdx, features.size());
-//
-//            List weights = null;
-//
-//            for (String attribute : attributes) {
-//
-//                Number value = (Number) feature.properties.get(attribute);
-//                if (value == null) continue;
-//
-//                Grid grid = gridForAttribute.get(attribute);
-//
-//                // grids for each attribute are identical in size, do geographic math once and cache for whole feature
-//                if (weights == null) {
-//                    weights = grid.getPixelWeights(feature.geometry);
-//                }
-//
-//                grid.incrementFromPixelWeights(weights, value.doubleValue());
-//            }
-//        }
-//
-//        // Write all the resulting grids out to gzipped objects on S3, and make a list of model objects for them.
-//        List<Region.OpportunityDataset> opportunityDatasets = new ArrayList<>();
-//        for (Map.Entry<String, Grid> entry : gridForAttribute.entrySet()) {
-//            String attribute = entry.getKey();
-//            Grid grid = entry.getValue();
-//
-//            String cleanedAttributeName = attribute
-//                    .replaceAll(" ", "_")
-//                    .replaceAll("[^a-zA-Z0-9_]", "");
-//
-//            // First write out the grid itself to an object on S3.
-//            String outKey = String.format("%s/%s.grid", s3Key, cleanedAttributeName);
-//            OutputStream os = getOutputStream(outKey);
-//            grid.write(os);
-//            os.close();
-//            // Also write out a PNG as a preview of the grid's contents.
-//            // TODO remove this once debugging not necessary.
-//            String outPng = String.format("%s/%s.png", s3Key, cleanedAttributeName);
-//            os = getOutputStream(outPng);
-//            grid.writePng(os);
-//            os.close();
-//
-//            // Create an object representing this new destination density grid in the Analysis backend internal model.
-//            Region.OpportunityDataset opportunityDataset = new Region.OpportunityDataset();
-//            opportunityDataset.dataSource = seamlessCensusBucket;
-//            opportunityDataset.name = attribute;
-//            opportunityDataset.key = cleanedAttributeName;
-//            opportunityDatasets.add(opportunityDataset);
-//        }
-//
-//        long endTime = System.currentTimeMillis();
-//        LOG.info("Extracting Census data took {} seconds", (endTime - startTime) / 1000);
-//
-//        // Return an internal model object for each census grid that was created.
-//        return opportunityDatasets;
-        return null;
+        // All the features are buffered in a Map in memory. This could be problematic on large areas.
+        Map<Long, GeobufFeature> features = source.extract(bounds.north, bounds.east, bounds.south, bounds.west, false);
+
+        if (features.isEmpty()) {
+            LOG.info("No seamless census data found here, not pre-populating grids");
+            return new HashMap<>();
+        }
+
+        // One string naming each attribute (column) in the incoming census data.
+        Map<String, Grid> grids = new HashMap<>();
+        features.values().stream().forEach(feature -> {
+            List weights = null;
+            // Iterate over all of the features
+            for (Map.Entry<String, Object> e : feature.properties.entrySet()) {
+                if (!(e.getValue() instanceof Number)) continue;
+                Number value = (Number) e.getValue();
+                String key = e.getKey();
+
+                Grid grid = grids.get(key);
+                if (grid == null) {
+                    grid = new Grid(ZOOM, bounds.north, bounds.east, bounds.south, bounds.west);
+                    grids.put(key, grid);
+                }
+
+                if (weights == null) {
+                    weights = grid.getPixelWeights(feature.geometry);
+                }
+
+                grid.incrementFromPixelWeights(weights, value.doubleValue());
+            }
+        });
+
+        long endTime = System.currentTimeMillis();
+        LOG.info("Extracting Census data took {} seconds", (endTime - startTime) / 1000);
+
+        return grids;
     }
 }

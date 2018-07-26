@@ -94,6 +94,11 @@
             <name>Conveyal</name>
             <url>https://maven.conveyal.com</url>
         </repository>
+        <!--  used for importing java projects from github -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -148,27 +153,34 @@
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>r5</artifactId>
-            <version>4.1.0</version>
+            <version>4.2.0</version>
         </dependency>
 
         <dependency>
             <groupId>com.conveyal</groupId>
             <artifactId>gtfs-api</artifactId>
-            <version>3.1.3</version>
+            <version>3.1.5</version>
         </dependency>
 
+        <!--We pull this in transitively (e.g. via r5/gtfs-lib, but an incompatible version in seamless-census is
+        shallower, which causes problems unless we explicitly depend on a the right version here -->
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>1.0.8</version>
+        </dependency>
+        
         <dependency>
             <groupId>com.vividsolutions</groupId>
             <artifactId>jts</artifactId>
             <version>1.13</version>
         </dependency>
 
-        <!-- TODO reinstate seamless census support -->
-        <!--<dependency>-->
-            <!--<groupId>com.conveyal.data.census</groupId>-->
-            <!--<artifactId>seamless-census</artifactId>-->
-            <!--<version>1.0-20170720.160719-2</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>com.conveyal.data.census</groupId>
+            <artifactId>seamless-census</artifactId>
+            <version>1.0-20180622.043101-4</version>
+        </dependency>
 
         <dependency>
             <groupId>commons-fileupload</groupId>
@@ -198,7 +210,7 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-ec2</artifactId>
-            <version>1.11.282</version>
+            <version>1.11.341</version>
         </dependency>
 
         <!-- Rest Assured is an assertion library that makes testing web APIs easy. -->
@@ -224,5 +236,11 @@
             <version>2.0.0.0</version>
         </dependency>
 
+        <!-- Snapshotting library for testing -->
+        <dependency>
+            <groupId>com.github.Zenika</groupId>
+            <artifactId>java-snapshot-matcher</artifactId>
+            <version>7e6ed4049eb637334e56f84bdd23ea74da05f141</version>
+        </dependency>
     </dependencies>
 </project>

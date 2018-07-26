@@ -4,16 +4,17 @@ import com.auth0.jwt.JWTVerifier;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
-import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.LocalCluster;
+import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
-import com.conveyal.taui.controllers.OpportunityDatasetsController;
+import com.conveyal.taui.controllers.OpportunityDatasetController;
+import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
-import com.conveyal.taui.controllers.ProjectController;
+import com.conveyal.taui.controllers.TimetableController;
 import com.conveyal.taui.controllers.WorkerController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
@@ -77,7 +78,6 @@ public class AnalysisServer {
             res.type("application/json");
 
             if (AnalysisServerConfig.offline) {
-                // LOG.warn("No Auth0 credentials were supplied, setting accessGroup and email to placeholder defaults");
                 // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
@@ -95,9 +95,10 @@ public class AnalysisServer {
         ProjectController.register();
         GraphQLController.register();
         BundleController.register();
-        OpportunityDatasetsController.register();
+        OpportunityDatasetController.register();
         RegionalAnalysisController.register();
         AggregationAreaController.register();
+        TimetableController.register();
 
         // TODO wire up Spark without using static methods:
 //        spark.Service httpService = spark.Service.ignite()
@@ -151,13 +152,15 @@ public class AnalysisServer {
 
         if (AnalysisServerConfig.offline) {
             LOG.info("Running in OFFLINE mode...");
-            FeedSourceCache feedSourceCache = ApiMain.initialize(null, AnalysisServerConfig.localCacheDirectory);
+            FeedSourceCache feedSourceCache = ApiMain.initialize(null, null, AnalysisServerConfig.localCacheDirectory);
             LOG.info("Starting local cluster of Analysis workers...");
             // You have to make the worker machineId non-static if you want to launch more than one worker,
             // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
             LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
         } else {
-            ApiMain.initialize(AnalysisServerConfig.bundleBucket, AnalysisServerConfig.localCacheDirectory);
+            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
+                    null, AnalysisServerConfig
+                    .localCacheDirectory);
         }
 
         LOG.info("Conveyal Analysis server is ready.");

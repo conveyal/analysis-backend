@@ -11,27 +11,28 @@ admin-access-group=OFFLINE
 # database-uri=mongodb://127.0.0.1:27017
 
 # The name of the database in the Mongo instance.
-database-name=analysis
+database-name=analysis-backend-test
 
 # The URL where the frontend is hosted.
 # In production this should point to a cached CDN for speed. e.g. https://d1uqjuy3laovxb.cloudfront.net
 # In staging this should be the underlying S3 URL so files are not cached and you see the most recent deployment.
-frontend-url=https://scenario-editor-staging.s3.amazonaws.com
+frontend-url=https://example.com
 
 # S3 buckets where Analysis inputs and results are stored.
-bundle-bucket=analysis-staging-bundles
-grid-bucket=analysis-staging-grids
-results-bucket=analysis-staging-results
+bundle-bucket=test-bundles
+grid-bucket=test-grids
+results-bucket=test-results
 
 # The URL from which Analysis can fetch OSM extracts on demand using Conveyal Vanilla Extract.
-vex-url=http://osm.conveyal.com/vex
+vex-url=http://example.com/vex
 
 # The S3 bucket where we can find tiles of the entire US census, built with Conveyal seamless-census.
-seamless-census-bucket=lodes-data-2014
+seamless-census-bucket=test
 seamless-census-region=us-east-1
 
 # When offline is true, authentication and other services are not used.
 # This is only partially true - regional results will still be saved on S3.
+# This is intended for local testing.
 offline=true
 
 # The AWS region in which the server is running, and in which you want to run worker machines.
@@ -50,7 +51,7 @@ local-cache=cache
 # the private one so that it is not accessible on the public Internet.
 # The broker is running on the same instance as the main backend, which is visible on the internet.
 # Internet since it also runs the frontend server)
-server-address=10.0.0.123
+server-address=0.0.0.0
 
 # Java threads for lighter async operations
 light-threads=3
@@ -66,15 +67,16 @@ max-workers=8
 
 # IAM role to assign the worker instances. Currently this is the same role assigned to the backend/broker.
 # This is the IAM role whose policy is defined in iam.yml (and is recursively referenced therein).
-worker-iam-role=arn:aws:iam::abcdef123456
+worker-iam-role=test-test
 
 # Type of EC2 instance to start up, in AWS Java SDK enum format (first letter and letter after period capitalized).
 # e.g. R3Xlarge which has 16gb of memory and is not too costly. Additional CPU power doesn't buy us much.
-worker-type=R4Xlarge
+# TODO The version of the AWS SDK we currently use in R5 does not support r4.* instances, we should upgrade.
+worker-type=R3Xlarge
 
 # The AWS Cloudwatch log group for worker EC2 instances.
 # Each worker creates its own log stream within this log group at startup.
-worker-log-group=123456abcdef
+worker-log-group=test-test
 
 # The port on which the workers will listen for high priority pushed tasks.
 # This should be different from the server-port if you want to run a worker on the same machine as the server.
@@ -84,9 +86,9 @@ worker-port=7080
 # Currently this is the same subnet where the backend and broker run.
 # The CIDR mask of this subnet naturally limits the number of workers, providing
 # some level of protection against high EC2 bills should workers accidentally proliferate.
-worker-subnet-id=subnet-123456abcdef
+worker-subnet-id=test-test
 
 # The ID of the EC2 machine image for the workers. We use a stock Amazon Linux instance and perform additional
 #installation and configuration on startup using a user-data script.
-worker-ami-id=ami-e5083683
+worker-ami-id=test-test
 

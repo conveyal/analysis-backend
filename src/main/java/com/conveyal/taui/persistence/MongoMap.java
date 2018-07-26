@@ -33,8 +33,10 @@ public class MongoMap<V extends Model> implements Map<String, V> {
     private static Logger LOG = LoggerFactory.getLogger(MongoMap.class);
 
     private JacksonDBCollection<V, String> wrappedCollection;
+    private Class<V> type;
 
-    public MongoMap (JacksonDBCollection<V, String> wrappedCollection) {
+    public MongoMap (JacksonDBCollection<V, String> wrappedCollection, Class<V> type) {
+        this.type = type;
         this.wrappedCollection = wrappedCollection;
     }
 
@@ -99,8 +101,8 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         return wrappedCollection.find().is(property, value).toArray();
     }
 
-    public V createFromJSONRequest(Request request, Class<V> type) throws IOException {
-        V json = JsonUtilities.objectMapper.readValue(request.body(), type);
+    public V createFromJSONRequest(Request request) throws IOException {
+        V json = JsonUtilities.objectMapper.readValue(request.body(), this.type);
 
         // Set `createdBy` and `accessGroup`
         json.accessGroup = request.attribute("accessGroup");
@@ -128,8 +130,8 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         return value;
     }
 
-    public V updateFromJSONRequest(Request request, Class<V> type) throws IOException {
-        V json = JsonUtilities.objectMapper.readValue(request.body(), type);
+    public V updateFromJSONRequest(Request request) throws IOException {
+        V json = JsonUtilities.objectMapper.readValue(request.body(), this.type);
         // Add the additional check for the same access group
         return updateByUserIfPermitted(json, request.attribute("email"), request.attribute("accessGroup"));
     }

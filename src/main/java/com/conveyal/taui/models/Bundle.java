@@ -1,7 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.r5.analyst.cluster.BundleManifest;
@@ -44,23 +44,6 @@ public class Bundle extends Model implements Cloneable {
 
     public static String bundleScopeFeedId (String feedId, String bundleId) {
         return String.format("%s_%s", feedId, bundleId);
-    }
-
-    private static final AmazonS3 s3 = new AmazonS3Client();
-
-    public void writeManifestToCache () throws IOException {
-        BundleManifest manifest = new BundleManifest();
-        manifest.osmId = this.regionId;
-        manifest.gtfsIds = this.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
-        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
-        String manifestFileName = GTFSCache.cleanId(this._id) + ".json";
-        File manifestFile = new File(cacheDir, manifestFileName);
-        JsonUtil.objectMapper.writeValue(manifestFile, manifest);
-
-        if (!AnalysisServerConfig.offline) {
-            // upload to cache bucket
-            s3.putObject(AnalysisServerConfig.bundleBucket, manifestFileName, manifestFile);
-        }
     }
 
     public Bundle clone () {

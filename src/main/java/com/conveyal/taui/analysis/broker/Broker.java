@@ -1,30 +1,48 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.regions.*;
 import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2Client;
-import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
+import com.amazonaws.services.ec2.model.ResourceType;
+import com.amazonaws.services.ec2.model.RunInstancesRequest;
+import com.amazonaws.services.ec2.model.RunInstancesResult;
+import com.amazonaws.services.ec2.model.ShutdownBehavior;
+import com.amazonaws.services.ec2.model.Tag;
+import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
-import com.conveyal.taui.controllers.RegionalAnalysisController;
-import com.conveyal.taui.models.RegionalAnalysis;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+
 
 /**
  * This class distributes the tasks making up regional jobs to workers.
@@ -57,8 +75,7 @@ public class Broker {
 
     private static final Logger LOG = LoggerFactory.getLogger(Broker.class);
 
-    // TODO replace with Multimap
-    public final CircularList<Job> jobs = new CircularList<>();
+    public final ListMultimap<WorkerCategory, Job> jobs = MultimapBuilder.hashKeys().arrayListValues().build();
 
     /** The most tasks to deliver to a worker at a time. */
     public final int MAX_TASKS_PER_WORKER = 16;
@@ -111,13 +128,14 @@ public class Broker {
             workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
             workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
             workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
+            workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
             // Tell the workers to shut themselves down automatically when no longer busy.
             workerConfig.setProperty("auto-shutdown", "true");
         }
 
         this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
-        ec2 = new AmazonEC2Client();
+        AmazonEC2ClientBuilder ec2Builder = AmazonEC2ClientBuilder.standard();
 
         // When running on an EC2 instance, default to the AWS region of that instance
         Region region = null;
@@ -125,8 +143,11 @@ public class Broker {
             region = Regions.getCurrentRegion();
         }
         if (region != null) {
-            ec2.setRegion(region);
+            ec2Builder.setRegion(region.getName());
+        } else {
+            ec2Builder.withRegion(AnalysisServerConfig.awsRegion);
         }
+        ec2 = ec2Builder.build();
     }
 
     /**
@@ -143,7 +164,7 @@ public class Broker {
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
         Job job = new Job(templateTask);
-        jobs.insertAtTail(job);
+        jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
         if (AnalysisServerConfig.testTaskRedelivery) {
@@ -160,8 +181,6 @@ public class Broker {
 
     /**
      * Create workers for a given job, if need be.
-     * Whoa, we're sending requests to EC2 inside a synchronized block that stops the whole broker!
-     * FIXME FIXME FIXME! We should make this an asynchronous operation.
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
@@ -253,8 +272,9 @@ public class Broker {
                 new Tag("user", user)
         );
         // TODO check and log result of request.
-        RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
-
+        ExecutorServices.light.execute(() -> {
+                    RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
+        });
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
         LOG.info("Requested {} workers for user {} of group {}", nWorkers, user, group);
@@ -266,14 +286,14 @@ public class Broker {
      */
     public synchronized List<RegionalTask> getSomeWork (WorkerCategory workerCategory) {
         Job job;
-        // FIXME use workOffline boolean instead of examining workerVersion
-        if (workerCategory.graphId == null || "UNKNOWN".equalsIgnoreCase(workerCategory.workerVersion)) {
-            // This worker has no loaded networks or no specified version, get tasks from the first job that has any.
-            // FIXME Note that this is ignoring worker version number! This is useful for debugging though.
-            job = jobs.advanceToElement(j -> j.hasTasksToDeliver());
+        if (AnalysisServerConfig.offline) {
+            // Working in offline mode; get tasks from the first job that has any tasks to deliver.
+            job = jobs.values().stream()
+                    .filter(j -> j.hasTasksToDeliver()).findFirst().orElse(null);
         } else {
             // This worker has a preferred network, get tasks from a job on that network.
-            job = jobs.advanceToElement(j -> j.workerCategory.equals(workerCategory) && j.hasTasksToDeliver());
+            job = jobs.get(workerCategory).stream()
+                    .filter(j -> j.hasTasksToDeliver()).findFirst().orElse(null);
         }
         if (job == null) {
             // No matching job was found.
@@ -304,19 +324,14 @@ public class Broker {
         // Once the last task is marked as completed, the job is finished. Purge it from the list to free memory.
         if (job.isComplete()) {
             job.verifyComplete();
-            jobs.remove(job);
+            jobs.remove(job.workerCategory, job);
         }
         return true;
     }
 
     /** Find the job for the given jobId, returning null if that job does not exist. */
     public Job findJob (String jobId) {
-        for (Job job : jobs) {
-            if (job.jobId.equals(jobId)) {
-                return job;
-            }
-        }
-        return null;
+        return jobs.values().stream().filter(job -> job.jobId.equals(jobId)).findFirst().orElse(null);
     }
 
     /**
@@ -326,7 +341,7 @@ public class Broker {
         // Remove the job from the broker so we stop distributing its tasks to workers.
         Job job = findJob(jobId);
         if (job == null) return false;
-        boolean success = jobs.remove(job);
+        boolean success = jobs.remove(job.workerCategory, job);
         // Shut down the object used for assembling results, removing its associated temporary disk file.
         // TODO just put the assembler in the Job object
         GridResultAssembler assembler = resultAssemblers.remove(jobId);
@@ -369,7 +384,7 @@ public class Broker {
      */
     public Collection<JobStatus> getJobSummary() {
         List<JobStatus> jobStatusList = new ArrayList<>();
-        for (Job job : this.jobs) {
+        for (Job job : this.jobs.values()) {
             jobStatusList.add(new JobStatus(job));
         }
         // Add a summary of all jobs to the list.
@@ -410,14 +425,14 @@ public class Broker {
     }
 
     public boolean anyJobsActive () {
-        for (Job job : jobs) {
+        for (Job job : jobs.values()) {
             if (!job.isComplete()) return true;
         }
         return false;
     }
 
     public void logJobStatus() {
-        for (Job job : jobs) {
+        for (Job job : jobs.values()) {
             LOG.info(job.toString());
         }
     }

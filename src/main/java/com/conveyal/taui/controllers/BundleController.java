@@ -1,14 +1,16 @@
 package com.conveyal.taui.controllers;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
+import com.conveyal.r5.analyst.cluster.BundleManifest;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.ThreadPool;
+import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
@@ -40,7 +42,11 @@ import static spark.Spark.put;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
-    private static final AmazonS3 s3 = new AmazonS3Client();
+    private static final String awsRegion = AnalysisServerConfig.awsRegion;
+
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(AnalysisServerConfig.awsRegion)
+            .build();
 
     public static Bundle create (Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
@@ -113,7 +119,7 @@ public class BundleController {
         }
 
         // process async
-        ThreadPool.run(() -> {
+        ExecutorServices.heavy.execute(() -> {
             try {
                 TDoubleList lats = new TDoubleArrayList();
                 TDoubleList lons = new TDoubleArrayList();
@@ -148,7 +154,7 @@ public class BundleController {
                 bundle.centerLat = lats.get(lats.size() / 2);
                 bundle.centerLon = lons.get(lons.size() / 2);
 
-                bundle.writeManifestToCache();
+                writeManifestToCache(bundle);
                 bundle.status = Bundle.Status.DONE;
             } catch (Exception e) {
                 // This catches any error while processing a feed with the GTFS Api and needs to be more
@@ -168,6 +174,21 @@ public class BundleController {
         return bundle;
     }
 
+    private static void writeManifestToCache (Bundle bundle) throws IOException {
+        BundleManifest manifest = new BundleManifest();
+        manifest.osmId = bundle.regionId;
+        manifest.gtfsIds = bundle.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
+        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
+        String manifestFileName = GTFSCache.cleanId(bundle._id) + ".json";
+        File manifestFile = new File(cacheDir, manifestFileName);
+        JsonUtil.objectMapper.writeValue(manifestFile, manifest);
+
+        if (!AnalysisServerConfig.offline) {
+            // upload to cache bucket
+            s3.putObject(AnalysisServerConfig.bundleBucket, manifestFileName, manifestFile);
+        }
+    }
+
     public static Bundle deleteBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
 
@@ -180,7 +201,7 @@ public class BundleController {
     }
 
     public static Bundle update (Request req, Response res) throws IOException {
-        return Persistence.bundles.updateFromJSONRequest(req, Bundle.class);
+        return Persistence.bundles.updateFromJSONRequest(req);
     }
 
     public static Object getBundle (Request req, Response res) {

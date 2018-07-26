@@ -47,11 +47,13 @@ public abstract class AnalysisServerConfig {
     public static final boolean offline = Boolean.parseBoolean(getProperty("offline", true));
     public static final String vexUrl = getProperty("vex-url", true);
     public static final String seamlessCensusBucket = getProperty("seamless-census-bucket", true);
+    public static final String seamlessCensusRegion = getProperty("seamless-census-region", true);
     public static final String gridBucket = getProperty("grid-bucket", true);
     public static final String resultsBucket = getProperty("results-bucket", true);
     public static final String awsRegion = getProperty("aws-region", true);
     public static final String workerLogGroup = getProperty("worker-log-group", true);
-    public static final int maxThreads = Integer.parseInt(getProperty("max-threads", true));
+    public static final int lightThreads = Integer.parseInt(getProperty("light-threads", true));
+    public static final int heavyThreads = Integer.parseInt(getProperty("heavy-threads", true));
     public static final int maxWorkers = Integer.parseInt(getProperty("max-workers", true));
 
     // AWS specific stuff. This should be moved to another config object when we make this portable to other environments.

@@ -1,9 +1,8 @@
 package com.conveyal.taui.controllers;
 
+import com.conveyal.osmlib.OSM;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.ThreadPool;
-import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
@@ -66,50 +65,27 @@ public class RegionController {
         }
     }
 
-    public static void fetchOsmAndCensusDataInThread (String _id, Map<String, List<FileItem>> files, boolean newBounds) {
-        boolean customOsm = files.containsKey("customOpenStreetMapData");
-        ThreadPool.run(() -> {
-            final Region region = Persistence.regions.get(_id);
+    public static OSM uploadOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
+        boolean hasCustomOSM = files.containsKey("customOpenStreetMapData");
+        if (!hasCustomOSM) return null;
 
-            try {
-                if (customOsm) {
-                    region.customOsm = true;
-                    File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
-                    files.get("customOpenStreetMapData").get(0).write(customOsmData);
-                    OSMPersistence.cache.put(region._id, customOsmData);
-                    customOsmData.delete();
-                }
+        // Set the status to Started
+        region.statusCode = Region.StatusCode.STARTED;
+        Persistence.regions.put(region);
 
-                if (newBounds) {
-                    if (!customOsm) {
-                        // Set the region status
-                        region.statusCode = Region.StatusCode.DOWNLOADING_OSM;
-                        Persistence.regions.put(region);
+        File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
+        files.get("customOpenStreetMapData").get(0).write(customOsmData);
+        OSM osm = OSMPersistence.cache.put(region._id, customOsmData);
+        customOsmData.delete();
 
-                        // Retrieve and save the OSM for the region bounds at the given _id
-                        OSMPersistence.retrieveOSMFromVexForBounds(region.bounds, region._id);
-                    }
+        region.customOsm = true;
+        region.statusCode = Region.StatusCode.DONE;
+        Persistence.regions.put(region);
 
-                    // Download census data
-                    region.statusCode = Region.StatusCode.DOWNLOADING_CENSUS;
-                    Persistence.regions.put(region); // save the status
-                    region.opportunityDatasets = SeamlessCensusGridExtractor.retrieveAndExtractCensusDataForBounds(region.bounds, region._id);
-                }
-
-                region.statusCode = Region.StatusCode.DONE;
-                Persistence.regions.put(region);
-            } catch (Exception e) {
-                region.statusCode = Region.StatusCode.ERROR;
-                region.statusMessage = "Error while fetching data. " + ExceptionUtils.asString(e);
-                Persistence.regions.put(region);
-
-                LOG.error("Error while fetching OSM. " + ExceptionUtils.asString(e));
-                e.printStackTrace();
-            }
-        });
+        return osm;
     }
 
-    public static Region create(Request req, Response res) {
+    public static Region create(Request req, Response res) throws Exception {
         final Map<String, List<FileItem>> files = getFilesFromRequest(req);
         Region region = getRegionFromFiles(files);
 
@@ -117,37 +93,27 @@ public class RegionController {
         region.accessGroup = req.attribute("accessGroup");
         region.createdBy = req.attribute("email");
 
-        // Set the status to Started
-        region.statusCode = Region.StatusCode.STARTED;
+        // Upload custom OSM data
+        uploadOSM(region, files);
 
         // Create the region
         Persistence.regions.create(region);
 
-        // Fetch data and update the statuses separately
-        fetchOsmAndCensusDataInThread(region._id, files, true);
-
         return region;
     }
 
-    public static Region update(Request req, Response res) {
+    public static Region update(Request req, Response res) throws Exception {
         final Region existingRegion = Persistence.regions.findByIdFromRequestIfPermitted(req);
         final Map<String, List<FileItem>> files = getFilesFromRequest(req);
         Region region = getRegionFromFiles(files);
 
-        boolean boundsChanged = !existingRegion.bounds.equals(region.bounds, 1e-6);
-        boolean customOSM = files.containsKey("customOpenStreetMapData");
+        // Update custom OSM if exists
+        uploadOSM(existingRegion, files);
 
         // Set updatedBy
         region.updatedBy = req.attribute("email");
         // And update the `nonce` and `updatedAt`
         Persistence.regions.put(region);
-
-        if (boundsChanged || customOSM) {
-            region.statusCode = Region.StatusCode.STARTED;
-            Persistence.regions.put(region);
-            // Fetch data and update the statuses separately
-            fetchOsmAndCensusDataInThread(region._id, files, boundsChanged);
-        }
 
         return region;
     }
