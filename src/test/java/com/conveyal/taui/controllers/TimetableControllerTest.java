@@ -37,7 +37,7 @@ public class TimetableControllerTest {
     }
 
     /**
-     * Make sure the index page can load.
+     * Make sure the timetables endpoint responds with expected data.
      */
     @Test
     public void canReturnTimetables() throws IOException {
