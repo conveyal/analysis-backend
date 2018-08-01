@@ -65,24 +65,26 @@ public class RegionController {
         }
     }
 
-    public static OSM uploadOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
-        boolean hasCustomOSM = files.containsKey("customOpenStreetMapData");
-        if (!hasCustomOSM) return null;
+    public static void uploadOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
+        try {
+            // Set the status to Started
+            region.statusCode = Region.StatusCode.STARTED;
+            Persistence.regions.put(region);
 
-        // Set the status to Started
-        region.statusCode = Region.StatusCode.STARTED;
-        Persistence.regions.put(region);
+            File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
+            files.get("customOpenStreetMapData").get(0).write(customOsmData);
+            OSMPersistence.cache.put(region._id, customOsmData);
+            customOsmData.delete();
 
-        File customOsmData = File.createTempFile("uploaded-osm", ".pbf");
-        files.get("customOpenStreetMapData").get(0).write(customOsmData);
-        OSM osm = OSMPersistence.cache.put(region._id, customOsmData);
-        customOsmData.delete();
+            region.customOsm = true;
+            region.statusCode = Region.StatusCode.DONE;
+            Persistence.regions.put(region);
 
-        region.customOsm = true;
-        region.statusCode = Region.StatusCode.DONE;
-        Persistence.regions.put(region);
+        } catch (Exception e) {
+            Persistence.regions.remove(region);
+            throw AnalysisServerException.fileUpload("Error processing OSM. " + ExceptionUtils.asString(e));
+        }
 
-        return osm;
     }
 
     public static Region create(Request req, Response res) throws Exception {
@@ -93,11 +95,11 @@ public class RegionController {
         region.accessGroup = req.attribute("accessGroup");
         region.createdBy = req.attribute("email");
 
-        // Upload custom OSM data
-        uploadOSM(region, files);
-
         // Create the region
         Persistence.regions.create(region);
+
+        // Upload custom OSM data
+        uploadOSM(region, files);
 
         return region;
     }
