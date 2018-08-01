@@ -60,7 +60,7 @@ public class AnalysisRequest {
     public Bounds bounds;
     public Integer maxTripDurationMinutes;
     public String name;
-    public String opportunityDatasetKey;
+    public String opportunityDatasetId;
     public Integer travelTimePercentile;
     // Save all results in a regional analysis to S3 for display in a "static site".
     public boolean makeStaticSite = false;

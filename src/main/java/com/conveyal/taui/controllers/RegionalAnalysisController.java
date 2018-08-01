@@ -11,6 +11,7 @@ import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
+import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
@@ -166,7 +167,8 @@ public class RegionalAnalysisController {
         RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
 
         // Set the destination grid.
-        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+        OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(analysisRequest.opportunityDatasetId, accessGroup);
+        task.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Why are these being set to zero instead of leaving them at their default of -1?
         // Why does a regional analysis have an x and y at all since it represents many different tasks?
@@ -198,7 +200,7 @@ public class RegionalAnalysisController {
         regionalAnalysis.bundleId = project.bundleId;
         regionalAnalysis.createdBy = email;
         regionalAnalysis.cutoffMinutes = task.maxTripDurationMinutes;
-        regionalAnalysis.grid = analysisRequest.opportunityDatasetKey;
+        regionalAnalysis.grid = analysisRequest.opportunityDatasetId;
         regionalAnalysis.name = analysisRequest.name;
         regionalAnalysis.projectId = analysisRequest.projectId;
         regionalAnalysis.regionId = project.regionId;
