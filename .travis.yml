@@ -6,6 +6,14 @@ services: mongodb
 jdk:
   - oraclejdk8
 
+# Hack to test fare-limits branch of R5
+before_install:
+  - git clone -b fare-limits --depth 200 https://github.com/conveyal/r5.git
+  - cd r5
+  # can't just call mvn install because it will try to sign the jar
+  - mvn package install:install -DskipTests
+  - cd ..
+
 env:
   global:
   # Encrypted AWS Access Keys
