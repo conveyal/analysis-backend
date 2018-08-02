@@ -8,6 +8,7 @@ import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.broker.JobStatus;
 import com.conveyal.taui.analysis.broker.WorkerObservation;
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -162,9 +164,12 @@ public class WorkerController {
             // response in a byte buffer before resending it. The fact that we're buffering before re-sending
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
+        } catch (SocketTimeoutException ste) {
+            LOG.info("Worker time out. Most likely building graph.");
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting cluster");
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
-            return jsonResponse(response, HttpStatus.SERVER_ERROR_500, "Exception while talking to worker: " + e.toString());
+            throw AnalysisServerException.unknown(e);
         } finally {
             // If the HTTP respoonse entity is non-null close the associated input stream, which causes the HttpClient
             // to release the TCP connection back to its pool. This is critical to avoid exhausting the pool.
@@ -203,9 +208,7 @@ public class WorkerController {
         try {
             return jsonMapper.writeValueAsString(object);
         } catch (JsonProcessingException e) {
-            // The server should catch this and turn it into a 500 response.
-            response.status(HttpStatus.SERVER_ERROR_500);
-            throw new RuntimeException(e);
+            throw AnalysisServerException.unknown(e);
         }
     }
 

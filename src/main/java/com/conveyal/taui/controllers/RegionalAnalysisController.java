@@ -40,9 +40,8 @@ import static spark.Spark.put;
 public class RegionalAnalysisController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-    private static final String awsRegion = AnalysisServerConfig.awsRegion;
     private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-            .withRegion(awsRegion)
+            .withRegion(AnalysisServerConfig.awsRegion)
             .build();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
@@ -250,7 +249,7 @@ public class RegionalAnalysisController {
         templateTask.zoom = regionalAnalysis.zoom;
         templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
         templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-        templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
+        templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
         broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
