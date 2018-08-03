@@ -471,8 +471,6 @@ public class OpportunityDatasetController {
             get("/:_id", OpportunityDatasetController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             put("/:id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
-            @Deprecated
-            // For limited backward compatibility with CoAXs deployments.
             get("/region/:regionId/:gridId", OpportunityDatasetController::getGrid, JsonUtil.objectMapper::writeValueAsString);
         });
     }
