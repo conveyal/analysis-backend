@@ -81,6 +81,15 @@ public class OpportunityDatasetController {
         );
     }
 
+    @Deprecated
+    // For limited backward compatibility with CoAXs deployments.
+    public static Object getGrid(Request req, Response res) {
+        String key = String.format("%s/%s.grid", req.params("regionId"), req.params("gridId"));
+        String redirectText = req.queryParams("redirect");
+        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
+        return GridExporter.downloadFromS3(s3, BUCKET, key, redirect, res);
+    }
+
     public static Object getOpportunityDataset(Request req, Response res) {
         OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
 
@@ -462,6 +471,7 @@ public class OpportunityDatasetController {
             get("/:_id", OpportunityDatasetController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             put("/:id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            get("/region/:regionId/:gridId", OpportunityDatasetController::getGrid, JsonUtil.objectMapper::writeValueAsString);
         });
     }
 }
