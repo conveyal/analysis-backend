@@ -396,8 +396,20 @@ public class OpportunityDatasetController {
      *
      */
     private static Object downloadOpportunityDataset (Request req, Response res) throws IOException {
-        final GridExporter.Format format = GridExporter.Format.valueOf(req.params("format").toUpperCase());
-        if (format.equals(GridExporter.Format.GRID)) return getOpportunityDataset(req, res);
+        GridExporter.Format format = null;
+        try {
+            format = GridExporter.Format.valueOf(req.params("format").toUpperCase());
+        } catch (IllegalArgumentException iae) {
+            // This code handles the deprecated endpoint for retrieving opportunity datasets
+            // get("/api/opportunities/:regionId/:gridKey") is the same signature as this endpoint.
+            String regionId = req.params("_id");
+            String gridKey = req.params("format");
+            String redirectText = req.queryParams("redirect");
+            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
+            return GridExporter.downloadFromS3(s3, BUCKET, String.format("%s/%s.grid", regionId, gridKey), redirect, res);
+        }
+
+        if (GridExporter.Format.GRID.equals(format)) return getOpportunityDataset(req, res);
 
         final OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
         final String bucketName = opportunityDataset.bucketName;
@@ -460,7 +472,7 @@ public class OpportunityDatasetController {
             delete("/source/:sourceId", OpportunityDatasetController::deleteSourceSet, JsonUtil.objectMapper::writeValueAsString);
             delete("/:_id", OpportunityDatasetController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id", OpportunityDatasetController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
-            put("/:id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            put("/:_id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
         });
     }
