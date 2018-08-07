@@ -245,7 +245,7 @@ public class OpportunityDatasetController {
                     status.completed();
                 } else {
                     LOG.info("Uploading opportunity dataset to S3");
-                    createDatasetsFromGrids(accessGroup, email, sourceName, regionId, status, grids);
+                    createDatasetsFromGrids(email, accessGroup, sourceName, regionId, status, grids);
                 }
             } catch (Exception e) {
                 status.status = Status.ERROR;
@@ -345,7 +345,10 @@ public class OpportunityDatasetController {
         status.totalFeatures = uploadedFiles.size();
         for (FileItem fileItem : uploadedFiles) {
             Grid grid = Grid.read(fileItem.getInputStream());
-            grids.put(fileItem.getName(), grid);
+            String name = fileItem.getName();
+            // Remove ".grid" from the name
+            if (name.contains(".grid")) name = name.split(".grid")[0];
+            grids.put(name, grid);
         }
         status.completedFeatures = status.totalFeatures;
         return grids;
@@ -396,7 +399,7 @@ public class OpportunityDatasetController {
      *
      */
     private static Object downloadOpportunityDataset (Request req, Response res) throws IOException {
-        GridExporter.Format format = null;
+        GridExporter.Format format;
         try {
             format = GridExporter.Format.valueOf(req.params("format").toUpperCase());
         } catch (IllegalArgumentException iae) {
