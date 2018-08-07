@@ -30,11 +30,11 @@ public class ModificationController {
     }
 
     public static Modification create (Request request, Response response) throws IOException {
-        return Persistence.modifications.createFromJSONRequest(request, Modification.class);
+        return Persistence.modifications.createFromJSONRequest(request);
     }
 
     public static Modification update (Request request, Response response) throws IOException {
-        return Persistence.modifications.updateFromJSONRequest(request, Modification.class);
+        return Persistence.modifications.updateFromJSONRequest(request);
     }
 
     public static Modification deleteModification (Request req, Response res) {

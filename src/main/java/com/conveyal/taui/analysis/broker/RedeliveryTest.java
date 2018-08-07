@@ -1,81 +1,78 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
-import com.conveyal.r5.analyst.cluster.JobSimulator;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
+import com.conveyal.taui.AnalysisServer;
+import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.controllers.RegionalAnalysisController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.nio.ByteBuffer;
+import java.util.UUID;
 
 /**
  * This test is not an automatic unit test. It is an integration test that must be started manually, because it takes
- * a long time to run. It will start up a broker and some local workers, then submit a large job to the broker. The
- * workers will fail to complete tasks some percentage of the time, but eventually the whole job should be finished
+ * a long time to run. It will start up local analysis server with local workers, then submit a  job. The workers
+ * are configured to fail to complete tasks some percentage of the time, but eventually the whole job should be finished
  * because the broker will redeliver lost tasks to the workers.
- *
- * Progress can be followed with:
- * watch --interval 1 curl http://localhost:9001/jobs
- *
- * FIXME this test needs to be updated to work with the new broker that does not run as a separate thread / process
+ * Progress can be followed by watching the admin page of the local server at...
  */
 public class RedeliveryTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedeliveryTest.class);
-    static final int N_TASKS = 100;
-    static final int N_WORKERS = 4;
-    static final int FAILURE_RATE = 20; // percent
 
+    static final int N_JOBS = 4;
+    static final int N_TASKS_PER_JOB = 100;
+
+    /**
+     * @param params are not used.
+     */
     public static void main(String[] params) {
 
-        // Start a broker in a new thread.
-        Properties brokerConfig = new Properties();
-        brokerConfig.setProperty("graphs-bucket", "FAKE");
-        brokerConfig.setProperty("pointsets-bucket", "FAKE");
-        brokerConfig.setProperty("work-offline", "true");
-        // START BROKER HERE
-        // Thread brokerThread = new Thread(null, brokerMain, "BROKER-THREAD"); // TODO combine broker and brokermain, set offline mode.
-        // brokerThread.start();
+        // Start an analysis server with the default (offline) properties.
+        AnalysisServerConfig.testTaskRedelivery = true;
+        AnalysisServer.main();
 
-        // Start some workers.
-        // Do not set any initial graph, because the workers are only going to simulate doing any work.
-        Properties workerConfig = new Properties();
-        List<Thread> workerThreads = new ArrayList<>();
-        for (int i = 0; i < N_WORKERS; i++) {
-            AnalystWorker worker = AnalystWorker.forConfig(workerConfig);
-            worker.dryRunFailureRate = FAILURE_RATE;
-            Thread workerThread = new Thread(worker);
-            workerThreads.add(workerThread);
-            workerThread.start();
+        // Feed several jobs to the broker, staggered in time, to ensure redelivery can deal with multiple jobs.
+        for (int j = 0; j < N_JOBS; j++) {
+            sendFakeJob();
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) { }
         }
 
-        // Feed some work to the broker.
-        JobSimulator jobSimulatorA = new JobSimulator();
-        jobSimulatorA.nOrigins = N_TASKS;
-        jobSimulatorA.graphId = "GRAPH";
-        jobSimulatorA.sendFakeJob();
-
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException e) { }
-
-        // Feed another job to the broker, to ensure redelivery can deal with multiple jobs.
-        JobSimulator jobSimulatorB = new JobSimulator();
-        jobSimulatorB.nOrigins = N_TASKS;
-        jobSimulatorB.graphId = "GRAPH";
-        jobSimulatorB.sendFakeJob();
-
-        // Wait for all tasks to be marked finished
-//        while (brokerMain.broker.anyJobsActive()) {
-//            try {
-//                LOG.info("Some jobs are still not complete.");
-//                Thread.sleep(2000);
-//            } catch (InterruptedException e) { }
-//        }
+        // Wait for all tasks to be marked finished.
+        while (RegionalAnalysisController.broker.anyJobsActive()) {
+            RegionalAnalysisController.broker.logJobStatus();
+            try {
+                LOG.info("Some jobs are still not complete.");
+                Thread.sleep(2000);
+            } catch (InterruptedException e) { }
+        }
 
         LOG.info("All jobs finished.");
         System.exit(0);
+    }
+
+    private static void sendFakeJob() {
+        RegionalTask templateTask = new RegionalTask();
+        templateTask.jobId = compactUUID();
+        templateTask.west = 0;
+        templateTask.north = 0;
+        templateTask.height = 1;
+        templateTask.width = N_TASKS_PER_JOB;
+        templateTask.scenarioId = "FAKE";
+        RegionalAnalysisController.broker.enqueueTasksForRegionalJob(templateTask,"test", "test");
+    }
+
+    public static String compactUUID() {
+        UUID uuid = UUID.randomUUID();
+        byte[] bytes = new byte[16];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        byteBuffer.putLong(uuid.getMostSignificantBits());
+        byteBuffer.putLong(uuid.getLeastSignificantBits());
+        String hex = uuid.toString().replaceAll("-", "");
+        return hex;
     }
 
 }

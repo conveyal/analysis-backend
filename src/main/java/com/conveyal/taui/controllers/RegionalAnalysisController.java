@@ -1,7 +1,7 @@
 package com.conveyal.taui.controllers;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
@@ -11,6 +11,7 @@ import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
+import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
@@ -39,10 +40,13 @@ import static spark.Spark.put;
 public class RegionalAnalysisController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-    private static AmazonS3 s3 = new AmazonS3Client();
+    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+            .withRegion(AnalysisServerConfig.awsRegion)
+            .build();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
-    public static Broker broker;
+    // FIXME hackish - all other components can use the broker via this public field.
+    public static final Broker broker = new Broker();
 
     public static Collection<RegionalAnalysis> getRegionalAnalysis (Request req, Response res) {
         return Persistence.regionalAnalyses.findPermitted(
@@ -80,28 +84,27 @@ public class RegionalAnalysisController {
      */
     public static Object getPercentile (Request req, Response res) throws IOException {
         String regionalAnalysisId = req.params("_id");
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
         // The response file format: PNG, TIFF, or GRID
-        String format = req.params("format").toLowerCase();
+        final String formatString = req.params("format");
+        GridExporter.Format format = GridExporter.format(formatString);
         String redirectText = req.queryParams("redirect");
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
-        String percentileGridKey; // TODO explain what this is
 
         // Accessibility given X percentile travel time.
         // No need to record what the percentile is, that is currently fixed by the regional analysis.
-        percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, format);
+        final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
         if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
             // The grid has not been built yet, make it.
-            Grid grid;
             long computeStart = System.currentTimeMillis();
             // This is accessibility given x percentile travel time, the first sample is the point estimate
             // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
             // point estimate in the grids.
             LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-            grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
+            Grid grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
             LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
-            GridExporter.writeToS3(grid, s3, BUCKET, String.format("%s_given_percentile_travel_time", regionalAnalysisId), format);
+            GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
         }
         return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
     }
@@ -114,12 +117,13 @@ public class RegionalAnalysisController {
         String regionalAnalysisId = req.params("_id");
         String comparisonId = req.params("comparisonId");
         String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
-        String format = req.params("format").toLowerCase();
+        final String formatString = req.params("format");
+        GridExporter.Format format = GridExporter.format(req.params("format"));
         String redirectText = req.queryParams("redirect");
 
         boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
-        String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, format);
+        String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, formatString);
 
         if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", regionalAnalysisId, comparisonId);
@@ -133,7 +137,7 @@ public class RegionalAnalysisController {
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
             Grid grid = computer.computeImprovementProbability(BUCKET, comparisonAccessKey, regionalAccessKey);
-            GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceName, format);
+            GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceKey, format);
         }
 
         return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
@@ -162,7 +166,8 @@ public class RegionalAnalysisController {
         RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
 
         // Set the destination grid.
-        task.grid = String.format("%s/%s.grid", project.regionId, analysisRequest.opportunityDatasetKey);
+        OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(analysisRequest.opportunityDatasetId, accessGroup);
+        task.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Why are these being set to zero instead of leaving them at their default of -1?
         // Why does a regional analysis have an x and y at all since it represents many different tasks?
@@ -194,7 +199,7 @@ public class RegionalAnalysisController {
         regionalAnalysis.bundleId = project.bundleId;
         regionalAnalysis.createdBy = email;
         regionalAnalysis.cutoffMinutes = task.maxTripDurationMinutes;
-        regionalAnalysis.grid = analysisRequest.opportunityDatasetKey;
+        regionalAnalysis.grid = analysisRequest.opportunityDatasetId;
         regionalAnalysis.name = analysisRequest.name;
         regionalAnalysis.projectId = analysisRequest.projectId;
         regionalAnalysis.regionId = project.regionId;
@@ -244,7 +249,7 @@ public class RegionalAnalysisController {
         templateTask.zoom = regionalAnalysis.zoom;
         templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
         templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-        templateTask.grid = String.format("%s/%s.grid", regionalAnalysis.regionId, regionalAnalysis.grid);
+        templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
         broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);

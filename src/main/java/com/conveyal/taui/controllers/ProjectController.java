@@ -39,11 +39,11 @@ public class ProjectController {
     }
 
     public static Project create(Request req, Response res) throws IOException {
-        return Persistence.projects.createFromJSONRequest(req, Project.class);
+        return Persistence.projects.createFromJSONRequest(req);
     }
 
     public static Project update(Request req, Response res) throws IOException {
-        return Persistence.projects.updateFromJSONRequest(req, Project.class);
+        return Persistence.projects.updateFromJSONRequest(req);
     }
 
     public static Collection<Modification> modifications (Request req, Response res) {
@@ -54,18 +54,25 @@ public class ProjectController {
     }
 
     public static Collection<Modification> importModifications (Request req, Response res) {
-        String importId = req.params("_importId");
-        String newId = req.params("_id");
-        Collection<Modification> modifications = Persistence.modifications.findPermitted(
-                QueryBuilder.start("projectId").is(importId).get(),
-                req.attribute("accessGroup")
-        );
+        final String importId = req.params("_importId");
+        final String newId = req.params("_id");
+        final String accessGroup = req.attribute("accessGroup");
+        final Project project = Persistence.projects.findByIdIfPermitted(newId, accessGroup);
+        final Project importProject = Persistence.projects.findByIdIfPermitted(importId, accessGroup);
+        final boolean bundlesAreNotEqual = !project.bundleId.equals(importProject.bundleId);
+
+        QueryBuilder query = QueryBuilder.start("projectId").is(importId);
+        if (bundlesAreNotEqual) {
+            // Different bundle? Only copy add trip modifications
+            query = query.and("type").is("add-trip-pattern");
+        }
+        final Collection<Modification> modifications = Persistence.modifications.findPermitted(query.get(), accessGroup);
 
         // This would be a lot easier if we just used the actual `_id`s and dealt with it elsewhere when searching. They
-        // should be unique anyways. Hmmmmmmmmmmmm. Tradeoffs.
+        // should be unique anyways. Hmmmmmmmmmmmm. Trade offs.
         // Need to make two passes to create all the pairs and rematch for phasing
-        Map<String, String> modificationIdPairs = new HashMap<>();
-        Map<String, String> timetableIdPairs = new HashMap<>();
+        final Map<String, String> modificationIdPairs = new HashMap<>();
+        final Map<String, String> timetableIdPairs = new HashMap<>();
 
         return modifications
                 .stream()
@@ -85,6 +92,21 @@ public class ProjectController {
 
                     // Matched up the phased entries and timetables
                     if (modification.getType().equals(AddTripPattern.type)) {
+                        if (bundlesAreNotEqual) {
+                            // Remove references to real stops in the old bundle
+                            ((AddTripPattern) clone).segments.forEach(segment -> {
+                                segment.fromStopId = null;
+                                segment.toStopId = null;
+                            });
+
+                            // Remove all phasing
+                            ((AddTripPattern) clone).timetables.forEach(tt -> {
+                                tt.phaseFromTimetable = null;
+                                tt.phaseAtStop = null;
+                                tt.phaseFromStop = null;
+                            });
+                        }
+
                         ((AddTripPattern) clone).timetables.forEach(tt -> {
                             String oldTTId = tt._id;
                             tt._id = new ObjectId().toString();
@@ -103,6 +125,7 @@ public class ProjectController {
                 .collect(Collectors.toList())
                 .stream()
                 .map(modification -> {
+                    // A second pass is needed to map the phase pairs
                     if (modification.getType().equals(AddTripPattern.type)) {
                         ((AddTripPattern) modification).timetables.forEach(tt -> {
                             String pft = tt.phaseFromTimetable;
