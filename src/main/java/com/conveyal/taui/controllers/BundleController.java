@@ -1,8 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
@@ -12,6 +9,7 @@ import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.models.Bundle;
+import com.conveyal.taui.persistence.FilePersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.Files;
@@ -42,12 +40,6 @@ import static spark.Spark.put;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
-    private static final String awsRegion = AnalysisServerConfig.awsRegion;
-
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-            .withRegion(AnalysisServerConfig.awsRegion)
-            .build();
-
     public static Bundle create (Request req, Response res) {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
 
@@ -71,16 +63,9 @@ public class BundleController {
 
         Persistence.bundles.create(bundle);
 
-        File bundleFile = null;
         File directory = Files.createTempDir();
         List<File> localFiles = new ArrayList<>();
         try {
-            // cache bundle on disk to avoid OOME
-            bundleFile = File.createTempFile(bundle._id, ".zip");
-
-            ObjectMetadata om = new ObjectMetadata();
-            om.setContentType("application/zip");
-
             Set<String> usedFileNames = new HashSet<>();
 
             for (FileItem fi : files.get("files")) {
@@ -106,14 +91,10 @@ public class BundleController {
                 fi.write(localFile);
                 localFiles.add(localFile);
             }
-
-            // don't run out of disk space
-            bundleFile.delete();
         } catch (Exception e) {
             bundle.status = Bundle.Status.ERROR;
             bundle.errorCode = ExceptionUtils.asString(e);
             Persistence.bundles.put(bundle);
-            bundleFile.delete();
 
             throw AnalysisServerException.unknown(e);
         }
@@ -178,24 +159,14 @@ public class BundleController {
         BundleManifest manifest = new BundleManifest();
         manifest.osmId = bundle.regionId;
         manifest.gtfsIds = bundle.feeds.stream().map(f -> f.bundleScopedFeedId).collect(Collectors.toList());
-        File cacheDir = new File(AnalysisServerConfig.localCacheDirectory);
         String manifestFileName = GTFSCache.cleanId(bundle._id) + ".json";
-        File manifestFile = new File(cacheDir, manifestFileName);
-        JsonUtil.objectMapper.writeValue(manifestFile, manifest);
 
-        if (!AnalysisServerConfig.offline) {
-            // upload to cache bucket
-            s3.putObject(AnalysisServerConfig.bundleBucket, manifestFileName, manifestFile);
-        }
+        FilePersistence.in.put(AnalysisServerConfig.bundleBucket, manifestFileName, manifest);
     }
 
     public static Bundle deleteBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
-
-        if (AnalysisServerConfig.bundleBucket != null) {
-            // remove from s3
-            s3.deleteObject(AnalysisServerConfig.bundleBucket, bundle._id + ".zip");
-        }
+        FilePersistence.in.delete(AnalysisServerConfig.bundleBucket, String.format("%s.zip", bundle._id));
 
         return bundle;
     }

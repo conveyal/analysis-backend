@@ -1,7 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.SelectingGridReducer;
@@ -14,6 +12,7 @@ import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.RegionalAnalysis;
+import com.conveyal.taui.persistence.FilePersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.mongodb.QueryBuilder;
@@ -22,7 +21,6 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 
@@ -40,9 +38,6 @@ import static spark.Spark.put;
 public class RegionalAnalysisController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-            .withRegion(AnalysisServerConfig.awsRegion)
-            .build();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
 
     // FIXME hackish - all other components can use the broker via this public field.
@@ -88,14 +83,12 @@ public class RegionalAnalysisController {
         // The response file format: PNG, TIFF, or GRID
         final String formatString = req.params("format");
         GridExporter.Format format = GridExporter.format(formatString);
-        String redirectText = req.queryParams("redirect");
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
         // Accessibility given X percentile travel time.
         // No need to record what the percentile is, that is currently fixed by the regional analysis.
         final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
         String accessGridKey = String.format("%s.access", regionalAnalysisId);
-        if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
+        if (!FilePersistence.in.exists(BUCKET, percentileGridKey)) {
             // The grid has not been built yet, make it.
             long computeStart = System.currentTimeMillis();
             // This is accessibility given x percentile travel time, the first sample is the point estimate
@@ -104,9 +97,9 @@ public class RegionalAnalysisController {
             LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
             Grid grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
             LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
-            GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
+            GridExporter.write(grid, BUCKET, percentileGridKey, format);
         }
-        return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
+        return FilePersistence.in.respondWithRedirectOrFile(res, BUCKET, percentileGridKey);
     }
 
     /**
@@ -119,13 +112,9 @@ public class RegionalAnalysisController {
         String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
         final String formatString = req.params("format");
         GridExporter.Format format = GridExporter.format(req.params("format"));
-        String redirectText = req.queryParams("redirect");
-
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
-
         String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, formatString);
 
-        if (!s3.doesObjectExist(BUCKET, probabilitySurfaceKey)) {
+        if (!FilePersistence.in.exists(BUCKET, probabilitySurfaceKey)) {
             LOG.info("Probability surface for {} -> {} not found, building it", regionalAnalysisId, comparisonId);
 
             String regionalAccessKey = String.format("%s.access", regionalAnalysisId);
@@ -137,10 +126,10 @@ public class RegionalAnalysisController {
             BootstrapPercentileMethodHypothesisTestGridReducer computer = new BootstrapPercentileMethodHypothesisTestGridReducer();
 
             Grid grid = computer.computeImprovementProbability(BUCKET, comparisonAccessKey, regionalAccessKey);
-            GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceKey, format);
+            GridExporter.write(grid, BUCKET, probabilitySurfaceKey, format);
         }
 
-        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
+        return FilePersistence.in.respondWithRedirectOrFile(res, BUCKET, probabilitySurfaceKey);
     }
 
     /**
@@ -223,18 +212,10 @@ public class RegionalAnalysisController {
         Scenario scenario = templateTask.scenario;
         templateTask.scenarioId = scenario.id;
         templateTask.scenario = null;
+
+        // Store the scenario
         String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
-        File cachedScenario = new File(AnalysisServerConfig.localCacheDirectory, fileName);
-        try {
-            JsonUtil.objectMapper.writeValue(cachedScenario, scenario);
-        } catch (IOException e) {
-            LOG.error("Error saving scenario to disk", e);
-        }
-        if (!AnalysisServerConfig.offline) {
-            // Upload the scenario to S3 where workers can fetch it by ID.
-            // TODO have the backend supply the scenarios over an HTTP API to the workers (which would then cache them), so we don't need to use S3?
-            s3.putObject(AnalysisServerConfig.bundleBucket, fileName, cachedScenario);
-        }
+        FilePersistence.in.put(AnalysisServerConfig.bundleBucket, fileName, scenario);
 
         // Fill in all the fields in the template task that will remain the same across all tasks in a job.
         // Re-setting all these fields may not be necessary (they might already be set previously),

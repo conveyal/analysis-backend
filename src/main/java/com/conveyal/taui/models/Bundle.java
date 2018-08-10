@@ -1,19 +1,10 @@
 package com.conveyal.taui.models;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
-import com.conveyal.r5.analyst.cluster.BundleManifest;
-import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.util.JsonUtil;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Represents a transport bundle (GTFS and OSM).

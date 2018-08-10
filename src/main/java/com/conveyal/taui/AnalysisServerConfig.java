@@ -51,6 +51,7 @@ public abstract class AnalysisServerConfig {
     public static final String gridBucket = getProperty("grid-bucket", true);
     public static final String resultsBucket = getProperty("results-bucket", true);
     public static final String awsRegion = getProperty("aws-region", true);
+    public static final String awsBucket = getProperty("aws-bucket", true);
     public static final String workerLogGroup = getProperty("worker-log-group", true);
     public static final int lightThreads = Integer.parseInt(getProperty("light-threads", true));
     public static final int heavyThreads = Integer.parseInt(getProperty("heavy-threads", true));

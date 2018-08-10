@@ -1,8 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.S3Object;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -12,6 +9,7 @@ import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Region;
+import com.conveyal.taui.persistence.FilePersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.Files;
@@ -53,10 +51,6 @@ import static spark.Spark.put;
 public class OpportunityDatasetController {
     private static final Logger LOG = LoggerFactory.getLogger(OpportunityDatasetController.class);
 
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-            .withRegion(AnalysisServerConfig.awsRegion)
-            .build();
-
     private static final String BUCKET = AnalysisServerConfig.gridBucket;
 
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
@@ -81,14 +75,10 @@ public class OpportunityDatasetController {
         );
     }
 
-    public static Object getOpportunityDataset(Request req, Response res) {
+    public static Object getOpportunityDataset(Request req, Response res) throws IOException {
         OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
 
-        String redirectText = req.queryParams("redirect");
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
-
-        // TODO handle offline mode
-        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID), redirect, res);
+        return FilePersistence.in.respondWithRedirectOrFile(res, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID));
     }
 
     public static List<OpportunityDatasetUploadStatus> getRegionUploadStatuses(Request req, Response res) {
@@ -177,7 +167,7 @@ public class OpportunityDatasetController {
 
         // Upload to S3
         try {
-            GridExporter.writeToS3(grid, s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID), GridExporter.Format.GRID);
+            dataset.putGrid(grid, GridExporter.Format.GRID);
 
             status.uploadedGrids += 1;
             if (status.uploadedGrids == status.totalGrids) {
@@ -201,6 +191,8 @@ public class OpportunityDatasetController {
     public static OpportunityDatasetUploadStatus createOpportunityDataset(Request req, Response res) {
         final String accessGroup = req.attribute("accessGroup");
         final String email = req.attribute("email");
+
+
 
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         String sourceName, regionId;
@@ -303,8 +295,9 @@ public class OpportunityDatasetController {
      * @param key
      */
     private static void deleteFormatIfExists (String bucketName, String key) {
-        if (s3.doesObjectExist(bucketName, key)) {
-            s3.deleteObject(bucketName, key);
+
+        if (FilePersistence.in.exists(bucketName, key)) {
+            FilePersistence.in.delete(bucketName, key);
         }
     }
 
@@ -407,9 +400,7 @@ public class OpportunityDatasetController {
             // get("/api/opportunities/:regionId/:gridKey") is the same signature as this endpoint.
             String regionId = req.params("_id");
             String gridKey = req.params("format");
-            String redirectText = req.queryParams("redirect");
-            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
-            return GridExporter.downloadFromS3(s3, BUCKET, String.format("%s/%s.grid", regionId, gridKey), redirect, res);
+            return FilePersistence.in.respondWithRedirectOrFile(res, BUCKET, String.format("%s/%s.grid", regionId, gridKey));
         }
 
         if (GridExporter.Format.GRID.equals(format)) return getOpportunityDataset(req, res);
@@ -418,22 +409,20 @@ public class OpportunityDatasetController {
         final String bucketName = opportunityDataset.bucketName;
 
         // if this grid is not on S3 in the requested format, try to get the .grid format
-        if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID))) {
+        if (!FilePersistence.in.exists(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID))) {
             throw AnalysisServerException.notFound("This grid does not exist.");
         }
 
         String redirectText = req.queryParams("redirect");
         boolean redirect = redirectText == null || "".equals(redirectText) || parseBoolean(redirectText);
 
-        if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(format))) {
+        if (!FilePersistence.in.exists(bucketName, opportunityDataset.getKey(format))) {
             // get the grid and convert it to the requested format
-            S3Object s3Grid = s3.getObject(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID));
-            InputStream rawInput = s3Grid.getObjectContent();
-            Grid grid = Grid.read(new GZIPInputStream(rawInput));
-            GridExporter.writeToS3(grid, s3, bucketName, opportunityDataset.getKey(format), format);
+            Grid grid = Grid.read(new GZIPInputStream(FilePersistence.in.get(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID))));
+            opportunityDataset.putGrid(grid, format);
         }
 
-        return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format), redirect, res);
+        return FilePersistence.in.respondWithRedirectOrFile(res, bucketName, opportunityDataset.getKey(format));
     }
 
     public static class OpportunityDatasetUploadStatus {
@@ -476,7 +465,7 @@ public class OpportunityDatasetController {
             delete("/:_id", OpportunityDatasetController::deleteOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             get("/:_id", OpportunityDatasetController::getOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
             put("/:_id", OpportunityDatasetController::editOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
-            get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            get("/:_id/:format", OpportunityDatasetController::downloadOpportunityDataset);
         });
     }
 }
