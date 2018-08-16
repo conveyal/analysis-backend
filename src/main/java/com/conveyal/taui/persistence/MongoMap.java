@@ -26,10 +26,10 @@ import java.util.Set;
 
 /**
  * An attempt at simulating a MapDB-style interface, for storing Java objects in MongoDB.
- *
+ * Note this used to implement Map, but that predates generics, so it is more typesafe not to.
  * TODO this is using org.mongojack.JacksonDBCollection. I believe Mongo Java client library now provides POJO storage.
  */
-public class MongoMap<V extends Model> implements Map<String, V> {
+public class MongoMap<V extends Model> {
     private static Logger LOG = LoggerFactory.getLogger(MongoMap.class);
 
     private JacksonDBCollection<V, String> wrappedCollection;
@@ -42,20 +42,6 @@ public class MongoMap<V extends Model> implements Map<String, V> {
 
     public int size() {
         return (int) wrappedCollection.getCount();
-    }
-
-    public boolean isEmpty() {
-        return wrappedCollection.getCount() > 0;
-    }
-
-    public boolean containsKey(Object key) {
-        if (key instanceof String)
-            return wrappedCollection.findOneById((String) key) != null;
-        else return false;
-    }
-
-    public boolean containsValue(Object value) {
-        throw AnalysisServerException.unknown("Unsupported operation");
     }
 
     public V findByIdFromRequestIfPermitted(Request request) {
@@ -74,8 +60,8 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         }
     }
 
-    public V get(Object key) {
-        return wrappedCollection.findOneById((String) key);
+    public V get(String key) {
+        return wrappedCollection.findOneById(key);
     }
 
     public Collection<V> findAllForRequest(Request req) {
@@ -208,40 +194,14 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         return result;
     }
 
-    public V remove(Object key) {
-        WriteResult<V, String> result = wrappedCollection.removeById((String) key);
+    public V remove(String key) {
+        WriteResult<V, String> result = wrappedCollection.removeById(key);
         LOG.info(result.toString());
         if (result.getN() == 0) {
             throw AnalysisServerException.notFound(String.format("The data for _id %s does not exist", key));
         }
 
         return null;
-    }
-
-    public void putAll(Map<? extends String, ? extends V> m) {
-        m.forEach(this::put);
-    }
-
-    public void clear() {
-        Iterator<V> it = wrappedCollection.find().iterator();
-
-        while (it.hasNext()) {
-            // TODO will this work?
-            it.remove();
-        }
-    }
-
-    public Set<String> keySet() {
-        Iterator<V> it = wrappedCollection.find().iterator();
-
-        Set<String> ret = new HashSet<>();
-
-        while (it.hasNext()) {
-            ret.add(it.next()._id);
-        }
-
-        // TODO cheating. Technically changes here are supposed to be reflected in the map
-        return Collections.unmodifiableSet(ret);
     }
 
     public Collection<V> values() {
@@ -257,17 +217,4 @@ public class MongoMap<V extends Model> implements Map<String, V> {
         return Collections.unmodifiableSet(ret);
     }
 
-    public Set<Entry<String, V>> entrySet() {
-        Iterator<V> it = wrappedCollection.find().iterator();
-
-        Set<Entry<String, V>> ret = new HashSet<>();
-
-        while (it.hasNext()) {
-            V val = it.next();
-            ret.add(new AbstractMap.SimpleImmutableEntry<>(val._id, val));
-        }
-
-        // TODO cheating. Technically changes here are supposed to be reflected in the map
-        return Collections.unmodifiableSet(ret);
-    }
 }
