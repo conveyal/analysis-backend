@@ -51,12 +51,16 @@ public abstract class AbstractTimetable {
         pt.saturday = saturday;
         pt.sunday = sunday;
 
+        // Optionally convert the headway into a series of specific departure times regularly spaced over the time
+        // window. This timetable should then be treated as scheduled, and should not be assigned randomized schedules.
         if (exactTimes) {
-            int totalDepartures = (endTime - startTime) / headwaySecs;
-            pt.firstDepartures = new int[totalDepartures];
-            for (int i = 0, departure = startTime; departure < endTime; i++) {
-                pt.firstDepartures[i] = departure;
-                departure += headwaySecs;
+            // Integer division truncates toward zero, add one to make both the start and end times inclusive.
+            // i.e. a zero-width time window with the same start and end time will still have one departure.
+            int nDepartureTimes = (endTime - startTime) / headwaySecs + 1;
+            pt.firstDepartures = new int[nDepartureTimes];
+            for (int i = 0, departureTime = startTime; i < nDepartureTimes; i++) {
+                pt.firstDepartures[i] = departureTime;
+                departureTime += headwaySecs;
             }
         } else {
             if (phaseAtStop != null) {
