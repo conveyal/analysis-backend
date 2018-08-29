@@ -45,10 +45,11 @@ AWS credentials profile will be used.
 Once you have configured `analysis.properties` and started mongo locally, build the application with `mvn package` and 
 start it with `java -Xmx2g -jar target/analysis.jar`
 
-You can then follow the instructions to get the [analysis-ui frontend](https://github.com/conveyal/analysis-ui) started 
-with `yarn start`. If you want to avoid starting the frontend yourself, the default value of `frontend-url` will use 
-a prebuilt copy of the frontend provided by Conveyal, but there are no guarantees this version of the frontend will be 
-compatible with the version of analysis-backend you are using. 
+Next, follow the instructions to start the [analysis-ui frontend](https://github.com/conveyal/analysis-ui) . Once that 
+is running, you should be able to log in without authentication (using the frontend URL, e.g. http://localhost:9966). 
+Note that the default value of the analysis-backend `frontend-url` variable is a prebuilt copy of the frontend that 
+relies on Conveyal's authentication setup; in general this will not work with local installations, so this value should 
+be ignored.
 
 ## Creating a development environment
 
