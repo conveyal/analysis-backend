@@ -16,12 +16,10 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -73,6 +71,15 @@ public class MongoMap<V extends Model> {
                 query,
                 QueryBuilder.start("accessGroup").is(accessGroup).get()
         ).get()).toArray();
+    }
+
+    public Collection<V> findPermittedForQuery (Request req) {
+        QueryBuilder query = QueryBuilder.start();
+        req.queryParams().forEach(name -> {
+            query.and(name).is(req.queryParams(name));
+        });
+
+        return findPermitted(query.get(), req.attribute("accessGroup"));
     }
 
     /**

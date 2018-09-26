@@ -29,21 +29,6 @@ public class Region extends Model implements Cloneable {
     public StatusCode statusCode;
     public String statusMessage;
 
-    /* don't persist to DB but do expose to API */
-    @JsonView(JsonViews.Api.class)
-    public List<Bundle> getBundles () {
-        return Persistence.bundles
-                .find(QueryBuilder.start("regionId").is(_id).get())
-                .toArray();
-    }
-
-    @JsonView(JsonViews.Api.class)
-    public List<Project> getProjects () {
-        return Persistence.projects
-                .find(QueryBuilder.start("regionId").is(_id).get())
-                .toArray();
-    }
-
     @JsonView(JsonViews.Api.class)
     public Collection<Bookmark> getBookmarks () {
         return Persistence.bookmarks.getByProperty("regionId", _id);

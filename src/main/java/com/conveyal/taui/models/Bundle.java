@@ -1,19 +1,11 @@
 package com.conveyal.taui.models;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
-import com.conveyal.r5.analyst.cluster.BundleManifest;
-import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.util.JsonUtil;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Represents a transport bundle (GTFS and OSM).
@@ -72,10 +64,18 @@ public class Bundle extends Model implements Cloneable {
             bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
+
+            // Set service start and end from the dates of service
+            List<LocalDate> datesOfService = feed.getDatesOfService();
+            datesOfService.sort(Comparator.naturalOrder());
+            serviceStart = datesOfService.get(0);
+            serviceEnd = datesOfService.get(datesOfService.size() - 1);
         }
 
-        /** restore default constructor for use in deserialization */
-        public FeedSummary () { /* do nothing */ }
+        /**
+         * Default empty constructor needed for JSON mapping
+         */
+        public FeedSummary () { }
 
         public FeedSummary clone () {
             try {

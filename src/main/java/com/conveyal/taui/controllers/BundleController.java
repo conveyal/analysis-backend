@@ -15,8 +15,7 @@ import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.google.common.io.Files;
-import gnu.trove.list.TDoubleList;
-import gnu.trove.list.array.TDoubleArrayList;
+import com.vividsolutions.jts.geom.Envelope;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
@@ -28,7 +27,14 @@ import spark.Response;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static spark.Spark.delete;
@@ -121,13 +127,11 @@ public class BundleController {
         // process async
         ExecutorServices.heavy.execute(() -> {
             try {
-                TDoubleList lats = new TDoubleArrayList();
-                TDoubleList lons = new TDoubleArrayList();
                 Set<String> seenFeedIds = new HashSet<>();
 
+                Envelope bundleBounds = new Envelope();
                 bundle.feeds = new ArrayList<>();
                 bundle.totalFeeds = localFiles.size();
-
 
                 for (File file : localFiles) {
                     FeedSource fs = ApiMain.registerFeedSource(feed -> String.format("%s_%s", feed.feedId, bundle._id), file);
@@ -135,24 +139,32 @@ public class BundleController {
                         throw new Exception("Duplicate Feed ID found when uploading bundle");
                     }
 
-                    bundle.feeds.add(new Bundle.FeedSummary(fs.feed, bundle._id));
+                    Bundle.FeedSummary feedSummary  = new Bundle.FeedSummary(fs.feed, bundle._id);
+                    bundle.feeds.add(feedSummary);
                     fs.feed.stops.values().forEach(s -> {
-                        lats.add(s.stop_lat);
-                        lons.add(s.stop_lon);
+                        bundleBounds.expandToInclude(s.stop_lon, s.stop_lat);
                     });
+
+                    if (bundle.serviceStart == null || bundle.serviceStart.isAfter(feedSummary.serviceStart)) {
+                        bundle.serviceStart = feedSummary.serviceStart;
+                    }
+
+                    if (bundle.serviceEnd == null || bundle.serviceEnd.isBefore(feedSummary.serviceEnd)) {
+                        bundle.serviceEnd = feedSummary.serviceEnd;
+                    }
 
                     bundle.feedsComplete += 1;
                     Persistence.bundles.put(bundle);
                 }
 
-                // find the median stop location
-                // use a median because it is robust to outliers
-                lats.sort();
-                lons.sort();
-                // not a true median as we don't handle the case when there is an even number of stops
-                // and we are supposed to average the two middle value, but close enough
-                bundle.centerLat = lats.get(lats.size() / 2);
-                bundle.centerLon = lons.get(lons.size() / 2);
+                // TODO Handle crossing the antimeridian
+                bundle.north = bundleBounds.getMaxY();
+                bundle.south = bundleBounds.getMinY();
+                bundle.east = bundleBounds.getMaxX();
+                bundle.west = bundleBounds.getMinX();
+
+                bundle.centerLat = (bundle.north + bundle.south) / 2;
+                bundle.centerLon = (bundle.west + bundle.east) / 2;
 
                 writeManifestToCache(bundle);
                 bundle.status = Bundle.Status.DONE;
@@ -208,7 +220,12 @@ public class BundleController {
         return Persistence.bundles.findByIdFromRequestIfPermitted(req);
     }
 
+    public static Collection<Bundle> getBundles (Request req, Response res) {
+        return Persistence.bundles.findPermittedForQuery(req);
+    }
+
     public static void register () {
+        get("/api/bundle", BundleController::getBundles, JsonUtil.objectMapper::writeValueAsString);
         get("/api/bundle/:_id", BundleController::getBundle, JsonUtil.objectMapper::writeValueAsString);
         post("/api/bundle", BundleController::create, JsonUtil.objectMapper::writeValueAsString);
         put("/api/bundle/:_id", BundleController::update, JsonUtil.objectMapper::writeValueAsString);
