@@ -4,6 +4,7 @@ import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.taui.AnalysisServerException;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -26,7 +27,7 @@ public class Bundle extends Model implements Cloneable {
     public LocalDate serviceStart;
     public LocalDate serviceEnd;
 
-    public List<FeedSummary> feeds;
+    public List<FeedSummary> feeds = new ArrayList<>();
     public Status status;
 
     public int feedsComplete;

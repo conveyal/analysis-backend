@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.models.FeedSource;
+import com.conveyal.gtfs.model.Stop;
 import com.conveyal.r5.analyst.cluster.BundleManifest;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -27,8 +28,10 @@ import spark.Response;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,8 +51,6 @@ import static spark.Spark.put;
 public class BundleController {
     private static final Logger LOG = LoggerFactory.getLogger(BundleController.class);
 
-    private static final String awsRegion = AnalysisServerConfig.awsRegion;
-
     private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
             .withRegion(AnalysisServerConfig.awsRegion)
             .build();
@@ -58,7 +59,7 @@ public class BundleController {
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
 
         // create the bundle
-        Map<String, List<FileItem>> files = null;
+        Map<String, List<FileItem>> files;
         final Bundle bundle = new Bundle();
         try {
             files = sfu.parseParameterMap(req.raw());
@@ -130,6 +131,8 @@ public class BundleController {
                 Set<String> seenFeedIds = new HashSet<>();
 
                 Envelope bundleBounds = new Envelope();
+                bundle.serviceStart = LocalDate.MAX;
+                bundle.serviceEnd = LocalDate.MIN;
                 bundle.feeds = new ArrayList<>();
                 bundle.totalFeeds = localFiles.size();
 
@@ -141,15 +144,16 @@ public class BundleController {
 
                     Bundle.FeedSummary feedSummary  = new Bundle.FeedSummary(fs.feed, bundle._id);
                     bundle.feeds.add(feedSummary);
-                    fs.feed.stops.values().forEach(s -> {
-                        bundleBounds.expandToInclude(s.stop_lon, s.stop_lat);
-                    });
 
-                    if (bundle.serviceStart == null || bundle.serviceStart.isAfter(feedSummary.serviceStart)) {
+                    for (Stop s : fs.feed.stops.values()) {
+                        bundleBounds.expandToInclude(s.stop_lon, s.stop_lat);
+                    }
+
+                    if (bundle.serviceStart.isAfter(feedSummary.serviceStart)) {
                         bundle.serviceStart = feedSummary.serviceStart;
                     }
 
-                    if (bundle.serviceEnd == null || bundle.serviceEnd.isBefore(feedSummary.serviceEnd)) {
+                    if (bundle.serviceEnd.isBefore(feedSummary.serviceEnd)) {
                         bundle.serviceEnd = feedSummary.serviceEnd;
                     }
 
@@ -216,12 +220,55 @@ public class BundleController {
         return Persistence.bundles.updateFromJSONRequest(req);
     }
 
-    public static Object getBundle (Request req, Response res) {
-        return Persistence.bundles.findByIdFromRequestIfPermitted(req);
+    public static Bundle getBundle (Request req, Response res) {
+        Bundle bundle = Persistence.bundles.findByIdFromRequestIfPermitted(req);
+
+        // Old bundles did not have these set.
+        try {
+            setBundleServiceDates(bundle);
+        } catch (Exception e) {
+            throw AnalysisServerException.unknown(e);
+        }
+
+        return bundle;
     }
 
     public static Collection<Bundle> getBundles (Request req, Response res) {
         return Persistence.bundles.findPermittedForQuery(req);
+    }
+
+    /**
+     * Old bundles were created without computing the service start and end dates. This finds them and stores them.
+     * @param bundle
+     */
+    public static Bundle setBundleServiceDates (Bundle bundle) throws Exception {
+        if (bundle.status == Bundle.Status.DONE && bundle.serviceStart != null && bundle.serviceEnd != null) return bundle;
+
+        // Old bundles were created with computing the service start and end dates
+        bundle.serviceStart = LocalDate.MAX;
+        bundle.serviceEnd = LocalDate.MIN;
+
+        for (Bundle.FeedSummary summary : bundle.feeds) {
+            // Compute the feed start and end dates
+            if (summary.serviceStart == null || summary.serviceEnd == null) {
+                FeedSource fs = ApiMain.getFeedSource(Bundle.bundleScopeFeedId(summary.feedId, bundle._id));
+                // Set service start and end from the dates of service
+                List<LocalDate> datesOfService = fs.feed.getDatesOfService();
+                datesOfService.sort(Comparator.naturalOrder());
+                summary.serviceStart = datesOfService.get(0);
+                summary.serviceEnd = datesOfService.get(datesOfService.size() - 1);
+            }
+
+            if (summary.serviceStart.isBefore(bundle.serviceStart)) {
+                bundle.serviceStart = summary.serviceStart;
+            }
+            if (summary.serviceEnd.isAfter(bundle.serviceEnd)) {
+                bundle.serviceEnd = summary.serviceEnd;
+            }
+        }
+
+        // Automated change that could occur on a `get`, so don't update the nonce
+        return Persistence.bundles.put(bundle);
     }
 
     public static void register () {
