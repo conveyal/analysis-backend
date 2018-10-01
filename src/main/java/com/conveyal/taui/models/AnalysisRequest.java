@@ -32,6 +32,7 @@ public class AnalysisRequest {
     // All analyses parameters
     public String accessModes;
     public float bikeSpeed;
+    public Bounds bounds;
     public LocalDate date;
     public String directModes;
     public String egressModes;
@@ -57,7 +58,6 @@ public class AnalysisRequest {
     public int suboptimalMinutes = 5;
 
     // Regional only
-    public Bounds bounds;
     public Integer maxTripDurationMinutes;
     public String name;
     public String opportunityDatasetId;
@@ -119,17 +119,12 @@ public class AnalysisRequest {
         }
 
         // TODO define class with static factory function WebMercatorGridBounds.fromLatLonBounds(). Also include getIndex(x, y), getX(index), getY(index), totalTasks()
-
-        int east = Grid.lonToPixel(bounds.east, ZOOM);
-        int north = Grid.latToPixel(bounds.north, ZOOM);
-        int south = Grid.latToPixel(bounds.south, ZOOM);
-        int west = Grid.lonToPixel(bounds.west, ZOOM);
-
-        task.height = south - north;
-        task.north = north;
-        task.west = west;
-        task.width = east - west;
-        task.zoom = ZOOM;
+        Grid grid = new Grid(ZOOM, bounds.north, bounds.east, bounds.south, bounds.west);
+        task.height = grid.height;
+        task.north = grid.north;
+        task.west = grid.west;
+        task.width = grid.width;
+        task.zoom = grid.zoom;
 
         task.date = date;
         task.fromLat = fromLat;
