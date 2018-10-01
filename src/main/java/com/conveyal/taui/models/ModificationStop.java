@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 class ModificationStop {
     private static double MIN_SPACING_PERCENTAGE = 0.25;
     private static int DEFAULT_SEGMENT_SPEED = 15;
+    public static int SECONDS_PER_HOUR = 60 * 60;
+    public static int METERS_PER_KM = 1000;
 
     private Coordinate coordinate;
     private String id;
@@ -62,7 +64,8 @@ class ModificationStop {
         Segment firstSegment = segments.get(0);
 
         if (firstSegment.stopAtStart) {
-            stops.add(new ModificationStop(firstSegment.geometry.getCoordinates()[0], firstSegment.fromStopId, 0));
+            stops.add(new
+                    ModificationStop(firstSegment.geometry.getCoordinates()[0], firstSegment.fromStopId, 0));
         }
 
         double distanceToLastStop = 0; // distance to previously created stop, from start of pattern
@@ -144,21 +147,22 @@ class ModificationStop {
         return stopDwellTimes;
     }
 
-    static int[] getHopTimes (List<ModificationStop> stops, int[] segmentSpeeds) {
+    static int[] getHopTimes (List<ModificationStop> stops, int[] segmentSpeedsKph) {
         if (stops == null || stops.size() < 2) {
             return new int[0];
         }
 
-        int[] hopTimes = new int[stops.size() - 1];
+        int[] hopTimesSeconds = new int[stops.size() - 1];
 
         ModificationStop lastStop = stops.get(0);
         int realStopIndex = 0;
-        for (int i = 0; i < hopTimes.length; i++) {
+        for (int i = 0; i < hopTimesSeconds.length; i++) {
             ModificationStop stop = stops.get(i + 1);
             double hopDistance = stop.distanceFromStart - lastStop.distanceFromStart;
 
-            int segmentSpeed = segmentSpeeds.length > realStopIndex ? segmentSpeeds[realStopIndex] : DEFAULT_SEGMENT_SPEED;
-            hopTimes[i] = (int) (hopDistance / (segmentSpeed * 1000) * 3000);
+            int segmentSpeedKph = segmentSpeedsKph.length > realStopIndex ? segmentSpeedsKph[realStopIndex] :
+                    DEFAULT_SEGMENT_SPEED;
+            hopTimesSeconds[i] = (int) (hopDistance / (segmentSpeedKph * METERS_PER_KM) * SECONDS_PER_HOUR);
 
             if (stop.id != null) {
                 realStopIndex++;
@@ -167,6 +171,6 @@ class ModificationStop {
             lastStop = stop;
         }
 
-        return hopTimes;
+        return hopTimesSeconds;
     }
 }
