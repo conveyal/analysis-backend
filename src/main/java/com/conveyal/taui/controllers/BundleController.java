@@ -167,9 +167,6 @@ public class BundleController {
                 bundle.east = bundleBounds.getMaxX();
                 bundle.west = bundleBounds.getMinX();
 
-                bundle.centerLat = (bundle.north + bundle.south) / 2;
-                bundle.centerLon = (bundle.west + bundle.east) / 2;
-
                 writeManifestToCache(bundle);
                 bundle.status = Bundle.Status.DONE;
             } catch (Exception e) {
