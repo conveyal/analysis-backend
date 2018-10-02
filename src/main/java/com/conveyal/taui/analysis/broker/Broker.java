@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.MessageFormat;
@@ -424,6 +425,15 @@ public class Broker {
             return null;
         } else {
             return new RegionalAnalysisStatus(gridResultAssembler);
+        }
+    }
+
+    public File getPartialRegionalAnalysisResults (String jobId) {
+        GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
+        if (gridResultAssembler == null) {
+            return null;
+        } else {
+            return gridResultAssembler.getBufferFile();
         }
     }
 
