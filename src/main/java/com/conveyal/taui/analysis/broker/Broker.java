@@ -325,6 +325,9 @@ public class Broker {
         if (job.isComplete()) {
             job.verifyComplete();
             jobs.remove(job.workerCategory, job);
+            // This method is called after the regional work results are handled, finishing and closing the local file.
+            // So we can harmlessly remove the GridResultAssembler now that the job is removed.
+            resultAssemblers.remove(jobId);
         }
         return true;
     }
