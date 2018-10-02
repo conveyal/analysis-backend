@@ -188,6 +188,16 @@ public class MongoMap<V extends Model> {
         return result;
     }
 
+    /**
+     * Insert without updating the nonce or updateBy/updatedAt
+     * @return
+     */
+    public V modifiyWithoutUpdatingLock (V value) {
+        wrappedCollection.updateById(value._id, value);
+
+        return value;
+    }
+
     public V removeIfPermitted(String key, String accessGroup) {
         V result = wrappedCollection.findAndRemove(QueryBuilder.start().and(
                 QueryBuilder.start("_id").is(key).get(),

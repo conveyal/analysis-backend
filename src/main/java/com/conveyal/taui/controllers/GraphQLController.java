@@ -29,10 +29,10 @@ import spark.Request;
 import spark.Response;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.routeType;
 import static com.conveyal.gtfs.api.graphql.GraphQLGtfsSchema.stopType;
@@ -79,8 +79,6 @@ public class GraphQLController {
             .field(string("feed_publisher_url"))
             .field(string("feed_lang"))
             .field(string("feed_version"))
-            .field(string("feed_start_date"))
-            .field(string("feed_end_date"))
             // We have a custom wrapped GTFS Entity type for FeedInfo that includes feed checksum
             .field(newFieldDefinition()
                     .name("checksum")
@@ -121,8 +119,6 @@ public class GraphQLController {
                     .dataFetcher((env) -> ((Bundle) env.getSource()).status)
                     .build()
             )
-            .field(doublee("centerLat"))
-            .field(doublee("centerLon"))
             .field(newFieldDefinition()
                     .name("feeds")
                     .type(new GraphQLList(feedType))
@@ -164,33 +160,32 @@ public class GraphQLController {
             context.addError(new ExceptionWhileDataFetching(e));
         }
 
-        List<WrappedGTFSEntity<FeedInfo>> feeds = new ArrayList<>();
-        for (Bundle.FeedSummary summary : bundle.feeds) {
-            String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
-            try {
-                FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
-                FeedInfo ret;
-                if (fs != null && fs.feed.feedInfo.size() > 0) {
-                    ret = fs.feed.feedInfo.values().iterator().next();
-                } else {
-                    ret = new FeedInfo();
+        return bundle.feeds.stream()
+            .map(summary -> {
+                String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
+                try {
+                    FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
+                    FeedInfo ret;
+                    if (fs != null && fs.feed.feedInfo.size() > 0)
+                        ret = fs.feed.feedInfo.values().iterator().next();
+                    else {
+                        ret = new FeedInfo();
+                    }
+                    if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
+                        ret = ret.clone();
+                        ret.feed_id = fs.feed.feedId;
+                    }
+                    return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
+                } catch (UncheckedExecutionException nsee) {
+                    Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
+                    context.addError(new ExceptionWhileDataFetching(e));
+                    return null;
+                } catch (Exception e) {
+                    context.addError(new ExceptionWhileDataFetching(e));
+                    return null;
                 }
-
-                if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
-                    ret = ret.clone();
-                    ret.feed_id = fs.feed.feedId;
-                }
-
-                feeds.add(new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum));
-            } catch (UncheckedExecutionException nsee) {
-                Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
-                context.addError(new ExceptionWhileDataFetching(e));
-            } catch (Exception e) {
-                context.addError(new ExceptionWhileDataFetching(e));
-            }
-        }
-
-        return feeds;
+            })
+            .collect(Collectors.toList());
     }
 
     public static void register () {

@@ -20,7 +20,7 @@ public class Bundle extends Model implements Cloneable {
     public double south;
     public double east;
     public double west;
-    
+
     public LocalDate serviceStart;
     public LocalDate serviceEnd;
 

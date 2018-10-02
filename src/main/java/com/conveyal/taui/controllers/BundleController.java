@@ -158,7 +158,9 @@ public class BundleController {
                     }
 
                     bundle.feedsComplete += 1;
-                    Persistence.bundles.put(bundle);
+
+                    // Done in a loop the nonce and updatedAt would be changed repeatedly
+                    Persistence.bundles.modifiyWithoutUpdatingLock(bundle);
                 }
 
                 // TODO Handle crossing the antimeridian
@@ -239,7 +241,7 @@ public class BundleController {
      * @param bundle
      */
     public static Bundle setBundleServiceDates (Bundle bundle) throws Exception {
-        if (bundle.status == Bundle.Status.DONE && bundle.serviceStart != null && bundle.serviceEnd != null) return bundle;
+        if (bundle.status != Bundle.Status.DONE || (bundle.serviceStart != null && bundle.serviceEnd != null)) return bundle;
 
         // Old bundles were created with computing the service start and end dates
         bundle.serviceStart = LocalDate.MAX;
@@ -265,7 +267,7 @@ public class BundleController {
         }
 
         // Automated change that could occur on a `get`, so don't update the nonce
-        return Persistence.bundles.put(bundle);
+        return Persistence.bundles.modifiyWithoutUpdatingLock(bundle);
     }
 
     public static void register () {
