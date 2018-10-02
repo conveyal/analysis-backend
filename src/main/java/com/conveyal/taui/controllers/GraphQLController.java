@@ -161,31 +161,31 @@ public class GraphQLController {
         }
 
         return bundle.feeds.stream()
-            .map(summary -> {
-                String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
-                try {
-                    FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
-                    FeedInfo ret;
-                    if (fs != null && fs.feed.feedInfo.size() > 0)
-                        ret = fs.feed.feedInfo.values().iterator().next();
-                    else {
-                        ret = new FeedInfo();
+                .map(summary -> {
+                    String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
+                    try {
+                        FeedSource fs = ApiMain.getFeedSource(bundleScopedFeedId);
+                        FeedInfo ret;
+                        if (fs != null && fs.feed.feedInfo.size() > 0)
+                            ret = fs.feed.feedInfo.values().iterator().next();
+                        else {
+                            ret = new FeedInfo();
+                        }
+                        if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
+                            ret = ret.clone();
+                            ret.feed_id = fs.feed.feedId;
+                        }
+                        return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
+                    } catch (UncheckedExecutionException nsee) {
+                        Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
+                        context.addError(new ExceptionWhileDataFetching(e));
+                        return null;
+                    } catch (Exception e) {
+                        context.addError(new ExceptionWhileDataFetching(e));
+                        return null;
                     }
-                    if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
-                        ret = ret.clone();
-                        ret.feed_id = fs.feed.feedId;
-                    }
-                    return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
-                } catch (UncheckedExecutionException nsee) {
-                    Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
-                    context.addError(new ExceptionWhileDataFetching(e));
-                    return null;
-                } catch (Exception e) {
-                    context.addError(new ExceptionWhileDataFetching(e));
-                    return null;
-                }
-            })
-            .collect(Collectors.toList());
+                })
+                .collect(Collectors.toList());
     }
 
     public static void register () {
