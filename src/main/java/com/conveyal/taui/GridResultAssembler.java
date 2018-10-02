@@ -140,7 +140,7 @@ public class GridResultAssembler {
             randomAccessFile.close();
 
             // There's probably a more elegant way to do this with NIO and without closing the buffer.
-            // That would be Files.copy or ByteStreams.copy.
+            // That would be Files.copy(File.toPath(),X) or ByteStreams.copy.
             InputStream is = new BufferedInputStream(new FileInputStream(bufferFile));
             OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gzippedGridFile)));
             ByteStreams.copy(is, os);
