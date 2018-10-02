@@ -60,13 +60,17 @@ public class Bundle extends Model implements Cloneable {
         public LocalDate serviceEnd;
         public long checksum;
 
+        /**
+         * Set service start and end from the dates of service values returned from GTFSFeed. This is calculated from
+         * the trip data in the feed. Feed summaries (feed_start_date/feed_end_date) are not always included in feeds.
+         */
         public FeedSummary(GTFSFeed feed, String bundleId) {
             feedId = feed.feedId;
             bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
 
-            // Set service start and end from the dates of service
+
             List<LocalDate> datesOfService = feed.getDatesOfService();
             datesOfService.sort(Comparator.naturalOrder());
             serviceStart = datesOfService.get(0);
