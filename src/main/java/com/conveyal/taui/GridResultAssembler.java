@@ -1,10 +1,9 @@
 package com.conveyal.taui;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.LittleEndianIntOutputStream;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
+import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,8 +53,6 @@ public class GridResultAssembler {
 
     /** The offset to get to the data section of the access grid file. */
     public static final long HEADER_LENGTH_BYTES = 9 * Integer.BYTES;
-
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
     public final AnalysisTask request;
 
@@ -157,7 +154,7 @@ public class GridResultAssembler {
                     (double) bufferFile.length() / gzippedGridFile.length()
             );
             // TODO use generic filePersistence instead of specific S3 client
-            s3.putObject(outputBucket, String.format("%s.access", request.jobId), gzippedGridFile);
+            RegionalAnalysisController.s3.putObject(outputBucket, String.format("%s.access", request.jobId), gzippedGridFile);
             // Clear temporary files off of the disk because the gzipped version is now on S3.
             bufferFile.delete();
             gzippedGridFile.delete();

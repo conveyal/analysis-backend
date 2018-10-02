@@ -40,7 +40,7 @@ import static spark.Spark.put;
 public class RegionalAnalysisController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+    public static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
             .withRegion(AnalysisServerConfig.awsRegion)
             .build();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
