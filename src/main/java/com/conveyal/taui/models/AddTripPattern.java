@@ -50,7 +50,7 @@ public class AddTripPattern extends Modification {
 
         List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
         at.frequencies = timetables.stream().map(tt -> tt.toR5(stops)).collect(Collectors.toList());
-        at.stops = ModificationStop.toSpec(stops);
+        at.stops = ModificationStop.toStopSpecs(stops);
 
         return at;
     }

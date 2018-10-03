@@ -53,18 +53,12 @@ public class RegionController {
         }
     }
 
-    public static Region getRegionFromFiles(Map<String, List<FileItem>> files) {
-        try {
-            InputStream is = files.get("region").get(0).getInputStream();
-            final Region region = JsonUtil.objectMapper.readValue(is, Region.class);
-            is.close();
-
-            return region;
-        } catch (IOException e) {
-            throw AnalysisServerException.badRequest("Error parsing region. " + ExceptionUtils.asString(e));
-        }
-    }
-
+    /**
+     * Read OSM files supplied during region creation
+     * @param region
+     * @param files MIME multipart upload (including osm.pbf)
+     * @throws Exception
+     */
     public static void uploadOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
         try {
             // Set the status to Started
@@ -81,43 +75,47 @@ public class RegionController {
             Persistence.regions.put(region);
 
         } catch (Exception e) {
-            Persistence.regions.remove(region);
-            throw AnalysisServerException.fileUpload("Error processing OSM. " + ExceptionUtils.asString(e));
+            Persistence.regions.removeIfPermitted(region._id, region.accessGroup);
+            throw AnalysisServerException.fileUpload("Error processing OSM uploaded during region creation. " +
+                    ExceptionUtils.asString(e));
         }
 
     }
 
+    /**
+     * Create a region with OSM.  //TODO move OSM upload/selection to explicit TransportNetwork creation
+     * @param req body contains MIME multipart upload, which in turn contains region (.json representation) and OSM (
+     *            .pbf)
+     * @param res
+     * @return
+     * @throws Exception
+     */
     public static Region create(Request req, Response res) throws Exception {
-        final Map<String, List<FileItem>> files = getFilesFromRequest(req);
-        Region region = getRegionFromFiles(files);
+        try {
+            final Map<String, List<FileItem>> files = getFilesFromRequest(req);
 
-        // Set the `accessGroup` and `createdBy`
-        region.accessGroup = req.attribute("accessGroup");
-        region.createdBy = req.attribute("email");
+            InputStream is = files.get("region").get(0).getInputStream();
+            final Region region = JsonUtil.objectMapper.readValue(is, Region.class);
+            is.close();
 
-        // Create the region
-        Persistence.regions.create(region);
+            // Set the `accessGroup` and `createdBy`
+            region.accessGroup = req.attribute("accessGroup");
+            region.createdBy = req.attribute("email");
 
-        // Upload custom OSM data
-        uploadOSM(region, files);
+            // Create the region
+            Persistence.regions.create(region);
 
-        return region;
+            // Upload custom OSM data
+            uploadOSM(region, files);
+
+            return region;
+        } catch (IOException e) {
+            throw AnalysisServerException.badRequest("Error parsing region. " + ExceptionUtils.asString(e));
+        }
     }
 
     public static Region update(Request req, Response res) throws Exception {
-        final Region existingRegion = Persistence.regions.findByIdFromRequestIfPermitted(req);
-        final Map<String, List<FileItem>> files = getFilesFromRequest(req);
-        Region region = getRegionFromFiles(files);
-
-        // Update custom OSM if exists
-        uploadOSM(existingRegion, files);
-
-        // Set updatedBy
-        region.updatedBy = req.attribute("email");
-        // And update the `nonce` and `updatedAt`
-        Persistence.regions.put(region);
-
-        return region;
+        return Persistence.regions.updateFromJSONRequest(req);
     }
 
     public static Region deleteRegion (Request req, Response res) {
