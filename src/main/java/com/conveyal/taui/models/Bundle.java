@@ -2,6 +2,7 @@ package com.conveyal.taui.models;
 
 import com.conveyal.gtfs.GTFSFeed;
 import com.conveyal.taui.AnalysisServerException;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -57,17 +58,24 @@ public class Bundle extends Model implements Cloneable {
         public LocalDate serviceEnd;
         public long checksum;
 
-        /**
-         * Set service start and end from the dates of service values returned from GTFSFeed. This is calculated from
-         * the trip data in the feed. Feed summaries (feed_start_date/feed_end_date) are not always included in feeds.
-         */
         public FeedSummary(GTFSFeed feed, String bundleId) {
             feedId = feed.feedId;
             bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
 
+            setServiceDates(feed);
+        }
 
+        /**
+         * Set service start and end from the dates of service values returned from GTFSFeed. This is calculated from
+         * the trip data in the feed. `feed_info.txt` is optional and many GTFS feeds do not include the fields
+         * feed_start_date or feed_end_date. Therefore we instead derive the start and end dates from the stop_times
+         * and trips. Also, at this time the only usage of these fields is to explicitly show in the user interface that
+         * a date does or does not have service.
+         */
+        @JsonIgnore
+        public void setServiceDates (GTFSFeed feed) {
             List<LocalDate> datesOfService = feed.getDatesOfService();
             datesOfService.sort(Comparator.naturalOrder());
             serviceStart = datesOfService.get(0);

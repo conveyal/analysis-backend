@@ -222,7 +222,7 @@ public class BundleController {
     public static Bundle getBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.findByIdFromRequestIfPermitted(req);
 
-        // Old bundles did not have these set.
+        // Progressively update older bundles with service start and end dates on retrieval
         try {
             setBundleServiceDates(bundle);
         } catch (Exception e) {
@@ -237,13 +237,14 @@ public class BundleController {
     }
 
     /**
-     * Old bundles were created without computing the service start and end dates. This finds them and stores them.
-     * @param bundle
+     * Bundles created before 2018-10-04 do not have service start and end dates. This method sets the service start
+     * and end dates for bundles that are DONE and do not have them set already. A database migration wasn't done due to
+     * the need to load feeds which is a heavy operation. Duplicate functionality exists in the Bundle.FeedSummary
+     * constructor and these dates will be automatically set for all new Bundles.
      */
     public static Bundle setBundleServiceDates (Bundle bundle) throws Exception {
         if (bundle.status != Bundle.Status.DONE || (bundle.serviceStart != null && bundle.serviceEnd != null)) return bundle;
 
-        // Old bundles were created with computing the service start and end dates
         bundle.serviceStart = LocalDate.MAX;
         bundle.serviceEnd = LocalDate.MIN;
 
@@ -251,11 +252,7 @@ public class BundleController {
             // Compute the feed start and end dates
             if (summary.serviceStart == null || summary.serviceEnd == null) {
                 FeedSource fs = ApiMain.getFeedSource(Bundle.bundleScopeFeedId(summary.feedId, bundle._id));
-                // Set service start and end from the dates of service
-                List<LocalDate> datesOfService = fs.feed.getDatesOfService();
-                datesOfService.sort(Comparator.naturalOrder());
-                summary.serviceStart = datesOfService.get(0);
-                summary.serviceEnd = datesOfService.get(datesOfService.size() - 1);
+                summary.setServiceDates(fs.feed);
             }
 
             if (summary.serviceStart.isBefore(bundle.serviceStart)) {
