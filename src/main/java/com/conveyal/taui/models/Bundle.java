@@ -1,19 +1,13 @@
 package com.conveyal.taui.models;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.gtfs.GTFSFeed;
-import com.conveyal.r5.analyst.cluster.BundleManifest;
-import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.util.JsonUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Represents a transport bundle (GTFS and OSM).
@@ -28,13 +22,10 @@ public class Bundle extends Model implements Cloneable {
     public double east;
     public double west;
 
-    public double centerLat;
-    public double centerLon;
-
     public LocalDate serviceStart;
     public LocalDate serviceEnd;
 
-    public List<FeedSummary> feeds;
+    public List<FeedSummary> feeds = new ArrayList<>();
     public Status status;
 
     public int feedsComplete;
@@ -72,10 +63,29 @@ public class Bundle extends Model implements Cloneable {
             bundleScopedFeedId = bundleScopeFeedId(feed.feedId, bundleId);
             name = feed.agency.size() > 0 ? feed.agency.values().iterator().next().agency_name : feed.feedId;
             checksum = feed.checksum;
+
+            setServiceDates(feed);
         }
 
-        /** restore default constructor for use in deserialization */
-        public FeedSummary () { /* do nothing */ }
+        /**
+         * Set service start and end from the dates of service values returned from GTFSFeed. This is calculated from
+         * the trip data in the feed. `feed_info.txt` is optional and many GTFS feeds do not include the fields
+         * feed_start_date or feed_end_date. Therefore we instead derive the start and end dates from the stop_times
+         * and trips. Also, at this time the only usage of these fields is to explicitly show in the user interface that
+         * a date does or does not have service.
+         */
+        @JsonIgnore
+        public void setServiceDates (GTFSFeed feed) {
+            List<LocalDate> datesOfService = feed.getDatesOfService();
+            datesOfService.sort(Comparator.naturalOrder());
+            serviceStart = datesOfService.get(0);
+            serviceEnd = datesOfService.get(datesOfService.size() - 1);
+        }
+
+        /**
+         * Default empty constructor needed for JSON mapping
+         */
+        public FeedSummary () { }
 
         public FeedSummary clone () {
             try {
