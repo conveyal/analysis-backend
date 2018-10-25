@@ -1,0 +1,19 @@
+{
+  "name" : "test-create",
+  "accessGroup" : "OFFLINE",
+  "createdBy" : "analysis@conveyal.com",
+  "updatedBy" : "analysis@conveyal.com",
+  "description" : "test-description",
+  "r5Version" : null,
+  "bounds" : {
+    "north" : 37.05956083025126,
+    "east" : -122.06634521484376,
+    "south" : 37.04421668967971,
+    "west" : -122.08282470703126
+  },
+  "customOsm" : true,
+  "statusCode" : "DONE",
+  "statusMessage" : null,
+  "bookmarks" : [ ],
+  "aggregationAreas" : [ ]
+}
