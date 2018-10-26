@@ -1,31 +1,31 @@
 [ {
+  "name" : "test-region-with-projects",
   "projects" : [ {
-    "name" : "project-with-modifications",
     "modifications" : [ {
-      "timetables" : [ {
-        "monday" : true,
-        "tuesday" : true,
-        "wednesday" : true,
-        "thursday" : true,
-        "friday" : true,
-        "saturday" : false,
-        "sunday" : false,
-        "name" : "weekday",
-        "startTime" : 12345,
-        "endTime" : 23456,
-        "headwaySecs" : 1234,
-        "exactTimes" : false,
-        "phaseAtStop" : null,
-        "phaseFromTimetable" : null,
-        "phaseFromStop" : null,
-        "phaseSeconds" : 0,
-        "dwellTime" : 0,
-        "segmentSpeeds" : null,
-        "dwellTimes" : null
-      } ],
       "name" : "modification-with-timetables",
-      "segments" : null
-    } ]
-  } ],
-  "name" : "test-region-with-projects"
+      "segments" : null,
+      "timetables" : [ {
+        "dwellTime" : 0,
+        "dwellTimes" : null,
+        "endTime" : 23456,
+        "exactTimes" : false,
+        "friday" : true,
+        "headwaySecs" : 1234,
+        "monday" : true,
+        "name" : "weekday",
+        "phaseAtStop" : null,
+        "phaseFromStop" : null,
+        "phaseFromTimetable" : null,
+        "phaseSeconds" : 0,
+        "saturday" : false,
+        "segmentSpeeds" : null,
+        "startTime" : 12345,
+        "sunday" : false,
+        "thursday" : true,
+        "tuesday" : true,
+        "wednesday" : true
+      } ]
+    } ],
+    "name" : "project-with-modifications"
+  } ]
 } ]
