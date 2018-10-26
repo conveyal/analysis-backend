@@ -50,9 +50,9 @@ public class BundleControllerTest {
     }
 
     @Test
-    public void canCreateReadAndDeleteABundle () throws IOException {
+    public void canCreateReadAndDeleteABundle () throws IOException, InterruptedException {
         // create the bundle
-        JsonNode json = parseJson(
+        JsonNode createdJson = parseJson(
             given()
                 .port(7070)
                 .contentType("multipart/form-data")
@@ -65,17 +65,25 @@ public class BundleControllerTest {
                 .response()
                 .asString()
         );
-        String bundleId = json.get("_id").asText();
+        String bundleId = createdJson.get("_id").asText();
 
-        // assert bundle was created properly
-        canCreateBundle(json);
+        // wait 3 seconds so that the bundle can be processed (there are some async calculatinos that can change the
+        // data of the bundle over time).
+        LOG.info("waiting 3 seconds for bundle to be processed");
+        Thread.sleep(3000);
 
-        // verify that the bundle can be fetched
-        given()
-            .port(7070)
-            .get("api/bundle/" + bundleId)
-        .then()
-            .body("_id", equalTo(bundleId));
+        // Then verify the bundle can be fetched and snapshot the data.
+        JsonNode fetchedJson = parseJson(
+            given()
+                .port(7070)
+                .get("api/bundle/" + bundleId)
+            .then()
+                .body("_id", equalTo(bundleId))
+                .extract()
+                .response()
+                .asString()
+        );
+        canCreateBundle(fetchedJson);
 
         // delete the bundle and verify that the bundle was returned
         given()
@@ -99,7 +107,8 @@ public class BundleControllerTest {
     private void canCreateBundle(JsonNode json) {
         assertThat(json.get("regionId").asText(), equalTo(regionId));
         removeDynamicValues(json);
-        removeKeysAndValues(json, new String[]{"regionId"});
+        // remove additional key/values that change between each test run
+        removeKeysAndValues(json, new String[]{"bundleScopedFeedId", "feedId", "regionId"});
         assertThat(json, matchesSnapshot());
     }
 }

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.restassured.response.Response;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,6 +21,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TestUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(TestUtils.class);
 
     /**
      * Parse a json string into an unmapped JsonNode object
@@ -52,7 +55,7 @@ public class TestUtils {
         // iterate through either the keys or array elements of this JsonObject/JsonArray
         if (json.isArray() || json.isObject()) {
             for (JsonNode nextNode : json) {
-                removeDynamicValues(nextNode);
+                removeKeysAndValues(nextNode, keysToRemove);
             }
         }
     }
