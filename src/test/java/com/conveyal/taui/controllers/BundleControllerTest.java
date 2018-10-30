@@ -10,8 +10,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 
-import static com.conveyal.taui.TestUtils.assertObjectIdNotInResponse;
 import static com.conveyal.taui.TestUtils.createRegion;
+import static com.conveyal.taui.TestUtils.objectIdInResponse;
 import static com.conveyal.taui.TestUtils.parseJson;
 import static com.conveyal.taui.TestUtils.removeDynamicValues;
 import static com.conveyal.taui.TestUtils.removeKeysAndValues;
@@ -93,11 +93,14 @@ public class BundleControllerTest {
             .body("_id", equalTo(bundleId));
 
         // verify the bundle no longer exists by fetching all bundles and verifying that the bundle is no longer present
-        assertObjectIdNotInResponse(
-            given()
-                .port(7070)
-                .get("api/bundle"),
-            bundleId
+        assertThat(
+            objectIdInResponse(
+                given()
+                    .port(7070)
+                    .get("api/bundle"),
+                bundleId
+            ),
+            equalTo(false)
         );
     }
 

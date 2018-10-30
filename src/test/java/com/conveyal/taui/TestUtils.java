@@ -17,8 +17,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 public class TestUtils {
     private static final Logger LOG = LoggerFactory.getLogger(TestUtils.class);
@@ -68,30 +66,10 @@ public class TestUtils {
     }
 
     /**
-     * An assertion to make sure that a given objectId is present in at least one of the objects in a response that is
-     * supposed to contain a list of objects.
-     *
-     * This function should be passed a rest assured object built up until the point of calling .then()
-     */
-    public static void assertObjectIdInResponse(Response response, String objectId) {
-        assertObjectIdInResponsePresence(response, objectId, true);
-    }
-
-    /**
-     * An assertion to make sure that a given objectId is not present in any of the objects in a response that is
-     * supposed to contain a list of objects
-     *
-     * This function should be passed a rest assured object built up until the point of calling .then()
-     */
-    public static void assertObjectIdNotInResponse(Response response, String objectId) {
-        assertObjectIdInResponsePresence(response, objectId, false);
-    }
-
-    /**
-     * Helper method to do the parsing and checking of whether an object with a givenn ObjectId is present or not in a
+     * Helper method to do the parsing and checking of whether an object with a given ObjectId is present or not in a
      * response that contains a list of objects
      */
-    public static void assertObjectIdInResponsePresence(Response response, String objectId, boolean shouldBePresent) {
+    public static boolean objectIdInResponse(Response response, String objectId) {
         ObjectWithId[] objects = response.then()
             .extract()
             .as(ObjectWithId[].class);
@@ -100,7 +78,7 @@ public class TestUtils {
         for (ObjectWithId object : objects) {
             if (object._id.equals(objectId)) foundObject = true;
         }
-        assertThat(foundObject, equalTo(shouldBePresent));
+        return foundObject;
     }
 
     public static JsonNode createRegion () throws IOException {

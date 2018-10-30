@@ -7,8 +7,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static com.conveyal.taui.TestUtils.assertObjectIdNotInResponse;
 import static com.conveyal.taui.TestUtils.createRegion;
+import static com.conveyal.taui.TestUtils.objectIdInResponse;
 import static com.conveyal.taui.TestUtils.removeDynamicValues;
 import static com.zenika.snapshotmatcher.SnapshotMatcher.matchesSnapshot;
 import static io.restassured.RestAssured.given;
@@ -60,11 +60,14 @@ public class RegionControllerTest {
 
         // verify that the region was deleted by calling the get all regions api endpoint and making sure that the
         // created region's ID is not present in any region
-        assertObjectIdNotInResponse(
-            given()
-                .port(7070)
-                .get("api/region"),
-            regionId
+        assertThat(
+            objectIdInResponse(
+                given()
+                    .port(7070)
+                    .get("api/region"),
+                regionId
+            ),
+            equalTo(false)
         );
     }
 
