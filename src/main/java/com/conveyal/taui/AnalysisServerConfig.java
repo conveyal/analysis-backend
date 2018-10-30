@@ -66,6 +66,9 @@ public abstract class AnalysisServerConfig {
     // For use in testing - setting this field will activate alternate code paths that cause intentional failures.
     public static boolean testTaskRedelivery = false;
 
+    // Also for use in testing to indicate whether the code is running as part of the junit test suite
+    public static final boolean junitEnvironment = Boolean.parseBoolean(getProperty("junit-test-environment", false));
+
     private static String getProperty (String key, boolean require) {
         String value = config.getProperty(key);
         if (require && value == null) {

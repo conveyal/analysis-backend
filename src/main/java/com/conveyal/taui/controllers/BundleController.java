@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -207,7 +206,7 @@ public class BundleController {
     public static Bundle deleteBundle (Request req, Response res) {
         Bundle bundle = Persistence.bundles.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
 
-        if (AnalysisServerConfig.bundleBucket != null) {
+        if (AnalysisServerConfig.bundleBucket != null && !AnalysisServerConfig.junitEnvironment) {
             // remove from s3
             s3.deleteObject(AnalysisServerConfig.bundleBucket, bundle._id + ".zip");
         }
