@@ -3,11 +3,8 @@ package com.conveyal.taui.models;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.persistence.Persistence;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.mongodb.QueryBuilder;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Represents a region, which is a set of GTFS, OSM, and land use data for a particular location.
@@ -29,20 +26,6 @@ public class Region extends Model implements Cloneable {
     public StatusCode statusCode;
     public String statusMessage;
 
-    /* don't persist to DB but do expose to API */
-    @JsonView(JsonViews.Api.class)
-    public List<Bundle> getBundles () {
-        return Persistence.bundles
-                .find(QueryBuilder.start("regionId").is(_id).get())
-                .toArray();
-    }
-
-    @JsonView(JsonViews.Api.class)
-    public List<Project> getProjects () {
-        return Persistence.projects
-                .find(QueryBuilder.start("regionId").is(_id).get())
-                .toArray();
-    }
 
     @JsonView(JsonViews.Api.class)
     public Collection<Bookmark> getBookmarks () {

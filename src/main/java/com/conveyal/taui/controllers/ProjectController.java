@@ -153,7 +153,12 @@ public class ProjectController {
         return Persistence.projects.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
     }
 
+    public static Collection<Project> getProjects (Request req, Response res) {
+        return Persistence.projects.findPermittedForQuery(req);
+    }
+
     public static void register () {
+        get("/api/project", ProjectController::getProjects, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:_id", ProjectController::findById, JsonUtil.objectMapper::writeValueAsString);
         get("/api/project/:_id/modifications", ProjectController::modifications, JsonUtil.objectMapper::writeValueAsString);
         post("/api/project/:_id/import/:_importId", ProjectController::importModifications, JsonUtil.objectMapper::writeValueAsString);

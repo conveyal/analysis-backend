@@ -15,6 +15,7 @@ import spark.Request;
 import spark.Response;
 
 import java.util.Collection;
+import java.util.List;
 
 import static spark.Spark.get;
 
@@ -33,15 +34,15 @@ public class TimetableController {
             r.put("_id", region._id);
             r.put("name", region.name);
             JSONArray regionProjects = new JSONArray();
-            for (Project project : region.getProjects()) {
+            List<Project> projects = Persistence.projects.find(QueryBuilder.start("regionId").is(region._id).get()).toArray();
+            for (Project project : projects) {
                 JSONObject p = new JSONObject();
                 p.put("_id", project._id);
                 p.put("name", project.name);
                 JSONArray projectModifications = new JSONArray();
-                Collection<Modification> modifications = Persistence.modifications.findPermitted(
-                    QueryBuilder.start("projectId").is(project._id).and("type").is("add-trip-pattern").get(),
-                    req.attribute("accessGroup")
-                );
+                List<Modification> modifications = Persistence.modifications.find(
+                        QueryBuilder.start("projectId").is(project._id).and("type").is("add-trip-pattern").get()
+                ).toArray();
                 for (Modification modification : modifications) {
                     AddTripPattern tripPattern = (AddTripPattern) modification;
                     JSONObject m = new JSONObject();
