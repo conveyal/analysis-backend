@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.amazonaws.services.s3.Headers;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -23,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import com.mongodb.QueryBuilder;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -47,7 +49,8 @@ import static spark.Spark.post;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
- * This API replaces what used to be a separate broker process.
+ * It also handles connections from the front end for single-point requests.
+ * This API replaces what used to be a separate broker process running outside the Analysis backend.
  *
  * Workers used to long-poll and hold connections open, allowing them to receive tasks instantly, as soon as the tasks
  * are enqueued. However, this adds a lot of complexity since we need to suspend the open connections and clear them
@@ -56,7 +59,8 @@ import static spark.Spark.post;
  *
  * The long polling originally only existed for high-priority tasks and has been extended to single point
  * tasks, which we will instead handle with a proxy-like push approach.
- * TODO rename to BrokerController?
+ *
+ * TODO rename to BrokerController to distinguish from AnalysisWorkerController
  */
 public class WorkerController {
 
@@ -146,32 +150,33 @@ public class WorkerController {
         LOG.info("Re-issuing HTTP request from UI to worker at {}", workerUrl);
         HttpPost httpPost = new HttpPost(workerUrl);
         // httpPost.setHeader("Accept", "application/x-analysis-time-grid");
-        httpPost.setHeader("Accept-Encoding", "gzip"); // TODO copy all headers from request? Is this unzipping and re-zipping the result?
+        // TODO Explore: is this unzipping and re-zipping the result from the worker?
+        httpPost.setHeader("Accept-Encoding", "gzip");
         HttpEntity entity = null;
         try {
-            // Serialize and send the R5-specific task (not the one the UI sends to the broker)
+            // Serialize and send the R5-specific task (not the original one the broker received from the UI)
             httpPost.setEntity(new ByteArrayEntity(JsonUtil.objectMapper.writeValueAsBytes(task)));
             HttpResponse workerResponse = httpClient.execute(httpPost);
+            // Mimic the status code sent by the worker.
             response.status(workerResponse.getStatusLine().getStatusCode());
-            // TODO Should we exactly mimic these headers coming back from the worker?
-            response.header("Content-Type", "application/octet-stream");
-            response.header("Content-Encoding", "gzip");
+            // Mimic headers sent by the worker. We're mostly interested in Content-Type, maybe Content-Encoding.
+            // We do not want to mimic all headers like Date, Server etc.
+            Header contentTypeHeader = workerResponse.getFirstHeader(Headers.CONTENT_TYPE);
+            response.header(contentTypeHeader.getName(), contentTypeHeader.getValue());
+            LOG.info("Returning worker response to UI with status code {} and content type {}",
+                    workerResponse.getStatusLine(), contentTypeHeader.getValue());
             entity = workerResponse.getEntity();
-            LOG.info("Returning worker response to UI.");
             // If you return a stream to the Spark Framework, its SerializerChain will copy that stream out to the
             // client, but does not then close the stream. HttpClient waits for the stream to be closed to return the
             // connection to the pool. In order to be able to close the stream in code we control, we buffer the
-            // response in a byte buffer before resending it. The fact that we're buffering before re-sending
+            // response in a byte buffer before resending it. NOTE: The fact that we're buffering before re-sending
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
-        } catch (SocketTimeoutException ste) {
-            LOG.info("Worker time out. Most likely building graph.");
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting cluster");
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             throw AnalysisServerException.unknown(e);
         } finally {
-            // If the HTTP respoonse entity is non-null close the associated input stream, which causes the HttpClient
+            // If the HTTP response entity is non-null close the associated input stream, which causes the HttpClient
             // to release the TCP connection back to its pool. This is critical to avoid exhausting the pool.
             EntityUtils.consumeQuietly(entity);
         }
