@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -59,12 +58,10 @@ import static spark.Spark.post;
  *
  * The long polling originally only existed for high-priority tasks and has been extended to single point
  * tasks, which we will instead handle with a proxy-like push approach.
- *
- * TODO rename to BrokerController to distinguish from AnalysisWorkerController
  */
-public class WorkerController {
+public class BrokerController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(WorkerController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BrokerController.class);
 
     /**
      * The core task queueing and distribution logic is supplied by this broker object.
@@ -78,7 +75,7 @@ public class WorkerController {
     /** This HTTP client contacts workers to send them single-point tasks for immediate processing. */
     private static HttpClient httpClient = AnalystWorker.makeHttpClient();
 
-    public WorkerController (Broker broker) {
+    public BrokerController(Broker broker) {
         this.broker = broker;
     }
 
@@ -165,6 +162,8 @@ public class WorkerController {
             response.header(contentTypeHeader.getName(), contentTypeHeader.getValue());
             LOG.info("Returning worker response to UI with status code {} and content type {}",
                     workerResponse.getStatusLine(), contentTypeHeader.getValue());
+            // This header will cause the Spark Framework to gzip the data automatically if requested by the client.
+            response.header("Content-Encoding", "gzip");
             entity = workerResponse.getEntity();
             // If you return a stream to the Spark Framework, its SerializerChain will copy that stream out to the
             // client, but does not then close the stream. HttpClient waits for the stream to be closed to return the
