@@ -119,8 +119,6 @@ public class GraphQLController {
                     .dataFetcher((env) -> ((Bundle) env.getSource()).status)
                     .build()
             )
-            .field(doublee("centerLat"))
-            .field(doublee("centerLon"))
             .field(newFieldDefinition()
                     .name("feeds")
                     .type(new GraphQLList(feedType))
@@ -154,6 +152,14 @@ public class GraphQLController {
     private static List<WrappedGTFSEntity<FeedInfo>> fetchFeeds(DataFetchingEnvironment environment) {
         Bundle bundle = (Bundle) environment.getSource();
         ExecutionContext context = (ExecutionContext) environment.getContext();
+
+        // Old bundles were created without computing the service start and end dates. Will only compute if needed.
+        try {
+            BundleController.setBundleServiceDates(bundle);
+        } catch (Exception e) {
+            context.addError(new ExceptionWhileDataFetching(e));
+        }
+
         return bundle.feeds.stream()
                 .map(summary -> {
                     String bundleScopedFeedId = Bundle.bundleScopeFeedId(summary.feedId, bundle._id);
@@ -165,12 +171,10 @@ public class GraphQLController {
                         else {
                             ret = new FeedInfo();
                         }
-
                         if (ret.feed_id == null || "NONE".equals(ret.feed_id)) {
                             ret = ret.clone();
                             ret.feed_id = fs.feed.feedId;
                         }
-
                         return new WrappedFeedInfo(summary.bundleScopedFeedId, ret, summary.checksum);
                     } catch (UncheckedExecutionException nsee) {
                         Exception e = new Exception(String.format("Feed %s does not exist in the cache.", summary.name), nsee);
@@ -185,6 +189,7 @@ public class GraphQLController {
     }
 
     public static void register () {
+        // TODO make this `post` as per GraphQL convention
         get("/api/graphql", GraphQLController::handleQuery, JsonUtil.objectMapper::writeValueAsString);
     }
 

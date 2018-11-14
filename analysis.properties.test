@@ -92,3 +92,5 @@ worker-subnet-id=test-test
 #installation and configuration on startup using a user-data script.
 worker-ami-id=test-test
 
+# whether or not we're running in a test environment
+junit-test-environment=true

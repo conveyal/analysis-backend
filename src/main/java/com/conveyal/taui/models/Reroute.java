@@ -35,7 +35,7 @@ public class Reroute extends Modification {
         List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
         rr.dwellTimes = ModificationStop.getDwellTimes(stops, dwellTimes, dwellTime);
         rr.hopTimes = ModificationStop.getHopTimes(stops, segmentSpeeds);
-        rr.stops = ModificationStop.toSpec(stops);
+        rr.stops = ModificationStop.toStopSpecs(stops);
 
         if (this.trips == null) {
             rr.routes = feedScopeIds(feed, routes);
