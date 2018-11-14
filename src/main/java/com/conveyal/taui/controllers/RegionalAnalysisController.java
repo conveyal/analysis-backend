@@ -4,6 +4,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -83,45 +84,6 @@ public class RegionalAnalysisController {
     }
 
     /**
-     * The client usually fetches gzipped grids of regional analysis results from S3 when the analysis is done.
-     * This endpoint allows fetching the partially completed grid from the backend while the analysis is still in
-     * progress.
-     */
-    public static InputStream getPartialRegionalAnalysisResult (Request req, Response res) {
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
-        if (analysis == null) {
-            res.status(404);
-            res.body("The specified regional analysis does not exist.");
-            return null;
-        }
-        if (analysis.complete || analysis.deleted) {
-            res.status(410);
-            res.body("The specified regional analysis is complete or has been deleted.");
-            return null;
-        }
-        String jobId = analysis._id;
-        File partialRegionalAnalysisResultFile = broker.getPartialRegionalAnalysisResults(jobId);
-        if (partialRegionalAnalysisResultFile == null) {
-            res.status(500);
-            res.body("Could not find partial results on server.");
-            return null;
-        }
-        try {
-            InputStream inputStream = new FileInputStream(partialRegionalAnalysisResultFile);
-            res.header("content-type", "application/octet-stream");
-            // This will cause Spark Framework to gzip the data automatically if requested by the client.
-            res.header("Content-Encoding", "gzip");
-            // TODO we might need to read the file into a byte array, or maybe we can return the File.
-            return inputStream;
-        } catch (FileNotFoundException e) {
-            res.status(500);
-            res.body("Could not find partial results on server.");
-            return null;
-        }
-    }
-
-
-    /**
      * This used to extract a particular percentile of a regional analysis as a grid file.
      * Now it just gets the single percentile that exists for any one analysis, either from the local buffer file
      * for an analysis still in progress, or from S3 for a completed analysis.
@@ -134,6 +96,11 @@ public class RegionalAnalysisController {
         // The response file format: PNG, TIFF, or GRID
         final String formatString = req.params("format");
 
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        if (analysis == null || analysis.deleted) {
+            throw AnalysisServerException.notFound("The specified regional analysis in unknown or has been deleted.");
+        }
+
         // It seems like you would check regionalAnalysis.complete to choose between redirecting to s3 and fetching
         // the partially completed local file. But this field is never set to true - it's on a UI model object that
         // isn't readily accessible to the internal Job-tracking mechanism of the back end. Instead, just try to fetch
@@ -142,7 +109,7 @@ public class RegionalAnalysisController {
 
         if (partialRegionalAnalysisResultFile != null) {
             // The job is still being processed. There is a probably harmless race condition if the job happens to be
-            // completed at the very moment we're in this block, because the file will be closed and deleted at that moment.
+            // completed at the very moment we're in this block, because the file will be deleted at that moment.
             LOG.info("Analysis {} is not complete, attempting to return the partial results grid.", regionalAnalysisId);
             if (!"GRID".equalsIgnoreCase(formatString)) {
                 throw AnalysisServerException.badRequest(
@@ -159,6 +126,7 @@ public class RegionalAnalysisController {
                 // Spark has default serializers for InputStream and Bytes, and calls toString() on everything else.
                 return new FileInputStream(partialRegionalAnalysisResultFile);
             } catch (FileNotFoundException e) {
+                // The job must have finished and the file was deleted upon upload to S3. This should be very rare.
                 throw AnalysisServerException.unknown(
                         "Could not find partial result grid for incomplete regional analysis on server.");
             }
@@ -166,7 +134,8 @@ public class RegionalAnalysisController {
             // The analysis has already completed, results should be stored and retrieved from S3 via redirects.
             GridExporter.Format format = GridExporter.format(formatString);
             String redirectText = req.queryParams("redirect");
-            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
+            // We still check the format, but we always redirect now so we don't store the result of this call.
+            GridExporter.checkRedirectAndFormat(redirectText, format);
             // Accessibility given X percentile travel time.
             // No need to record what the percentile is, that is currently fixed by the regional analysis.
             final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
