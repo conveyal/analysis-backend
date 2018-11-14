@@ -45,12 +45,12 @@ public class AnalysisRequest {
     public float walkSpeed;
     public int maxRides = 4;
     public double[] percentiles;
+    public int maxWalkTime = 20;
+    public int maxBikeTime = 20;
 
     // Parameters that aren't currently configurable in the UI
     public int bikeTrafficStress = 4;
     public float carSpeed = 20;
-    public int maxWalkTime = 20;
-    public int maxBikeTime = 20;
     public int maxCarTime = 45;
     public int minBikeTime = 10;
     public int minCarTime = 10;
