@@ -5,7 +5,6 @@ import com.conveyal.gtfs.api.ApiMain;
 import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.analysis.LocalCluster;
-import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.controllers.AggregationAreaController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
@@ -15,7 +14,7 @@ import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.TimetableController;
-import com.conveyal.taui.controllers.WorkerController;
+import com.conveyal.taui.controllers.BrokerController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -111,7 +110,7 @@ public class AnalysisServer {
 //        httpService.redirect.any("/hi", "/hello");
 
         // TODO pass in non-static Analysis server config
-        new WorkerController(RegionalAnalysisController.broker).register();
+        new BrokerController(RegionalAnalysisController.broker).register();
 
         // Load index.html and register a handler with Spark to serve it up.
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
