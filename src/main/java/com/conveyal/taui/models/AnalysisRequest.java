@@ -2,6 +2,7 @@ package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
 import com.conveyal.r5.analyst.scenario.Modification;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.api.util.LegMode;
@@ -45,12 +46,12 @@ public class AnalysisRequest {
     public float walkSpeed;
     public int maxRides = 4;
     public double[] percentiles;
+    public int maxWalkTime = 20;
+    public int maxBikeTime = 20;
 
     // Parameters that aren't currently configurable in the UI
     public int bikeTrafficStress = 4;
     public float carSpeed = 20;
-    public int maxWalkTime = 20;
-    public int maxBikeTime = 20;
     public int maxCarTime = 45;
     public int minBikeTime = 10;
     public int minCarTime = 10;
@@ -64,6 +65,8 @@ public class AnalysisRequest {
     public Integer travelTimePercentile;
     // Save all results in a regional analysis to S3 for display in a "static site".
     public boolean makeStaticSite = false;
+    public int maxFare;
+    public InRoutingFareCalculator inRoutingFareCalculator;
 
     /**
      * Get all of the modifications for a project id that are in the Variant and map them to their corresponding r5 mod
@@ -107,9 +110,10 @@ public class AnalysisRequest {
         task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
-
         task.graphId = project.bundleId;
         task.workerVersion = workerVersion;
+        task.maxFare = this.maxFare;
+        task.inRoutingFareCalculator = this.inRoutingFareCalculator;
 
         Bounds bounds = this.bounds;
         if (bounds == null) {
@@ -149,7 +153,12 @@ public class AnalysisRequest {
         task.monteCarloDraws = monteCarloDraws;
         task.percentiles = percentiles;
 
-        if (task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS) {
+        // TODO FIXME HUGE HACK
+        // The max time cutoff really speeds along fare-based requests, so we inject max trip duration minutes into the
+        // request if it has a fare calculator assigned. This does mean that isochrone results will be invalid if the user
+        // moves the slider up after making a fare-based request.
+        // It is also done for regional requests (as it always was)
+        if (task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS || task.inRoutingFareCalculator != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
         }
 
