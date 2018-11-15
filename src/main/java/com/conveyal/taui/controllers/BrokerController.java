@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -171,6 +172,11 @@ public class BrokerController {
             // response in a byte buffer before resending it. NOTE: The fact that we're buffering before re-sending
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
+        } catch (SocketTimeoutException ste) {
+            LOG.info("Timeout waiting for response from worker. Perhaps an old version of R5 has blocked while preparing a network.");
+            // Aborting the request might help release resources - we had problems with exhausting connection pools here.
+            httpPost.abort();
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             throw AnalysisServerException.unknown(e);
@@ -180,7 +186,6 @@ public class BrokerController {
             EntityUtils.consumeQuietly(entity);
         }
     }
-
 
     /**
      * TODO respond to HEAD requests. For some reason we needed to implement HEAD, for proxy or cache?
