@@ -153,12 +153,13 @@ public class AnalysisRequest {
         task.monteCarloDraws = monteCarloDraws;
         task.percentiles = percentiles;
 
-        // TODO FIXME HUGE HACK
+        // FIXME Hack for fare requests (triggered when inRoutingFareCalulator specified)
         // The max time cutoff really speeds along fare-based requests, so we inject max trip duration minutes into the
         // request if it has a fare calculator assigned. This does mean that isochrone results will be invalid if the user
         // moves the slider up after making a fare-based request.
         // It is also done for regional requests (as it always was)
-        if (task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS || task.inRoutingFareCalculator != null) {
+        if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeStaticSite) ||
+                task.inRoutingFareCalculator != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
         }
 
