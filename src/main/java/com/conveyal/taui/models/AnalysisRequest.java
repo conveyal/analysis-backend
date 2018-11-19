@@ -153,11 +153,13 @@ public class AnalysisRequest {
         task.monteCarloDraws = monteCarloDraws;
         task.percentiles = percentiles;
 
-        // FIXME Hack for fare requests (triggered when inRoutingFareCalulator specified)
-        // The max time cutoff really speeds along fare-based requests, so we inject max trip duration minutes into the
-        // request if it has a fare calculator assigned. This does mean that isochrone results will be invalid if the user
-        // moves the slider up after making a fare-based request.
-        // It is also done for regional requests (as it always was)
+        // maxTripDurationMinutes is used to prune the search in R5, discarding results exceeding the cutoff. 
+        // If a target exceeds the cutoff, travel time to it may as well be infinite for the purposes of a strict cumulative
+        // opportunity measure. In standard single-point and static-site results, we don't apply this pruning (at less than
+        // the default maximum of 120 minutes) because users can vary the travel time cutoff after analysis. 
+        // An exception is for Pareto searches on fares (i.e. when inRoutingFareCalulator specified), for which we use this
+        // cutoff to achieve reasonable computation time. This does mean that isochrone results will be invalid if the user moves 
+        // the slider up after making a fare-based request. FIXME Hack for fare requests.
         if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeStaticSite) ||
                 task.inRoutingFareCalculator != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
