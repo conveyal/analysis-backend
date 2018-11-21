@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,7 +41,6 @@ public abstract class Modification extends Model implements Cloneable {
     public String description;
 
     public Set<String> feedScopeIds (String feed, String[] ids) {
-        if (ids == null) return new HashSet<>();
         return Arrays.stream(ids).map(id -> feedScopeId(feed, id)).collect(Collectors.toSet());
     }
 
