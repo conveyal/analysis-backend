@@ -134,8 +134,7 @@ public class RegionalAnalysisController {
             // The analysis has already completed, results should be stored and retrieved from S3 via redirects.
             GridExporter.Format format = GridExporter.format(formatString);
             String redirectText = req.queryParams("redirect");
-            // We still check the format, but we always redirect now so we don't store the result of this call.
-            GridExporter.checkRedirectAndFormat(redirectText, format);
+            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
             // Accessibility given X percentile travel time.
             // No need to record what the percentile is, that is currently fixed by the regional analysis.
             final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
@@ -151,7 +150,7 @@ public class RegionalAnalysisController {
                 LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
                 GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
             }
-            return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, true, res);
+            return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
         }
     }
 

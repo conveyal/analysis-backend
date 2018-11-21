@@ -103,13 +103,13 @@ public abstract class GridExporter {
     }
 
     /**
-     * Download a grid in the selected format from S3, using presigned URLs
-     * @param s3
-     * @param bucket name of the bucket
-     * @param filename both the key and the format
-     * @param redirect
-     * @param res
-     * @return
+     * Return a response to the client redirecting it to a grid in the selected format from S3, using presigned URLs.
+     * If the browser does an automatic redirect, it sends our application's authorization headers to AWS S3 which
+     * wreaks havoc with CORS etc. So we generally want to avoid an automatic redirect and just send the URL in the
+     * response body, so the client code can re-issue the request manually with its choice of headers.
+     *
+     * If redirect is true, we generate a 302 redirect which will be handled automatically by the browser.
+     * If it's false, we just return some JSON containing the target URL with a 200 OK code.
      */
     public static Object downloadFromS3(AmazonS3 s3, String bucket, String filename, boolean redirect, Response res){
         Date expiration = new Date();
