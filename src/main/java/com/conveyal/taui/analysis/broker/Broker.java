@@ -272,6 +272,8 @@ public class Broker {
                 new Tag("group", group),
                 new Tag("user", user)
         );
+        req.setEbsOptimized(true);
+
         // TODO check and log result of request.
         ExecutorServices.light.execute(() -> {
                     RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
