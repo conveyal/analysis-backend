@@ -246,7 +246,10 @@ public class Broker {
             scriptBaos.close();
             String scriptTemplate = scriptBaos.toString();
             String logGroup = workerConfig.getProperty("log-group");
-            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString);
+            // Substitute values so that the worker can tag itself (see the bracketed numbers in R5 worker.sh).
+            // Tags are useful in the EC2 console and for billing.
+            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString,
+                    group, user, category.graphId, category.workerVersion);
             // Send the config to the new workers as EC2 "user data"
             String userData = new String(Base64.getEncoder().encode(script.getBytes()));
             req.setUserData(userData);
@@ -263,20 +266,11 @@ public class Broker {
         // Allow the worker machine to shut itself completely off.
         req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
 
-        // Tag the new instance so we can identify it in the EC2 console.
-        TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance).withTags(
-                new Tag("Name","Analysis Worker"),
-                new Tag("Project", "Analysis"),
-                new Tag("networkId", category.graphId),
-                new Tag("workerVersion", category.workerVersion),
-                new Tag("group", group),
-                new Tag("user", user)
-        );
         req.setEbsOptimized(true);
 
         // TODO check and log result of request.
         ExecutorServices.light.execute(() -> {
-                    RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
+                    RunInstancesResult res = ec2.runInstances(req);
         });
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
         recentlyRequestedWorkers.put(category, System.currentTimeMillis());
