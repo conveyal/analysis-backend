@@ -4,7 +4,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -28,7 +27,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 
 import static spark.Spark.delete;
@@ -133,8 +131,7 @@ public class RegionalAnalysisController {
         } else {
             // The analysis has already completed, results should be stored and retrieved from S3 via redirects.
             GridExporter.Format format = GridExporter.format(formatString);
-            String redirectText = req.queryParams("redirect");
-            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
+            GridExporter.checkFormat(format);
             // Accessibility given X percentile travel time.
             // No need to record what the percentile is, that is currently fixed by the regional analysis.
             final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
@@ -150,7 +147,7 @@ public class RegionalAnalysisController {
                 LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
                 GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
             }
-            return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
+            return JsonUtil.objectMapper.writeValueAsString(GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey));
         }
     }
 
@@ -164,9 +161,7 @@ public class RegionalAnalysisController {
         String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
         final String formatString = req.params("format");
         GridExporter.Format format = GridExporter.format(req.params("format"));
-        String redirectText = req.queryParams("redirect");
-
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
+        GridExporter.checkFormat(format);
 
         String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, formatString);
 
@@ -185,7 +180,7 @@ public class RegionalAnalysisController {
             GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceKey, format);
         }
 
-        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
+        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey);
     }
 
     /**

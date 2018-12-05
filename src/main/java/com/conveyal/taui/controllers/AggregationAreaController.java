@@ -14,7 +14,6 @@ import com.conveyal.taui.grids.SeamlessCensusGridExtractor;
 import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
-import com.conveyal.taui.util.WrappedURL;
 import com.google.common.io.Files;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
@@ -23,6 +22,7 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -143,14 +143,6 @@ public class AggregationAreaController {
     public static Object getAggregationArea (Request req, Response res) {
         final String accessGroup = req.attribute("accessGroup");
         final String maskId = req.params("maskId");
-        boolean redirect = true;
-
-        try {
-            String redirectParam = req.queryParams("redirect");
-            if (redirectParam != null) redirect = Boolean.parseBoolean(redirectParam);
-        } catch (Exception e) {
-            // do nothing
-        }
 
         AggregationArea aggregationArea = Persistence.aggregationAreas.findByIdIfPermitted(maskId, accessGroup);
 
@@ -160,15 +152,10 @@ public class AggregationAreaController {
         request.setExpiration(expiration);
 
         URL url = s3.generatePresignedUrl(request);
+        JSONObject wrappedUrl = new JSONObject();
+        wrappedUrl.put("url", url.toString());
 
-        if (redirect) {
-            res.redirect(url.toString());
-            res.status(302); // temporary redirect, this URL will soon expire
-            res.type("text/plain"); // override application/json default
-            return res;
-        } else {
-            return new WrappedURL(url);
-        }
+        return wrappedUrl;
     }
 
     public static void register () {
