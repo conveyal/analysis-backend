@@ -138,7 +138,7 @@ public class BrokerController {
             broker.createWorkersInCategory(workerCategory, accessGroup, userEmail);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting workers, try again later.");
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             // FIXME the tracking of which workers are starting up should really be encapsulated using a "start up if needed" method.
