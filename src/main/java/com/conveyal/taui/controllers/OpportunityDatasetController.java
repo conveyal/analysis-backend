@@ -84,11 +84,8 @@ public class OpportunityDatasetController {
     public static Object getOpportunityDataset(Request req, Response res) {
         OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdFromRequestIfPermitted(req);
 
-        String redirectText = req.queryParams("redirect");
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
-
         // TODO handle offline mode
-        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID), redirect, res);
+        return GridExporter.downloadFromS3(s3, dataset.bucketName, dataset.getKey(GridExporter.Format.GRID));
     }
 
     public static List<OpportunityDatasetUploadStatus> getRegionUploadStatuses(Request req, Response res) {
@@ -407,9 +404,8 @@ public class OpportunityDatasetController {
             // get("/api/opportunities/:regionId/:gridKey") is the same signature as this endpoint.
             String regionId = req.params("_id");
             String gridKey = req.params("format");
-            String redirectText = req.queryParams("redirect");
-            boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, GridExporter.Format.GRID);
-            return GridExporter.downloadFromS3(s3, BUCKET, String.format("%s/%s.grid", regionId, gridKey), redirect, res);
+
+            return GridExporter.downloadFromS3(s3, BUCKET, String.format("%s/%s.grid", regionId, gridKey));
         }
 
         if (GridExporter.Format.GRID.equals(format)) return getOpportunityDataset(req, res);
@@ -422,9 +418,6 @@ public class OpportunityDatasetController {
             throw AnalysisServerException.notFound("This grid does not exist.");
         }
 
-        String redirectText = req.queryParams("redirect");
-        boolean redirect = redirectText == null || "".equals(redirectText) || parseBoolean(redirectText);
-
         if (!s3.doesObjectExist(bucketName, opportunityDataset.getKey(format))) {
             // get the grid and convert it to the requested format
             S3Object s3Grid = s3.getObject(bucketName, opportunityDataset.getKey(GridExporter.Format.GRID));
@@ -433,7 +426,7 @@ public class OpportunityDatasetController {
             GridExporter.writeToS3(grid, s3, bucketName, opportunityDataset.getKey(format), format);
         }
 
-        return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format), redirect, res);
+        return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format));
     }
 
     public static class OpportunityDatasetUploadStatus {

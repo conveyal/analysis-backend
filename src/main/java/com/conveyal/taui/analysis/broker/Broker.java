@@ -12,12 +12,12 @@ import com.amazonaws.services.ec2.model.ShutdownBehavior;
 import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.GridResultAssembler;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.ExecutorServices;
+import com.conveyal.taui.GridResultAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.MessageFormat;
@@ -245,7 +246,10 @@ public class Broker {
             scriptBaos.close();
             String scriptTemplate = scriptBaos.toString();
             String logGroup = workerConfig.getProperty("log-group");
-            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString);
+            // Substitute values so that the worker can tag itself (see the bracketed numbers in R5 worker.sh).
+            // Tags are useful in the EC2 console and for billing.
+            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString,
+                    group, user, category.graphId, category.workerVersion);
             // Send the config to the new workers as EC2 "user data"
             String userData = new String(Base64.getEncoder().encode(script.getBytes()));
             req.setUserData(userData);
@@ -271,6 +275,9 @@ public class Broker {
                 new Tag("group", group),
                 new Tag("user", user)
         );
+
+        req.setEbsOptimized(true);
+
         // TODO check and log result of request.
         ExecutorServices.light.execute(() -> {
                     RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
@@ -325,6 +332,9 @@ public class Broker {
         if (job.isComplete()) {
             job.verifyComplete();
             jobs.remove(job.workerCategory, job);
+            // This method is called after the regional work results are handled, finishing and closing the local file.
+            // So we can harmlessly remove the GridResultAssembler now that the job is removed.
+            resultAssemblers.remove(jobId);
         }
         return true;
     }
@@ -421,6 +431,15 @@ public class Broker {
             return null;
         } else {
             return new RegionalAnalysisStatus(gridResultAssembler);
+        }
+    }
+
+    public File getPartialRegionalAnalysisResults (String jobId) {
+        GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
+        if (gridResultAssembler == null) {
+            return null;
+        } else {
+            return gridResultAssembler.getBufferFile();
         }
     }
 

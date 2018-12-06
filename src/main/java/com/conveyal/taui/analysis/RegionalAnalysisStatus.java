@@ -1,6 +1,7 @@
 package com.conveyal.taui.analysis;
 
-import com.conveyal.r5.analyst.cluster.GridResultAssembler;
+
+import com.conveyal.taui.GridResultAssembler;
 
 import java.io.Serializable;
 

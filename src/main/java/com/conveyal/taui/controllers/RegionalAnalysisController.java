@@ -4,10 +4,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.r5.analyst.BootstrapPercentileMethodHypothesisTestGridReducer;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.SelectingGridReducer;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.SelectingGridReducer;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
@@ -23,6 +24,8 @@ import spark.Request;
 import spark.Response;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 
@@ -40,7 +43,7 @@ import static spark.Spark.put;
 public class RegionalAnalysisController {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionalAnalysisController.class);
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+    public static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
             .withRegion(AnalysisServerConfig.awsRegion)
             .build();
     private static String BUCKET = AnalysisServerConfig.resultsBucket;
@@ -79,34 +82,73 @@ public class RegionalAnalysisController {
     }
 
     /**
-     * Get a particular percentile of a query as a grid file.
-     * FIXME this does not seem to do that anymore. It just gets the single percentile that exists for any one analysis.
+     * This used to extract a particular percentile of a regional analysis as a grid file.
+     * Now it just gets the single percentile that exists for any one analysis, either from the local buffer file
+     * for an analysis still in progress, or from S3 for a completed analysis.
      */
-    public static Object getPercentile (Request req, Response res) throws IOException {
+    public static Object getRegionalResults (Request req, Response res) throws IOException {
+
+        // Get some path parameters out of the URL.
+        // The UUID of the regional analysis for which we want the output data
         String regionalAnalysisId = req.params("_id");
-        Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
         // The response file format: PNG, TIFF, or GRID
         final String formatString = req.params("format");
-        GridExporter.Format format = GridExporter.format(formatString);
-        String redirectText = req.queryParams("redirect");
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
 
-        // Accessibility given X percentile travel time.
-        // No need to record what the percentile is, that is currently fixed by the regional analysis.
-        final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
-        String accessGridKey = String.format("%s.access", regionalAnalysisId);
-        if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
-            // The grid has not been built yet, make it.
-            long computeStart = System.currentTimeMillis();
-            // This is accessibility given x percentile travel time, the first sample is the point estimate
-            // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
-            // point estimate in the grids.
-            LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
-            Grid grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
-            LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
-            GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        if (analysis == null || analysis.deleted) {
+            throw AnalysisServerException.notFound("The specified regional analysis in unknown or has been deleted.");
         }
-        return GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey, redirect, res);
+
+        // It seems like you would check regionalAnalysis.complete to choose between redirecting to s3 and fetching
+        // the partially completed local file. But this field is never set to true - it's on a UI model object that
+        // isn't readily accessible to the internal Job-tracking mechanism of the back end. Instead, just try to fetch
+        // the partially completed results file, which includes an O(1) check whether the job is still being processed.
+        File partialRegionalAnalysisResultFile = broker.getPartialRegionalAnalysisResults(regionalAnalysisId);
+
+        if (partialRegionalAnalysisResultFile != null) {
+            // The job is still being processed. There is a probably harmless race condition if the job happens to be
+            // completed at the very moment we're in this block, because the file will be deleted at that moment.
+            LOG.info("Analysis {} is not complete, attempting to return the partial results grid.", regionalAnalysisId);
+            if (!"GRID".equalsIgnoreCase(formatString)) {
+                throw AnalysisServerException.badRequest(
+                        "For partially completed regional analyses, we can only return grid files, not images.");
+            }
+            if (partialRegionalAnalysisResultFile == null) {
+                throw AnalysisServerException.unknown(
+                        "Could not find partial result grid for incomplete regional analysis on server.");
+            }
+            try {
+                res.header("content-type", "application/octet-stream");
+                // This will cause Spark Framework to gzip the data automatically if requested by the client.
+                res.header("Content-Encoding", "gzip");
+                // Spark has default serializers for InputStream and Bytes, and calls toString() on everything else.
+                return new FileInputStream(partialRegionalAnalysisResultFile);
+            } catch (FileNotFoundException e) {
+                // The job must have finished and the file was deleted upon upload to S3. This should be very rare.
+                throw AnalysisServerException.unknown(
+                        "Could not find partial result grid for incomplete regional analysis on server.");
+            }
+        } else {
+            // The analysis has already completed, results should be stored and retrieved from S3 via redirects.
+            GridExporter.Format format = GridExporter.format(formatString);
+            GridExporter.checkFormat(format);
+            // Accessibility given X percentile travel time.
+            // No need to record what the percentile is, that is currently fixed by the regional analysis.
+            final String percentileGridKey = String.format("%s_given_percentile_travel_time.%s", regionalAnalysisId, formatString);
+            String accessGridKey = String.format("%s.access", regionalAnalysisId);
+            if (!s3.doesObjectExist(BUCKET, percentileGridKey)) {
+                // The grid has not been built yet, make it.
+                long computeStart = System.currentTimeMillis();
+                // This is accessibility given x percentile travel time, the first sample is the point estimate
+                // computed using all monte carlo draws, and subsequent samples are bootstrap replications. Return the
+                // point estimate in the grids.
+                LOG.info("Point estimate for regional analysis {} not found, building it", regionalAnalysisId);
+                Grid grid = new SelectingGridReducer(0).compute(BUCKET, accessGridKey);
+                LOG.info("Building grid took {}s", (System.currentTimeMillis() - computeStart) / 1000d);
+                GridExporter.writeToS3(grid, s3, BUCKET, percentileGridKey, format);
+            }
+            return JsonUtil.objectMapper.writeValueAsString(GridExporter.downloadFromS3(s3, BUCKET, percentileGridKey));
+        }
     }
 
     /**
@@ -119,9 +161,7 @@ public class RegionalAnalysisController {
         String probabilitySurfaceName = String.format("%s_%s_probability", regionalAnalysisId, comparisonId);
         final String formatString = req.params("format");
         GridExporter.Format format = GridExporter.format(req.params("format"));
-        String redirectText = req.queryParams("redirect");
-
-        boolean redirect = GridExporter.checkRedirectAndFormat(redirectText, format);
+        GridExporter.checkFormat(format);
 
         String probabilitySurfaceKey = String.format("%s.%s", probabilitySurfaceName, formatString);
 
@@ -140,7 +180,7 @@ public class RegionalAnalysisController {
             GridExporter.writeToS3(grid, s3, BUCKET, probabilitySurfaceKey, format);
         }
 
-        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey, redirect, res);
+        return GridExporter.downloadFromS3(s3, BUCKET, probabilitySurfaceKey);
     }
 
     /**
@@ -266,7 +306,9 @@ public class RegionalAnalysisController {
 
     public static void register () {
         get("/api/region/:regionId/regional", RegionalAnalysisController::getRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
-        get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getPercentile, JsonUtil.objectMapper::writeValueAsString);
+        // For grids, no transformer is supplied: render raw bytes or input stream rather than transforming to JSON.
+        get("/api/regional/:_id/grid/:format", RegionalAnalysisController::getRegionalResults);
+        get("/api/regional/:_id/:comparisonId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         get("/api/regional/:_id/:comparisonId/:format", RegionalAnalysisController::getProbabilitySurface, JsonUtil.objectMapper::writeValueAsString);
         delete("/api/regional/:_id", RegionalAnalysisController::deleteRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);
         post("/api/regional", RegionalAnalysisController::createRegionalAnalysis, JsonUtil.objectMapper::writeValueAsString);

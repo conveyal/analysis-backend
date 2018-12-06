@@ -40,8 +40,19 @@ public abstract class Modification extends Model implements Cloneable {
     /** A description/comment about this modification */
     public String description;
 
+    /**
+     * Add scope to each ID in an array of IDs. Used in converting internal analysis-backend modification types to R5
+     * modifications sent to the workers.
+     * Preserve null arrays coming in from MongoDB (in the internal analysis-backend modification types) because in R5
+     * modifications, the null set has a distinct meaning from an empty set (null matches everything, empty set matches
+     * nothing).
+     */
     public Set<String> feedScopeIds (String feed, String[] ids) {
-        return Arrays.stream(ids).map(id -> feedScopeId(feed, id)).collect(Collectors.toSet());
+        if (ids == null) {
+            return null;
+        } else {
+            return Arrays.stream(ids).map(id -> feedScopeId(feed, id)).collect(Collectors.toSet());
+        }
     }
 
     public String feedScopeId (String feed, String id) {

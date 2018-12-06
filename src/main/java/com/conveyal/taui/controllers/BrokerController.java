@@ -1,5 +1,6 @@
 package com.conveyal.taui.controllers;
 
+import com.amazonaws.services.s3.Headers;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -23,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import com.mongodb.QueryBuilder;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -47,7 +49,8 @@ import static spark.Spark.post;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
- * This API replaces what used to be a separate broker process.
+ * It also handles connections from the front end for single-point requests.
+ * This API replaces what used to be a separate broker process running outside the Analysis backend.
  *
  * Workers used to long-poll and hold connections open, allowing them to receive tasks instantly, as soon as the tasks
  * are enqueued. However, this adds a lot of complexity since we need to suspend the open connections and clear them
@@ -56,11 +59,10 @@ import static spark.Spark.post;
  *
  * The long polling originally only existed for high-priority tasks and has been extended to single point
  * tasks, which we will instead handle with a proxy-like push approach.
- * TODO rename to BrokerController?
  */
-public class WorkerController {
+public class BrokerController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(WorkerController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BrokerController.class);
 
     /**
      * The core task queueing and distribution logic is supplied by this broker object.
@@ -74,7 +76,7 @@ public class WorkerController {
     /** This HTTP client contacts workers to send them single-point tasks for immediate processing. */
     private static HttpClient httpClient = AnalystWorker.makeHttpClient();
 
-    public WorkerController (Broker broker) {
+    public BrokerController(Broker broker) {
         this.broker = broker;
     }
 
@@ -136,7 +138,7 @@ public class WorkerController {
             broker.createWorkersInCategory(workerCategory, accessGroup, userEmail);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting workers, try again later.");
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             // FIXME the tracking of which workers are starting up should really be encapsulated using a "start up if needed" method.
@@ -146,37 +148,44 @@ public class WorkerController {
         LOG.info("Re-issuing HTTP request from UI to worker at {}", workerUrl);
         HttpPost httpPost = new HttpPost(workerUrl);
         // httpPost.setHeader("Accept", "application/x-analysis-time-grid");
-        httpPost.setHeader("Accept-Encoding", "gzip"); // TODO copy all headers from request? Is this unzipping and re-zipping the result?
+        // TODO Explore: is this unzipping and re-zipping the result from the worker?
+        httpPost.setHeader("Accept-Encoding", "gzip");
         HttpEntity entity = null;
         try {
-            // Serialize and send the R5-specific task (not the one the UI sends to the broker)
+            // Serialize and send the R5-specific task (not the original one the broker received from the UI)
             httpPost.setEntity(new ByteArrayEntity(JsonUtil.objectMapper.writeValueAsBytes(task)));
             HttpResponse workerResponse = httpClient.execute(httpPost);
+            // Mimic the status code sent by the worker.
             response.status(workerResponse.getStatusLine().getStatusCode());
-            // TODO Should we exactly mimic these headers coming back from the worker?
-            response.header("Content-Type", "application/octet-stream");
+            // Mimic headers sent by the worker. We're mostly interested in Content-Type, maybe Content-Encoding.
+            // We do not want to mimic all headers like Date, Server etc.
+            Header contentTypeHeader = workerResponse.getFirstHeader(Headers.CONTENT_TYPE);
+            response.header(contentTypeHeader.getName(), contentTypeHeader.getValue());
+            LOG.info("Returning worker response to UI with status code {} and content type {}",
+                    workerResponse.getStatusLine(), contentTypeHeader.getValue());
+            // This header will cause the Spark Framework to gzip the data automatically if requested by the client.
             response.header("Content-Encoding", "gzip");
             entity = workerResponse.getEntity();
-            LOG.info("Returning worker response to UI.");
             // If you return a stream to the Spark Framework, its SerializerChain will copy that stream out to the
             // client, but does not then close the stream. HttpClient waits for the stream to be closed to return the
             // connection to the pool. In order to be able to close the stream in code we control, we buffer the
-            // response in a byte buffer before resending it. The fact that we're buffering before re-sending
+            // response in a byte buffer before resending it. NOTE: The fact that we're buffering before re-sending
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
         } catch (SocketTimeoutException ste) {
-            LOG.info("Worker time out. Most likely building graph.");
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting cluster");
+            LOG.info("Timeout waiting for response from worker. Perhaps an old version of R5 has blocked while preparing a network.");
+            // Aborting the request might help release resources - we had problems with exhausting connection pools here.
+            httpPost.abort();
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
         } catch (Exception e) {
             // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             throw AnalysisServerException.unknown(e);
         } finally {
-            // If the HTTP respoonse entity is non-null close the associated input stream, which causes the HttpClient
+            // If the HTTP response entity is non-null close the associated input stream, which causes the HttpClient
             // to release the TCP connection back to its pool. This is critical to avoid exhausting the pool.
             EntityUtils.consumeQuietly(entity);
         }
     }
-
 
     /**
      * TODO respond to HEAD requests. For some reason we needed to implement HEAD, for proxy or cache?
