@@ -1,48 +1,29 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.Regions;
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
-import com.amazonaws.services.ec2.model.ResourceType;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.ec2.model.RunInstancesResult;
-import com.amazonaws.services.ec2.model.ShutdownBehavior;
-import com.amazonaws.services.ec2.model.Tag;
-import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.ExecutorServices;
 import com.conveyal.taui.GridResultAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
-import com.google.common.io.ByteStreams;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.UUID;
 
 
 /**
@@ -100,7 +81,7 @@ public class Broker {
     private boolean workOffline;
 
     /** Amazon AWS SDK client. */
-    private AmazonEC2 ec2;
+    private EC2Launcher launcher;
 
     /** These objects piece together results received from workers into one regional analysis result file per job. */
     private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
@@ -117,38 +98,10 @@ public class Broker {
 
         this.workOffline = AnalysisServerConfig.offline;
 
-        if (!workOffline) {
-            // Create a single properties file that will be used as a template for all worker instances.
-            workerConfig = new Properties();
-            // TODO rename to worker-log-group in worker code
-            workerConfig.setProperty("log-group", AnalysisServerConfig.workerLogGroup);
-            workerConfig.setProperty("broker-address", AnalysisServerConfig.serverAddress);
-            // TODO rename all config fields in config class, worker and backend to be consistent.
-            // TODO Maybe just send the entire analyst config to the worker!
-            workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
-            workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
-            workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
-            workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
-            workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
-            // Tell the workers to shut themselves down automatically when no longer busy.
-            workerConfig.setProperty("auto-shutdown", "true");
-        }
-
         this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
-        AmazonEC2ClientBuilder ec2Builder = AmazonEC2ClientBuilder.standard();
+        this.launcher = new EC2Launcher();
 
-        // When running on an EC2 instance, default to the AWS region of that instance
-        Region region = null;
-        if (!workOffline) {
-            region = Regions.getCurrentRegion();
-        }
-        if (region != null) {
-            ec2Builder.setRegion(region.getName());
-        } else {
-            ec2Builder.withRegion(AnalysisServerConfig.awsRegion);
-        }
-        ec2 = ec2Builder.build();
     }
 
     /**
@@ -181,13 +134,24 @@ public class Broker {
     }
 
     /**
-     * Create workers for a given job, if need be.
+     * Create on-demand worker for a given job. TODO rename instead of overloading?
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
-    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user) {
+    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user){
+        createWorkersInCategory(category, group, user, 1, 0);
+    }
 
-        String clientToken = UUID.randomUUID().toString().replaceAll("-", "");
+    /**
+     * Create on-demand/spot workers for a given job, after certain checks
+     * @param user only used to tag the newly created instance
+     * @param group only used to tag the newly created instance
+     * @param nOnDemand EC2 on-demand instances to request
+     * @param nSpot EC2 spot instances to request
+     */
+
+    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user, int
+            nOnDemand, int nSpot) {
 
         if (workOffline) {
             LOG.info("Work offline enabled, not creating workers for {}", category);
@@ -206,85 +170,15 @@ public class Broker {
             return;
         }
 
-        // TODO: should we start multiple workers on large jobs?
-        int nWorkers = 1;
+        EC2RequestConfiguration config = new EC2RequestConfiguration(category, group, user);
 
-        // There are no workers on this graph with the right worker commit, start some.
-        LOG.info("Starting {} workers as there are none on {}", nWorkers, category);
-        RunInstancesRequest req = new RunInstancesRequest();
-        req.setImageId(AnalysisServerConfig.workerAmiId);
-        req.setInstanceType(AnalysisServerConfig.workerInstanceType);
-        req.setSubnetId(AnalysisServerConfig.workerSubnetId);
+        launcher.launch(config, nOnDemand, nSpot);
 
-        // even if we can't get all the workers we want at least get some
-        req.setMinCount(1);
-        req.setMaxCount(nWorkers);
-
-        // It's fine to just modify the worker config without a protective copy because this method is synchronized.
-        workerConfig.setProperty("initial-graph-id", category.graphId);
-        // Tell the worker where to get its R5 JAR. This is a Conveyal S3 bucket with HTTP access turned on.
-        String workerDownloadUrl = String.format("https://r5-builds.s3.amazonaws.com/%s.jar", category.workerVersion);
-
-        ByteArrayOutputStream cfg = new ByteArrayOutputStream();
-        try {
-            workerConfig.store(cfg, "Worker config");
-            cfg.close();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        // Read in the startup script
-        // We used to just pass the config to custom AMI, but by constructing a startup script that initializes a stock
-        // Amazon Linux AMI, we don't have to worry about maintaining and keeping our AMI up to date. Amazon Linux applies
-        // important security updates on startup automatically.
-        try {
-            String workerConfigString = cfg.toString();
-            InputStream scriptIs = Broker.class.getClassLoader().getResourceAsStream("worker.sh");
-            ByteArrayOutputStream scriptBaos = new ByteArrayOutputStream();
-            ByteStreams.copy(scriptIs, scriptBaos);
-            scriptIs.close();
-            scriptBaos.close();
-            String scriptTemplate = scriptBaos.toString();
-            String logGroup = workerConfig.getProperty("log-group");
-            // Substitute values so that the worker can tag itself (see the bracketed numbers in R5 worker.sh).
-            // Tags are useful in the EC2 console and for billing.
-            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString,
-                    group, user, category.graphId, category.workerVersion);
-            // Send the config to the new workers as EC2 "user data"
-            String userData = new String(Base64.getEncoder().encode(script.getBytes()));
-            req.setUserData(userData);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Set the IAM profile of the new worker.
-        req.setIamInstanceProfile(new IamInstanceProfileSpecification().withArn(AnalysisServerConfig.workerIamRole));
-
-        // Allow us to retry the instance creation request at will. TODO how does this statement accomplish that?
-        req.setClientToken(clientToken);
-
-        // Allow the worker machine to shut itself completely off.
-        req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
-
-        // Tag the new instance so we can identify it in the EC2 console.
-        TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance).withTags(
-                new Tag("Name","Analysis Worker"),
-                new Tag("Project", "Analysis"),
-                new Tag("networkId", category.graphId),
-                new Tag("workerVersion", category.workerVersion),
-                new Tag("group", group),
-                new Tag("user", user)
-        );
-
-        req.setEbsOptimized(true);
-
-        // TODO check and log result of request.
-        ExecutorServices.light.execute(() -> {
-                    RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
-        });
         // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
-        recentlyRequestedWorkers.put(category, System.currentTimeMillis());
-        LOG.info("Requested {} workers for user {} of group {}", nWorkers, user, group);
+        if (nOnDemand > 0) {
+            recentlyRequestedWorkers.put(category, System.currentTimeMillis());
+        }
+        LOG.info("Requested {} on-demand and {} spot workers on {}", nOnDemand, config);
     }
 
     /**
