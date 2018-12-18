@@ -5,6 +5,7 @@ import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.GridResultAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.collect.ListMultimap;
@@ -159,8 +160,8 @@ public class Broker {
         }
 
         if (workerCatalog.totalWorkerCount() >= maxWorkers) {
-            LOG.warn("{} workers already started, not starting more; jobs will not complete on {}", maxWorkers, category);
-            return;
+            throw AnalysisServerException.forbidden("\"{} workers already started, not starting more; jobs will not " +
+                    "complete on {}\", maxWorkers, category");
         }
 
         // If workers have already been started up, don't repeat the operation.
@@ -174,7 +175,7 @@ public class Broker {
 
         launcher.launch(config, nOnDemand, nSpot);
 
-        // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
+        // Record the fact that we've requested an on-demand worker so we don't do it repeatedly.
         if (nOnDemand > 0) {
             recentlyRequestedWorkers.put(category, System.currentTimeMillis());
         }
