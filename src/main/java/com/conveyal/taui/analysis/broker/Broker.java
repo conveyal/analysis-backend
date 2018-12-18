@@ -99,9 +99,11 @@ public class Broker {
 
         this.workOffline = AnalysisServerConfig.offline;
 
-        this.maxWorkers = AnalysisServerConfig.maxWorkers;
+        if (!workOffline){
+            this.launcher = new EC2Launcher();
+        }
 
-        this.launcher = new EC2Launcher();
+        this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
     }
 
