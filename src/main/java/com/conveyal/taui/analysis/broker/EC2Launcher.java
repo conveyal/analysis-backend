@@ -44,7 +44,7 @@ public class EC2Launcher {
 
     }
 
-    public synchronized void launch (EC2RequestConfiguration requestConfig, int nOnDemand, int nSpot) {
+    public void launch (EC2RequestConfiguration requestConfig, int nOnDemand, int nSpot) {
 
         if (nOnDemand > 0){
 
