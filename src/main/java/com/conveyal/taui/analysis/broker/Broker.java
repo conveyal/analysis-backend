@@ -181,7 +181,7 @@ public class Broker {
         if (nOnDemand > 0) {
             recentlyRequestedWorkers.put(category, System.currentTimeMillis());
         }
-        LOG.info("Requested {} on-demand and {} spot workers on {}", nOnDemand, config);
+        LOG.info("Requested {} on-demand and {} spot workers on {}", nOnDemand, nSpot, config);
     }
 
     /**
