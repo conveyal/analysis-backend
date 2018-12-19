@@ -129,7 +129,7 @@ public class Broker {
             return;
         }
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createWorkersInCategory(job.workerCategory, accessGroup, createdBy);
+            createOnDemandWorkerInCategory(job.workerCategory, accessGroup, createdBy);
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             recentlyRequestedWorkers.remove(job.workerCategory);
@@ -141,7 +141,7 @@ public class Broker {
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
-    public void createWorkersInCategory (WorkerCategory category, String group, String user){
+    public void createOnDemandWorkerInCategory(WorkerCategory category, String group, String user){
         createWorkersInCategory(category, group, user, 1, 0);
     }
 
