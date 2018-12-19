@@ -10,6 +10,7 @@ import com.conveyal.taui.GridResultAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
+import gnu.trove.TCollections;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
@@ -91,7 +92,8 @@ public class Broker {
      * keep track of which graphs we have launched workers on and how long ago we launched them,
      * so that we don't re-request workers which have been requested.
      */
-    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
+    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = TCollections.synchronizedMap(new
+            TObjectLongHashMap<>());
 
     public Broker () {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
@@ -153,7 +155,7 @@ public class Broker {
      * @param nSpot EC2 spot instances to request
      */
 
-    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user, int
+    public void createWorkersInCategory (WorkerCategory category, String group, String user, int
             nOnDemand, int nSpot) {
 
         if (workOffline) {
