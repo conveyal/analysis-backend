@@ -104,7 +104,7 @@ public class WorkerCatalog {
         return observationsByWorkerId.size();
     }
 
-    public synchronized int countOfWorkersInCategory(WorkerCategory workerCategory){
+    public synchronized int countWorkersInCategory(WorkerCategory workerCategory){
         return (int) workerIdsByCategory.get(workerCategory).stream().count();
     }
 
