@@ -64,6 +64,17 @@ public class Broker {
     /** The most tasks to deliver to a worker at a time. */
     public final int MAX_TASKS_PER_WORKER = 16;
 
+    /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
+     * automatically*/
+    public final int TARGET_TOTAL_TASKS_PER_WORKER = 10000;
+
+    /** We want to request spot instances to "boost" regional analyses after a few regional tasks have been received
+     * for a given network. Do so after receiving results for an arbitrary task*/
+    public final int AUTO_START_SPOT_INSTANCES_AT_TASK  = MAX_TASKS_PER_WORKER * 2 + 10; //42
+
+    /** The maximum number of spot instances allowable in an automatic request */
+    public final int MAX_WORKERS_PER_CATEGORY = 50;
+
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
      * on a given graph if they haven't.
@@ -122,7 +133,7 @@ public class Broker {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
-        Job job = new Job(templateTask);
+        Job job = new Job(templateTask, accessGroup, createdBy);
         jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
@@ -139,7 +150,7 @@ public class Broker {
     }
 
     /**
-     * Create on-demand worker for a given job. TODO rename instead of overloading?
+     * Create on-demand worker for a given job.
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
@@ -163,9 +174,13 @@ public class Broker {
             return;
         }
 
-        if (workerCatalog.totalWorkerCount() >= maxWorkers) {
-            throw AnalysisServerException.forbidden("\"{} workers already started, not starting more; jobs will not " +
-                    "complete on {}\", maxWorkers, category");
+        if (nOnDemand < 0 || nSpot < 0){
+            throw AnalysisServerException.forbidden("Negative number of workers requested. This implies a bug.");
+        }
+
+        if (workerCatalog.totalWorkerCount() + nOnDemand + nSpot >= maxWorkers) {
+            throw AnalysisServerException.forbidden("\"Maximum of {} workers already started, not starting more; jobs" +
+                    " will not complete on {}\", maxWorkers, category");
         }
 
         // If workers have already been started up, don't repeat the operation.
@@ -310,6 +325,9 @@ public class Broker {
 
     /**
      * Slots a single regional work result received from a worker into the appropriate position in the appropriate file.
+     * Also requests spot instances after a few results have been received. The checks in place should prevent an
+     * unduly large number of workers from proliferating, assuming jobs for a given worker category (transport
+     * network + R5 version) are completed sequentially.
      * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
      */
     public void handleRegionalWorkResult (RegionalWorkResult workResult) {
@@ -318,6 +336,21 @@ public class Broker {
             LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
         } else {
             assembler.handleMessage(workResult);
+            // When results for the task with the magic number are received, consider boosting the job by starting EC2
+            // spot instances
+            if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK){
+                Job job = findJob(workResult.jobId);
+                WorkerCategory workerCategory = job.workerCategory;
+                int categoryWorkersRunning = workerCatalog.countOfWorkersInCategory(workerCategory);
+                if (categoryWorkersRunning < MAX_WORKERS_PER_CATEGORY){
+                    // Start a number of workers that scales with the number of total tasks, up to a fixed number.
+                    // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
+                    int spotInstancesToRequest = Math.min(MAX_WORKERS_PER_CATEGORY - categoryWorkersRunning,
+                            job.nTasksTotal / TARGET_TOTAL_TASKS_PER_WORKER);
+                    createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy,0,
+                            spotInstancesToRequest);
+                }
+            }
         }
     }
 
