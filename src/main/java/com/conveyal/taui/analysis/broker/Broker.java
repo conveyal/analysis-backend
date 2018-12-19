@@ -66,14 +66,14 @@ public class Broker {
 
     /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
      * automatically*/
-    public final int TARGET_TOTAL_TASKS_PER_WORKER = 10_000;
+    public final int TARGET_TOTAL_TASKS_PER_WORKER = 2_000;
 
     /** We want to request spot instances to "boost" regional analyses after a few regional tasks have been received
      * for a given network. Do so after receiving results for an arbitrary task*/
     public final int AUTO_START_SPOT_INSTANCES_AT_TASK  = MAX_TASKS_PER_WORKER * 2 + 10; //42
 
     /** The maximum number of spot instances allowable in an automatic request */
-    public final int MAX_WORKERS_PER_CATEGORY = 50;
+    public final int MAX_WORKERS_PER_CATEGORY = 75;
 
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
