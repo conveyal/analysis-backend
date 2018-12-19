@@ -28,7 +28,7 @@ public class EC2RequestConfiguration {
 
     @Override
     public String toString() {
-        return workerConfig.toString() + "for " + user + "(" + group +")";
+        return String.format("%s for %s (%s)", category, user, group);
     }
 
     EC2RequestConfiguration(WorkerCategory category, String group, String user) {
