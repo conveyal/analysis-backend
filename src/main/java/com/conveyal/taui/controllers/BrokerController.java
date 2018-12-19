@@ -135,11 +135,7 @@ public class BrokerController {
         if (address == null) {
             // There are no workers that can handle this request. Request some.
             // FIXME parts of the following method assume that it's synchronized
-            try {
-                broker.createWorkersInCategory(workerCategory, accessGroup, userEmail);
-            } catch (AnalysisServerException e){
-                throw e;
-            }
+            broker.createWorkersInCategory(workerCategory, accessGroup, userEmail);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");
