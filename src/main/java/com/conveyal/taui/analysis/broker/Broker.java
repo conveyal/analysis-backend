@@ -66,7 +66,7 @@ public class Broker {
 
     /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
      * automatically*/
-    public final int TARGET_TOTAL_TASKS_PER_WORKER = 10000;
+    public final int TARGET_TOTAL_TASKS_PER_WORKER = 10_000;
 
     /** We want to request spot instances to "boost" regional analyses after a few regional tasks have been received
      * for a given network. Do so after receiving results for an arbitrary task*/
@@ -325,8 +325,8 @@ public class Broker {
 
     /**
      * Slots a single regional work result received from a worker into the appropriate position in the appropriate file.
-     * Also requests spot instances after a few results have been received. The checks in place should prevent an
-     * unduly large number of workers from proliferating, assuming jobs for a given worker category (transport
+     * Also considers requesting extra spot instances after a few results have been received. The checks in place
+     * should prevent an unduly large number of workers from proliferating, assuming jobs for a given worker category (transport
      * network + R5 version) are completed sequentially.
      * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
      */
@@ -338,19 +338,23 @@ public class Broker {
             assembler.handleMessage(workResult);
             // When results for the task with the magic number are received, consider boosting the job by starting EC2
             // spot instances
-            if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK){
-                Job job = findJob(workResult.jobId);
-                WorkerCategory workerCategory = job.workerCategory;
-                int categoryWorkersRunning = workerCatalog.countOfWorkersInCategory(workerCategory);
-                if (categoryWorkersRunning < MAX_WORKERS_PER_CATEGORY){
-                    // Start a number of workers that scales with the number of total tasks, up to a fixed number.
-                    // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
-                    int spotInstancesToRequest = Math.min(MAX_WORKERS_PER_CATEGORY - categoryWorkersRunning,
-                            job.nTasksTotal / TARGET_TOTAL_TASKS_PER_WORKER);
-                    createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy,0,
-                            spotInstancesToRequest);
-                }
+            if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK) {
+                requestExtraWorkersIfAppropriate(workResult);
             }
+        }
+    }
+
+    private void requestExtraWorkersIfAppropriate(RegionalWorkResult workResult) {
+        Job job = findJob(workResult.jobId);
+        WorkerCategory workerCategory = job.workerCategory;
+        int categoryWorkersRunning = workerCatalog.countOfWorkersInCategory(workerCategory);
+        if (categoryWorkersRunning < MAX_WORKERS_PER_CATEGORY) {
+            // Start a number of workers that scales with the number of total tasks, up to a fixed number.
+            // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
+            int spotInstancesToRequest = Math.min(MAX_WORKERS_PER_CATEGORY - categoryWorkersRunning,
+                    job.nTasksTotal / TARGET_TOTAL_TASKS_PER_WORKER);
+            createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy,0,
+                    spotInstancesToRequest);
         }
     }
 
