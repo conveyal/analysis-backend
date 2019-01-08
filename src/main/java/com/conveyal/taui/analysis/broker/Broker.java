@@ -1,48 +1,31 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.Regions;
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
-import com.amazonaws.services.ec2.model.ResourceType;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.ec2.model.RunInstancesResult;
-import com.amazonaws.services.ec2.model.ShutdownBehavior;
-import com.amazonaws.services.ec2.model.Tag;
-import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
-import com.conveyal.taui.ExecutorServices;
+import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.GridResultAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
-import com.google.common.io.ByteStreams;
+import gnu.trove.TCollections;
 import gnu.trove.map.TObjectLongMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.UUID;
 
 
 /**
@@ -81,6 +64,17 @@ public class Broker {
     /** The most tasks to deliver to a worker at a time. */
     public final int MAX_TASKS_PER_WORKER = 16;
 
+    /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
+     * automatically*/
+    public final int TARGET_TASKS_PER_WORKER = 2_000;
+
+    /** We want to request spot instances to "boost" regional analyses after a few regional task results are received
+     * for a given workerCategory. Do so after receiving results for an arbitrary task toward the beginning of the job*/
+    public final int AUTO_START_SPOT_INSTANCES_AT_TASK  = MAX_TASKS_PER_WORKER * 2 + 10; //42
+
+    /** The maximum number of spot instances allowable in an automatic request */
+    public final int MAX_WORKERS_PER_CATEGORY = 100;
+
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
      * on a given graph if they haven't.
@@ -100,7 +94,7 @@ public class Broker {
     private boolean workOffline;
 
     /** Amazon AWS SDK client. */
-    private AmazonEC2 ec2;
+    private EC2Launcher launcher;
 
     /** These objects piece together results received from workers into one regional analysis result file per job. */
     private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
@@ -109,7 +103,8 @@ public class Broker {
      * keep track of which graphs we have launched workers on and how long ago we launched them,
      * so that we don't re-request workers which have been requested.
      */
-    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = new TObjectLongHashMap<>();
+    public TObjectLongMap<WorkerCategory> recentlyRequestedWorkers = TCollections.synchronizedMap(new
+            TObjectLongHashMap<>());
 
     public Broker () {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
@@ -117,38 +112,12 @@ public class Broker {
 
         this.workOffline = AnalysisServerConfig.offline;
 
-        if (!workOffline) {
-            // Create a single properties file that will be used as a template for all worker instances.
-            workerConfig = new Properties();
-            // TODO rename to worker-log-group in worker code
-            workerConfig.setProperty("log-group", AnalysisServerConfig.workerLogGroup);
-            workerConfig.setProperty("broker-address", AnalysisServerConfig.serverAddress);
-            // TODO rename all config fields in config class, worker and backend to be consistent.
-            // TODO Maybe just send the entire analyst config to the worker!
-            workerConfig.setProperty("broker-port", Integer.toString(AnalysisServerConfig.serverPort));
-            workerConfig.setProperty("worker-port", Integer.toString(AnalysisServerConfig.workerPort));
-            workerConfig.setProperty("graphs-bucket", AnalysisServerConfig.bundleBucket);
-            workerConfig.setProperty("pointsets-bucket", AnalysisServerConfig.gridBucket);
-            workerConfig.setProperty("aws-region", AnalysisServerConfig.awsRegion);
-            // Tell the workers to shut themselves down automatically when no longer busy.
-            workerConfig.setProperty("auto-shutdown", "true");
+        if (!workOffline){
+            this.launcher = new EC2Launcher();
         }
 
         this.maxWorkers = AnalysisServerConfig.maxWorkers;
 
-        AmazonEC2ClientBuilder ec2Builder = AmazonEC2ClientBuilder.standard();
-
-        // When running on an EC2 instance, default to the AWS region of that instance
-        Region region = null;
-        if (!workOffline) {
-            region = Regions.getCurrentRegion();
-        }
-        if (region != null) {
-            ec2Builder.setRegion(region.getName());
-        } else {
-            ec2Builder.withRegion(AnalysisServerConfig.awsRegion);
-        }
-        ec2 = ec2Builder.build();
     }
 
     /**
@@ -164,7 +133,7 @@ public class Broker {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
-        Job job = new Job(templateTask);
+        Job job = new Job(templateTask, accessGroup, createdBy);
         jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
@@ -173,7 +142,7 @@ public class Broker {
             return;
         }
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createWorkersInCategory(job.workerCategory, accessGroup, createdBy);
+            createOnDemandWorkerInCategory(job.workerCategory, accessGroup, createdBy);
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             recentlyRequestedWorkers.remove(job.workerCategory);
@@ -181,22 +150,38 @@ public class Broker {
     }
 
     /**
-     * Create workers for a given job, if need be.
+     * Create on-demand worker for a given job.
      * @param user only used to tag the newly created instance
      * @param group only used to tag the newly created instance
      */
-    public synchronized void createWorkersInCategory (WorkerCategory category, String group, String user) {
+    public void createOnDemandWorkerInCategory(WorkerCategory category, String group, String user){
+        createWorkersInCategory(category, group, user, 1, 0);
+    }
 
-        String clientToken = UUID.randomUUID().toString().replaceAll("-", "");
+    /**
+     * Create on-demand/spot workers for a given job, after certain checks
+     * @param user only used to tag the newly created instance
+     * @param group only used to tag the newly created instance
+     * @param nOnDemand EC2 on-demand instances to request
+     * @param nSpot EC2 spot instances to request
+     */
+
+    public void createWorkersInCategory (WorkerCategory category, String group, String user, int
+            nOnDemand, int nSpot) {
 
         if (workOffline) {
             LOG.info("Work offline enabled, not creating workers for {}", category);
             return;
         }
 
-        if (workerCatalog.totalWorkerCount() >= maxWorkers) {
-            LOG.warn("{} workers already started, not starting more; jobs will not complete on {}", maxWorkers, category);
+        if (nOnDemand < 0 || nSpot < 0){
+            LOG.info("Negative number of workers requested, not starting any");
             return;
+        }
+
+        if (workerCatalog.totalWorkerCount() + nOnDemand + nSpot >= maxWorkers) {
+            throw AnalysisServerException.forbidden("\"Maximum of {} workers already started, not starting more; jobs" +
+                    " will not complete on {}\", maxWorkers, category");
         }
 
         // If workers have already been started up, don't repeat the operation.
@@ -206,85 +191,15 @@ public class Broker {
             return;
         }
 
-        // TODO: should we start multiple workers on large jobs?
-        int nWorkers = 1;
+        EC2RequestConfiguration config = new EC2RequestConfiguration(category, group, user);
 
-        // There are no workers on this graph with the right worker commit, start some.
-        LOG.info("Starting {} workers as there are none on {}", nWorkers, category);
-        RunInstancesRequest req = new RunInstancesRequest();
-        req.setImageId(AnalysisServerConfig.workerAmiId);
-        req.setInstanceType(AnalysisServerConfig.workerInstanceType);
-        req.setSubnetId(AnalysisServerConfig.workerSubnetId);
+        launcher.launch(config, nOnDemand, nSpot);
 
-        // even if we can't get all the workers we want at least get some
-        req.setMinCount(1);
-        req.setMaxCount(nWorkers);
-
-        // It's fine to just modify the worker config without a protective copy because this method is synchronized.
-        workerConfig.setProperty("initial-graph-id", category.graphId);
-        // Tell the worker where to get its R5 JAR. This is a Conveyal S3 bucket with HTTP access turned on.
-        String workerDownloadUrl = String.format("https://r5-builds.s3.amazonaws.com/%s.jar", category.workerVersion);
-
-        ByteArrayOutputStream cfg = new ByteArrayOutputStream();
-        try {
-            workerConfig.store(cfg, "Worker config");
-            cfg.close();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        // Record the fact that we've requested an on-demand worker so we don't do it repeatedly.
+        if (nOnDemand > 0) {
+            recentlyRequestedWorkers.put(category, System.currentTimeMillis());
         }
-
-        // Read in the startup script
-        // We used to just pass the config to custom AMI, but by constructing a startup script that initializes a stock
-        // Amazon Linux AMI, we don't have to worry about maintaining and keeping our AMI up to date. Amazon Linux applies
-        // important security updates on startup automatically.
-        try {
-            String workerConfigString = cfg.toString();
-            InputStream scriptIs = Broker.class.getClassLoader().getResourceAsStream("worker.sh");
-            ByteArrayOutputStream scriptBaos = new ByteArrayOutputStream();
-            ByteStreams.copy(scriptIs, scriptBaos);
-            scriptIs.close();
-            scriptBaos.close();
-            String scriptTemplate = scriptBaos.toString();
-            String logGroup = workerConfig.getProperty("log-group");
-            // Substitute values so that the worker can tag itself (see the bracketed numbers in R5 worker.sh).
-            // Tags are useful in the EC2 console and for billing.
-            String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString,
-                    group, user, category.graphId, category.workerVersion);
-            // Send the config to the new workers as EC2 "user data"
-            String userData = new String(Base64.getEncoder().encode(script.getBytes()));
-            req.setUserData(userData);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Set the IAM profile of the new worker.
-        req.setIamInstanceProfile(new IamInstanceProfileSpecification().withArn(AnalysisServerConfig.workerIamRole));
-
-        // Allow us to retry the instance creation request at will. TODO how does this statement accomplish that?
-        req.setClientToken(clientToken);
-
-        // Allow the worker machine to shut itself completely off.
-        req.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
-
-        // Tag the new instance so we can identify it in the EC2 console.
-        TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance).withTags(
-                new Tag("Name","Analysis Worker"),
-                new Tag("Project", "Analysis"),
-                new Tag("networkId", category.graphId),
-                new Tag("workerVersion", category.workerVersion),
-                new Tag("group", group),
-                new Tag("user", user)
-        );
-
-        req.setEbsOptimized(true);
-
-        // TODO check and log result of request.
-        ExecutorServices.light.execute(() -> {
-                    RunInstancesResult res = ec2.runInstances(req.withTagSpecifications(instanceTags));
-        });
-        // Record the fact that we've requested this kind of workers so we don't do it repeatedly.
-        recentlyRequestedWorkers.put(category, System.currentTimeMillis());
-        LOG.info("Requested {} workers for user {} of group {}", nWorkers, user, group);
+        LOG.info("Requested {} on-demand and {} spot workers on {}", nOnDemand, nSpot, config);
     }
 
     /**
@@ -411,6 +326,9 @@ public class Broker {
 
     /**
      * Slots a single regional work result received from a worker into the appropriate position in the appropriate file.
+     * Also considers requesting extra spot instances after a few results have been received. The checks in place
+     * should prevent an unduly large number of workers from proliferating, assuming jobs for a given worker category (transport
+     * network + R5 version) are completed sequentially.
      * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
      */
     public void handleRegionalWorkResult (RegionalWorkResult workResult) {
@@ -419,6 +337,24 @@ public class Broker {
             LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
         } else {
             assembler.handleMessage(workResult);
+            // When results for the task with the magic number are received, consider boosting the job by starting EC2
+            // spot instances
+            if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK) {
+                requestExtraWorkersIfAppropriate(workResult);
+            }
+        }
+    }
+
+    private void requestExtraWorkersIfAppropriate(RegionalWorkResult workResult) {
+        Job job = findJob(workResult.jobId);
+        WorkerCategory workerCategory = job.workerCategory;
+        int categoryWorkersAlreadyRunning = workerCatalog.countWorkersInCategory(workerCategory);
+        if (categoryWorkersAlreadyRunning < MAX_WORKERS_PER_CATEGORY) {
+            // Start a number of workers that scales with the number of total tasks, up to a fixed number.
+            // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
+            int nSpot = Math.min(MAX_WORKERS_PER_CATEGORY, job.nTasksTotal / TARGET_TASKS_PER_WORKER) -
+                    categoryWorkersAlreadyRunning;
+            createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy, 0, nSpot);
         }
     }
 
