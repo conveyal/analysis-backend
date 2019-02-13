@@ -74,7 +74,7 @@ cat > /home/ec2-user/.aws/config << EOF
 region = $REGION
 EOF
 
-# Download the worker
+# Download the worker. Note redirect of stdout and stderr to log.
 sudo -u ec2-user wget -O ~ec2-user/r5.jar {0} >> $LOGFILE 2>&1
 
 # Figure out how much memory to give the worker in kilobytes
@@ -105,7 +105,8 @@ do
     # Attempt to tag, with jitter to avoid exceeding (presumed) AWS rate limits
     sleep $[$RANDOM % 8 + 15]s
     sudo -u ec2-user aws ec2 create-tags --resources $INSTANCE --tags Key=Name,Value=AnalysisWorker \
-    Key=Project,Value=Analysis Key=group,Value={3} Key=user,Value={4} Key=networkId,Value={5} Key=workerVersion,Value={6}
+    Key=Project,Value=Analysis Key=group,Value={3} Key=user,Value={4} Key=networkId,Value={5} Key=workerVersion,Value={6} \
+    >> $LOGFILE 2>&1
     if [ $? -eq 0 ] # bash exit status 0 = success
     then
         echo Instance $INSTANCE successfully tagged itself with group {3}. >> $LOGFILE
