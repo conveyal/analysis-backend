@@ -77,7 +77,7 @@ public class EC2RequestConfiguration {
             scriptBaos.close();
             String scriptTemplate = scriptBaos.toString();
             String logGroup = AnalysisServerConfig.workerLogGroup;
-            // Substitute values so that the worker can tag itself (see the bracketed numbers in R5 worker.sh).
+            // Substitute values so that the worker can tag itself (see the bracketed numbers in worker.sh).
             // Tags are useful in the EC2 console and for billing.
             String script = MessageFormat.format(scriptTemplate, workerDownloadUrl, logGroup, workerConfigString,
                     group, user, category.graphId, category.workerVersion);
