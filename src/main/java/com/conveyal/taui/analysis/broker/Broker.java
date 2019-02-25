@@ -66,7 +66,7 @@ public class Broker {
 
     /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
      * automatically*/
-    public final int TARGET_TASKS_PER_WORKER = 2_000;
+    public final int TARGET_TASKS_PER_WORKER = 400;
 
     /** We want to request spot instances to "boost" regional analyses after a few regional task results are received
      * for a given workerCategory. Do so after receiving results for an arbitrary task toward the beginning of the job*/
