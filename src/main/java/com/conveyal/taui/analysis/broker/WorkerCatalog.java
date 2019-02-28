@@ -104,6 +104,10 @@ public class WorkerCatalog {
         return observationsByWorkerId.size();
     }
 
+    public synchronized int countWorkersInCategory(WorkerCategory workerCategory){
+        return workerIdsByCategory.get(workerCategory).size();
+    }
+
     /**
      * TODO should this return a protective copy? For now it's synchronized like all other methods.
      */

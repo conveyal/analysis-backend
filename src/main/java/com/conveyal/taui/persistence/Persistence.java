@@ -44,8 +44,7 @@ public class Persistence {
         LOG.info("Connecting to MongoDB...");
         if (AnalysisServerConfig.databaseUri != null) {
             LOG.info("Connecting to remote MongoDB instance...");
-            MongoClientOptions.Builder builder = MongoClientOptions.builder().sslEnabled(true);
-            mongo = new MongoClient(new MongoClientURI(AnalysisServerConfig.databaseUri, builder));
+            mongo = new MongoClient(new MongoClientURI(AnalysisServerConfig.databaseUri));
         } else {
             LOG.info("Connecting to local MongoDB instance...");
             mongo = new MongoClient();
