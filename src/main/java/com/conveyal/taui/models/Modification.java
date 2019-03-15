@@ -8,6 +8,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
+ * We could add defaultImpl = CustomModification.class, which might allow us to eliminate having separate type vs.
+ * r5type properties in custom backend modifications. But we'd need to define a TypeResolver that would serialize
+ * arbitrary type codes unknown to the backend.
+ *
  * Created by matthewc on 2/9/16.
  */
 @JsonTypeInfo(use=JsonTypeInfo.Id.NAME, include= JsonTypeInfo.As.PROPERTY, property="type")
@@ -18,7 +22,8 @@ import java.util.stream.Collectors;
         @JsonSubTypes.Type(name = "adjust-speed", value = AdjustSpeed.class),
         @JsonSubTypes.Type(name = "adjust-dwell-time", value = AdjustDwellTime.class),
         @JsonSubTypes.Type(name = "convert-to-frequency", value = ConvertToFrequency.class),
-        @JsonSubTypes.Type(name = "reroute", value = Reroute.class)
+        @JsonSubTypes.Type(name = "reroute", value = Reroute.class),
+        @JsonSubTypes.Type(name = "custom", value = CustomModification.class)
 })
 public abstract class Modification extends Model implements Cloneable {
     /** the type of this modification, see JsonSubTypes annotation above */

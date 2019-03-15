@@ -4,6 +4,7 @@ import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
 import com.conveyal.r5.analyst.scenario.Modification;
+import com.conveyal.r5.analyst.scenario.RoadCongestion;
 import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.api.util.LegMode;
 import com.conveyal.r5.api.util.TransitModes;
@@ -89,23 +90,22 @@ public class AnalysisRequest {
      * This is because we have two subtypes of AnalysisTask and need to be able to create both.
      */
     public AnalysisTask populateTask (AnalysisTask task, Project project) {
-        List<Modification> modifications = new ArrayList<>();
 
-        // No modifications in the baseline comparison
+        // Fetch the modifications associated with this project, filtering for the selected scenario (denoted here as
+        // "variant"). There are no modifications in the baseline scenario (which is denoted by special index -1).
+        List<Modification> modifications = new ArrayList<>();
         if (variantIndex > -1) {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
         }
 
-        // The CRC is appended to the scenario ID to identify a unique revision of the scenario (still denoted here
-        // as variant) allowing the worker to cache and reuse networks built by applying that exact revision of the
-        // scenario to a base network.
+        // The CRC of the modifications in this scenario is appended to the scenario ID to identify a unique revision of
+        // the scenario (still denoted here as variant) allowing the worker to cache and reuse networks built by
+        // applying that exact revision of the scenario to a base network.
         CRC32 crc = new CRC32();
         crc.update(JsonUtilities.objectToJsonBytes(modifications));
         long crcValue = crc.getValue();
 
         task.scenario = new Scenario();
-        // TODO figure out why we use both
-        // (AB: what does the above comment mean? both what?)
         // FIXME Job IDs need to be unique. Why are we setting this to the project and variant? This only works because the job ID is overwritten when the job is enqueued.
         task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
