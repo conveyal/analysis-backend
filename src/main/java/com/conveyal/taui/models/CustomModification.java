@@ -31,8 +31,7 @@ public class CustomModification extends Modification {
 
     public com.conveyal.r5.analyst.scenario.CustomModification toR5 () {
         com.conveyal.r5.analyst.scenario.CustomModification customR5 =
-                new com.conveyal.r5.analyst.scenario.CustomModification(freeformProperties);
-        customR5.comment = name;
+                new com.conveyal.r5.analyst.scenario.CustomModification(freeformProperties, name);
         return customR5;
     }
 
