@@ -2,8 +2,8 @@ package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.scenario.AddTrips;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Add a trip pattern.
@@ -36,7 +36,7 @@ public class AddTripPattern extends Modification {
 
             // Get hop times
             pt.dwellTimes = ModificationStop.getDwellTimes(stops, this.dwellTimes, dwellTime);
-            pt.hopTimes = ModificationStop.getHopTimes(stops, this.segmentSpeeds);
+            pt.hopTimes = ModificationStop.getHopTimes(stops);
 
             return pt;
         }
@@ -47,9 +47,17 @@ public class AddTripPattern extends Modification {
         at.comment = name;
 
         at.bidirectional = bidirectional;
+        at.frequencies = new ArrayList<>();
 
-        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
-        at.frequencies = timetables.stream().map(tt -> tt.toR5(stops)).collect(Collectors.toList());
+        List<ModificationStop> stops = null;
+        for (int i = 0; i < timetables.size(); i++) {
+            Timetable tt = timetables.get(i);
+            stops = ModificationStop.getStopsFromSegments(segments, tt.segmentSpeeds);
+            AddTrips.PatternTimetable pt = tt.toR5(stops);
+            at.frequencies.add(pt);
+        }
+
+        // Values for stop spec are not affected by time table segment speeds
         at.stops = ModificationStop.toStopSpecs(stops);
 
         return at;
