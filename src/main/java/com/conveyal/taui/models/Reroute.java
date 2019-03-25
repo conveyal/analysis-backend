@@ -22,9 +22,10 @@ public class Reroute extends Modification {
     /** speed of the adjusted segment, km/h, per segment */
     public int[] segmentSpeeds;
 
-    /** dwell time at adjusted stops, seconds */
+    /** Default dwell time, seconds */
     public int dwellTime;
 
+    /** Dwell times at adjusted stops, seconds */
     // using Integer not int because Integers can be null
     public Integer[] dwellTimes;
 

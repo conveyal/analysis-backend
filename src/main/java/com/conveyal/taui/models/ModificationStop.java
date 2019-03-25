@@ -62,11 +62,6 @@ class ModificationStop {
         // Keep a stack of Stops because as part of auto-generating stops we sometimes need to back one out.
         Stack<ModificationStop> stops = new Stack<>();
 
-        // Create an empty array if dwell times are null
-        if (dwellTimes == null) {
-            dwellTimes = new Integer[0];
-        }
-
         Segment firstSegment = segments.get(0);
         int realStopIndex = 0;
 
@@ -77,8 +72,9 @@ class ModificationStop {
                 stopSpec = new StopSpec(firstSegment.fromStopId);
             }
 
-            Integer specificDwellTime = dwellTimes[realStopIndex++];
-            int dwellTime = specificDwellTime != null ? specificDwellTime : defaultDwellTime;
+            int dwellTime = dwellAtStop(realStopIndex, defaultDwellTime, dwellTimes);
+
+            realStopIndex++;
 
             stops.add(new ModificationStop(stopSpec, dwellTime, 0, false));
         }
@@ -188,8 +184,9 @@ class ModificationStop {
                 if (segment.toStopId != null) {
                     stopSpec = new StopSpec(segment.toStopId);
                 }
-                Integer specificDwellTime = dwellTimes[realStopIndex++];
-                int dwellTime = specificDwellTime != null ? specificDwellTime : defaultDwellTime;
+
+                int dwellTime = dwellAtStop(realStopIndex, defaultDwellTime, dwellTimes);
+
                 stops.add(new ModificationStop(stopSpec, dwellTime, hopTimeSeconds, false));
 
                 // Set the distance to the last stop
@@ -197,6 +194,9 @@ class ModificationStop {
 
                 // Reset the hop time
                 hopTimeSeconds = 0;
+
+                // A real (not auto-generated) stop has been added.
+                realStopIndex++;
             }
 
             // Set the coordinate for sanity checking that the next segment starts at the current segment's end.
@@ -225,6 +225,15 @@ class ModificationStop {
         for (int i = 0; i < stops.size(); i++) dwellTimes[i] = stops.get(i).dwellTimeSeconds;
 
         return dwellTimes;
+    }
+
+    static int dwellAtStop (int realStopIndex, int defaultDwellTime, Integer[] dwellTimes){
+        // If a dwell time for this stop has been specified explicitly, use it
+        if (dwellTimes != null && dwellTimes.length > realStopIndex && dwellTimes[realStopIndex] != null) {
+            return dwellTimes[realStopIndex];
+        } else {
+            return defaultDwellTime;
+        }
     }
 
     static int[] getHopTimes (List<ModificationStop> stops) {
