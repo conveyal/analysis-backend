@@ -32,8 +32,8 @@ public class Reroute extends Modification {
         com.conveyal.r5.analyst.scenario.Reroute rr = new com.conveyal.r5.analyst.scenario.Reroute();
         rr.comment = name;
 
-        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments, segmentSpeeds);
-        rr.dwellTimes = ModificationStop.getDwellTimes(stops, dwellTimes, dwellTime);
+        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments, dwellTimes, dwellTime, segmentSpeeds);
+        rr.dwellTimes = ModificationStop.getDwellTimes(stops);
         rr.hopTimes = ModificationStop.getHopTimes(stops);
         rr.stops = ModificationStop.toStopSpecs(stops);
 

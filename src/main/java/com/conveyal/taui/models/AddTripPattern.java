@@ -35,7 +35,7 @@ public class AddTripPattern extends Modification {
             AddTrips.PatternTimetable pt = this.toBaseR5Timetable();
 
             // Get hop times
-            pt.dwellTimes = ModificationStop.getDwellTimes(stops, this.dwellTimes, dwellTime);
+            pt.dwellTimes = ModificationStop.getDwellTimes(stops);
             pt.hopTimes = ModificationStop.getHopTimes(stops);
 
             return pt;
@@ -52,7 +52,8 @@ public class AddTripPattern extends Modification {
         List<ModificationStop> stops = null;
         for (int i = 0; i < timetables.size(); i++) {
             Timetable tt = timetables.get(i);
-            stops = ModificationStop.getStopsFromSegments(segments, tt.segmentSpeeds);
+            // Stop distance calculations are repeated but this is a short term fix until the models are updated.
+            stops = ModificationStop.getStopsFromSegments(segments, tt.dwellTimes, tt.dwellTime, tt.segmentSpeeds);
             AddTrips.PatternTimetable pt = tt.toR5(stops);
             at.frequencies.add(pt);
         }
