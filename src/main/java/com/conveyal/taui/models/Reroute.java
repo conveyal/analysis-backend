@@ -22,9 +22,10 @@ public class Reroute extends Modification {
     /** speed of the adjusted segment, km/h, per segment */
     public int[] segmentSpeeds;
 
-    /** dwell time at adjusted stops, seconds */
+    /** Default dwell time, seconds */
     public int dwellTime;
 
+    /** Dwell times at adjusted stops, seconds */
     // using Integer not int because Integers can be null
     public Integer[] dwellTimes;
 
@@ -32,9 +33,9 @@ public class Reroute extends Modification {
         com.conveyal.r5.analyst.scenario.Reroute rr = new com.conveyal.r5.analyst.scenario.Reroute();
         rr.comment = name;
 
-        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments);
-        rr.dwellTimes = ModificationStop.getDwellTimes(stops, dwellTimes, dwellTime);
-        rr.hopTimes = ModificationStop.getHopTimes(stops, segmentSpeeds);
+        List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments, dwellTimes, dwellTime, segmentSpeeds);
+        rr.dwellTimes = ModificationStop.getDwellTimes(stops);
+        rr.hopTimes = ModificationStop.getHopTimes(stops);
         rr.stops = ModificationStop.toStopSpecs(stops);
 
         if (this.trips == null) {
