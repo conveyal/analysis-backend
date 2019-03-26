@@ -49,7 +49,10 @@ public class AddTripPattern extends Modification {
         at.bidirectional = bidirectional;
         at.frequencies = new ArrayList<>();
 
-        List<ModificationStop> stops = null;
+        // Initialized here in case there are no timetables
+        List<ModificationStop> stops = new ArrayList<>();
+
+        // Iterate over the timetables generating hopTimes and dwellTimes from the segments and segment speeds
         for (int i = 0; i < timetables.size(); i++) {
             Timetable tt = timetables.get(i);
             // Stop distance calculations are repeated but this is a short term fix until the models are updated.
