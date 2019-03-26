@@ -73,6 +73,13 @@ public class MongoMap<V extends Model> {
         ).get()).toArray();
     }
 
+    public Collection<V> findPermitted(DBObject query, DBObject project, String accessGroup) {
+        return find(QueryBuilder.start().and(
+                query,
+                QueryBuilder.start("accessGroup").is(accessGroup).get()
+        ).get(), project).toArray();
+    }
+
     public Collection<V> findPermittedForQuery (Request req) {
         QueryBuilder query = QueryBuilder.start();
         req.queryParams().forEach(name -> {
@@ -87,6 +94,10 @@ public class MongoMap<V extends Model> {
      */
     public DBCursor<V> find(DBObject query) {
         return wrappedCollection.find(query).sort(DBSort.desc("createdAt"));
+    }
+
+    public DBCursor<V> find(DBObject query, DBObject project) {
+        return wrappedCollection.find(query, project).sort(DBSort.desc("createdAt"));
     }
 
     /** Get all objects where property == value */
