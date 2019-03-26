@@ -49,20 +49,17 @@ public class AddTripPattern extends Modification {
         at.bidirectional = bidirectional;
         at.frequencies = new ArrayList<>();
 
-        // Initialized here in case there are no timetables
-        List<ModificationStop> stops = new ArrayList<>();
-
         // Iterate over the timetables generating hopTimes and dwellTimes from the segments and segment speeds
         for (int i = 0; i < timetables.size(); i++) {
             Timetable tt = timetables.get(i);
             // Stop distance calculations are repeated but this is a short term fix until the models are updated.
-            stops = ModificationStop.getStopsFromSegments(segments, tt.dwellTimes, tt.dwellTime, tt.segmentSpeeds);
+            List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments, tt.dwellTimes, tt.dwellTime, tt.segmentSpeeds);
             AddTrips.PatternTimetable pt = tt.toR5(stops);
             at.frequencies.add(pt);
         }
 
-        // Values for stop spec are not affected by time table segment speeds
-        at.stops = ModificationStop.toStopSpecs(stops);
+        // Values for stop spec are not affected by time table segment speeds or dwell times
+        at.stops = ModificationStop.toStopSpecs(ModificationStop.getStopsFromSegments(segments, null, 0, new int[0]));
 
         return at;
     }
