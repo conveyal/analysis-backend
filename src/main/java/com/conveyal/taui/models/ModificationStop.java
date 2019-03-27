@@ -25,8 +25,8 @@ class ModificationStop {
     private static int DEFAULT_SEGMENT_SPEED_KPH = 15;
 
     // Conversion Factors
-    public static int SECONDS_PER_HOUR = 60 * 60;
-    public static int METERS_PER_KM = 1000;
+    public static double SECONDS_PER_HOUR = 60 * 60;
+    public static double METERS_PER_KM = 1000;
 
     /** Internal stop spec representation. */
     private final StopSpec stopSpec;
