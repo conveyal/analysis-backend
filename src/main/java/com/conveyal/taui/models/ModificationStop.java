@@ -102,7 +102,8 @@ class ModificationStop {
 
             Coordinate[] coords = segment.geometry.getCoordinates();
             if (previousSegmentFinalCoordinate != null && !coords[0].equals2D(previousSegmentFinalCoordinate)) {
-                throw AnalysisServerException.unknown("Segment coordinates do not align.");
+                throw AnalysisServerException.unknown("Start of segment " + i + " not at end of previous segment: " +
+                        previousSegmentFinalCoordinate + " and " + coords[0]);
             }
 
             // Iterate over the coordinates of the segment geometry (which is generally a LineString).
