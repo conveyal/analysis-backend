@@ -317,6 +317,10 @@ public class Broker {
         return jobStatusList;
     }
 
+    public void unregisterSinglePointWorker (WorkerCategory category) {
+        workerCatalog.tryToReassignSinglePointWork(category);
+    }
+
     /**
      * Record information that a worker sent about itself.
      */
