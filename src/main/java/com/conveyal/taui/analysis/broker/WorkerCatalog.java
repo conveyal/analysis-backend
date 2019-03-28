@@ -67,8 +67,7 @@ public class WorkerCatalog {
 
     /**
      * Before fetching worker information, call this method to remove any workers that we haven't heard from for a
-     * while. This does leave a 2 minute window where a worker is still in the catalog but not
-     * reachable after shutdown.
+     * while.
      * Perhaps we should be calling this method on a timer instead of every time read-oriented methods are called.
      */
     private void purgeDeadWorkers () {
