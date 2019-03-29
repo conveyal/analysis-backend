@@ -70,7 +70,7 @@ public class WorkerCatalog {
      * while.
      * Perhaps we should be calling this method on a timer instead of every time read-oriented methods are called.
      */
-    private void purgeDeadWorkers () {
+    private synchronized void purgeDeadWorkers () {
         long now = System.currentTimeMillis();
         long oldestAcceptable = now - WORKER_RECORD_DURATION_MSEC;
         List<WorkerObservation> ancientObservations = new ArrayList<>();
