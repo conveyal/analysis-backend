@@ -1,6 +1,7 @@
 package com.conveyal.taui.models;
 
 import com.conveyal.r5.analyst.scenario.AddTrips;
+import com.conveyal.taui.AnalysisServerException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +54,14 @@ public class AddTripPattern extends Modification {
         for (int i = 0; i < timetables.size(); i++) {
             Timetable tt = timetables.get(i);
             // Stop distance calculations are repeated but this is a short term fix until the models are updated.
-            List<ModificationStop> stops = ModificationStop.getStopsFromSegments(segments, tt.dwellTimes, tt.dwellTime, tt.segmentSpeeds);
+            List<ModificationStop> stops;
+            // TODO handle errors converting modifications toR5 more generally.
+            try {
+                stops = ModificationStop.getStopsFromSegments(segments, tt.dwellTimes, tt.dwellTime, tt.segmentSpeeds);
+            } catch (AnalysisServerException ase) {
+                throw AnalysisServerException.badRequest("Error in " + name + ": " + ase.message);
+            }
+
             AddTrips.PatternTimetable pt = tt.toR5(stops);
             at.frequencies.add(pt);
         }
