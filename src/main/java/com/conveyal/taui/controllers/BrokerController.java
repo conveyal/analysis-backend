@@ -178,8 +178,8 @@ public class BrokerController {
             httpPost.abort();
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
         } catch (NoRouteToHostException nrthe){
-            LOG.info("Worker in category {} was previously registerd but is not reachable now. This is expected if" +
-                    "a user made a single-point request within WORKER_RECORD_DURATION_MSEC after shutdown.", workerCategory );
+            LOG.info("Worker in category {} was previously cataloged but is not reachable now. This is expected if a " +
+                    "user made a single-point request within WORKER_RECORD_DURATION_MSEC after shutdown.", workerCategory);
             httpPost.abort();
             broker.unregisterSinglePointWorker(workerCategory);
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Switching routing server");

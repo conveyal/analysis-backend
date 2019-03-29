@@ -317,7 +317,7 @@ public class Broker {
         return jobStatusList;
     }
 
-    public void unregisterSinglePointWorker (WorkerCategory category) {
+    public synchronized void unregisterSinglePointWorker (WorkerCategory category) {
         workerCatalog.tryToReassignSinglePointWork(category);
     }
 

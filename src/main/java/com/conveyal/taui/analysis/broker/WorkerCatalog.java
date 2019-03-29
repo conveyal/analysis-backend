@@ -93,10 +93,10 @@ public class WorkerCatalog {
      * @param workerCategory of worker that could not be reached for a single-point request (and has presumably shut
      *                       down)
      */
-    public void tryToReassignSinglePointWork (WorkerCategory workerCategory) {
+    public synchronized void tryToReassignSinglePointWork (WorkerCategory workerCategory) {
         String oldSinglePointWorkerId = singlePointWorkerIdByCategory.get(workerCategory);
 
-        // Clear the shut down worker from places it has been registered
+        // Clear the shut down worker from places it had been cataloged
         singlePointWorkerIdByCategory.remove(workerCategory);
         observationsByWorkerId.remove(oldSinglePointWorkerId);
         workerIdsByCategory.remove(workerCategory, oldSinglePointWorkerId);
