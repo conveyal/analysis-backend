@@ -18,6 +18,7 @@ import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
 import com.mongodb.QueryBuilder;
+import org.mongojack.DBProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -57,6 +58,7 @@ public class RegionalAnalysisController {
                         QueryBuilder.start("regionId").is(req.params("regionId")).get(),
                         QueryBuilder.start("deleted").is(false).get()
                 ).get(),
+                DBProjection.exclude("request.scenario.modifications"),
                 req.attribute("accessGroup")
         );
     }

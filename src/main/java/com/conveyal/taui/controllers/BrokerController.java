@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 
+import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -176,8 +177,13 @@ public class BrokerController {
             // Aborting the request might help release resources - we had problems with exhausting connection pools here.
             httpPost.abort();
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
+        } catch (NoRouteToHostException nrthe){
+            LOG.info("Worker in category {} was previously cataloged but is not reachable now. This is expected if a " +
+                    "user made a single-point request within WORKER_RECORD_DURATION_MSEC after shutdown.", workerCategory);
+            httpPost.abort();
+            broker.unregisterSinglePointWorker(workerCategory);
+            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Switching routing server");
         } catch (Exception e) {
-            // TODO we need to detect the case where the worker was not reachable and purge it from the worker catalog.
             throw AnalysisServerException.unknown(e);
         } finally {
             // If the HTTP response entity is non-null close the associated input stream, which causes the HttpClient
