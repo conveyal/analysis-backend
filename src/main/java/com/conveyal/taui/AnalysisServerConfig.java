@@ -42,6 +42,7 @@ public abstract class AnalysisServerConfig {
     public static final String auth0ClientId = getProperty("auth0-client-id", false);
     public static final byte[] auth0Secret = new Base64(true).decode(getProperty("auth0-secret", false));
     public static final String localCacheDirectory = getProperty("local-cache", true);
+    public static final String googleAnalyticsTrackingID = getProperty("google-analytics-tracking-id", false);
     public static final String frontendUrl = getProperty("frontend-url", true);
     public static final int serverPort = Integer.parseInt(getProperty("server-port", true));
     public static final boolean offline = Boolean.parseBoolean(getProperty("offline", true));

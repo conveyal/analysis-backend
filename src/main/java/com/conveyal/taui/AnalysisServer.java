@@ -116,8 +116,12 @@ public class AnalysisServer {
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
 
         try {
-            String index = CharStreams.toString(
-                    new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl);
+            final String trackingId = AnalysisServerConfig.googleAnalyticsTrackingID != null
+                    ? AnalysisServerConfig.googleAnalyticsTrackingID
+                    : "";
+            final String index = CharStreams.toString(new InputStreamReader(indexStream))
+                    .replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl)
+                    .replace("${GOOGLE_ANALYTICS_TRACKING_ID}", trackingId);
             indexStream.close();
 
             get("/*", (req, res) -> {
