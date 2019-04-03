@@ -99,7 +99,8 @@ public class AggregationAreaController {
 
         ShapefileReader reader = new ShapefileReader(shpFile);
 
-        List<Geometry> geometries = reader.stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
+        List<Geometry> geometries =
+                reader.wgs84Stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
         UnaryUnionOp union = new UnaryUnionOp(geometries);
         Geometry merged = union.union();
 
