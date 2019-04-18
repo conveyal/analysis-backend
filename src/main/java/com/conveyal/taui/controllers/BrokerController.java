@@ -16,6 +16,7 @@ import com.conveyal.taui.analysis.broker.WorkerObservation;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
 import com.conveyal.taui.util.JsonUtil;
@@ -31,6 +32,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
+import org.mongojack.DBProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -239,8 +241,12 @@ public class BrokerController {
         Collection<JobStatus> jobStatuses = broker.getJobSummary();
         for (JobStatus jobStatus : jobStatuses) {
             if (!jobStatus.jobId.equals("SUM")) {
-                jobStatus.regionalAnalysis = Persistence.regionalAnalyses
-                        .find(QueryBuilder.start("_id").is(jobStatus.jobId).get()).next();
+                RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                        QueryBuilder.start("_id").is(jobStatus.jobId).get(),
+                        DBProjection.exclude("request.scenario.modifications")
+                ).next();
+
+                jobStatus.regionalAnalysis = analysis;
             }
         }
 
