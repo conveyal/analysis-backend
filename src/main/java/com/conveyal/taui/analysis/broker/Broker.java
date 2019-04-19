@@ -73,7 +73,7 @@ public class Broker {
     public final int AUTO_START_SPOT_INSTANCES_AT_TASK  = MAX_TASKS_PER_WORKER * 2 + 10; //42
 
     /** The maximum number of spot instances allowable in an automatic request */
-    public final int MAX_WORKERS_PER_CATEGORY = 100;
+    public final int MAX_WORKERS_PER_CATEGORY = 250;
 
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
