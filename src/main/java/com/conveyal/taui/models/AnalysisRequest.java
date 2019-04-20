@@ -58,6 +58,7 @@ public class AnalysisRequest {
     public int minCarTime = 10;
     public int streetTime = 90;
     public int suboptimalMinutes = 5;
+    public boolean logRequest = false;
 
     // Regional only
     public Integer maxTripDurationMinutes;
@@ -117,7 +118,7 @@ public class AnalysisRequest {
 
         Bounds bounds = this.bounds;
         if (bounds == null) {
-            // If no bounds were speicified, fall back on the bounds of the entire region.
+            // If no bounds were specified, fall back on the bounds of the entire region.
             Region region = Persistence.regions.findByIdIfPermitted(project.regionId, project.accessGroup);
             bounds = region.bounds;
         }
@@ -153,13 +154,15 @@ public class AnalysisRequest {
         task.monteCarloDraws = monteCarloDraws;
         task.percentiles = percentiles;
 
+        task.logRequest = logRequest;
+
         // maxTripDurationMinutes is used to prune the search in R5, discarding results exceeding the cutoff. 
         // If a target exceeds the cutoff, travel time to it may as well be infinite for the purposes of a strict cumulative
         // opportunity measure. In standard single-point and static-site results, we don't apply this pruning (at less than
         // the default maximum of 120 minutes) because users can vary the travel time cutoff after analysis. 
         // An exception is for Pareto searches on fares (i.e. when inRoutingFareCalulator specified), for which we use this
         // cutoff to achieve reasonable computation time. This does mean that isochrone results will be invalid if the user moves 
-        // the slider up after making a fare-based request. FIXME Hack for fare requests.
+        // the slider up beyond the travel time set when making a fare-based request. FIXME Hack for fare requests.
         if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeStaticSite) ||
                 task.inRoutingFareCalculator != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
