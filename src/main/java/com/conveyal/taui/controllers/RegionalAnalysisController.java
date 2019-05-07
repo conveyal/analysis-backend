@@ -70,7 +70,6 @@ public class RegionalAnalysisController {
         RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
                 QueryBuilder.start().and(
                         QueryBuilder.start("_id").is(req.params("_id")).get(),
-                        QueryBuilder.start("regionId").is(req.params("regionId")).get(),
                         QueryBuilder.start("deleted").is(false).get(),
                         QueryBuilder.start("accessGroup").is(accessGroup).get()
                 ).get(),
