@@ -175,10 +175,13 @@ public class BrokerController {
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
         } catch (SocketTimeoutException ste) {
-            LOG.info("Timeout waiting for response from worker. Perhaps an old version of R5 has blocked while preparing a network.");
+            LOG.info("Timeout waiting for response from worker.");
             // Aborting the request might help release resources - we had problems with exhausting connection pools here.
             httpPost.abort();
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
+            return jsonResponse(response, HttpStatus.SERVICE_UNAVAILABLE_503, "Routing server timed out. For the " +
+                    "complexity of this scenario, your request may have too long a duration from start time to end " +
+                    "time, or too many simulated schedules. If you are using Routing Engine version < 4.5.1, your " +
+                    "scenario may still be in preparation; try again in a few minutes.");
         } catch (NoRouteToHostException nrthe){
             LOG.info("Worker in category {} was previously cataloged but is not reachable now. This is expected if a " +
                     "user made a single-point request within WORKER_RECORD_DURATION_MSEC after shutdown.", workerCategory);
