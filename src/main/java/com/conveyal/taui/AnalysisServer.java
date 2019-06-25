@@ -6,6 +6,7 @@ import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
+import com.conveyal.taui.controllers.BrokerController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
@@ -14,7 +15,6 @@ import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.TimetableController;
-import com.conveyal.taui.controllers.BrokerController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -36,6 +36,7 @@ import java.util.Map;
 import static spark.Spark.before;
 import static spark.Spark.exception;
 import static spark.Spark.get;
+import static spark.Spark.options;
 import static spark.Spark.port;
 
 /**
@@ -67,11 +68,28 @@ public class AnalysisServer {
         // http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
 
+        options("/*", (req, res) -> {
+            String requestHeaders = req.headers("Access-Control-Request-Headers");
+            if (requestHeaders != null) {
+                res.header("Access-Control-Allow-Headers", requestHeaders);
+            }
+
+            String requestMethod = req.headers("Access-Control-Request-Method");
+            if (requestMethod != null) {
+                res.header("Access-Control-Allow-Methods", requestMethod);
+            }
+
+            return "OK";
+        });
+
         // Before handling each request, check if the user is authenticated.
         before((req, res) -> {
             // Don't require authentication to view the main page, or for internal API endpoints contacted by workers.
             // FIXME those internal endpoints should be hidden from the outside world by the reverse proxy.
             if (!req.pathInfo().startsWith("/api")) return;
+
+            // Handle CORS
+            res.header("Access-Control-Allow-Origin", "*");
 
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
