@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
+import spark.route.HttpMethod;
 
 import javax.imageio.ImageIO;
 import java.io.File;
@@ -68,20 +69,6 @@ public class AnalysisServer {
         // http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
 
-        options("/*", (req, res) -> {
-            String requestHeaders = req.headers("Access-Control-Request-Headers");
-            if (requestHeaders != null) {
-                res.header("Access-Control-Allow-Headers", requestHeaders);
-            }
-
-            String requestMethod = req.headers("Access-Control-Request-Method");
-            if (requestMethod != null) {
-                res.header("Access-Control-Allow-Methods", requestMethod);
-            }
-
-            return "OK";
-        });
-
         // Before handling each request, check if the user is authenticated.
         before((req, res) -> {
             // Don't require authentication to view the main page, or for internal API endpoints contacted by workers.
@@ -90,6 +77,9 @@ public class AnalysisServer {
 
             // Handle CORS
             res.header("Access-Control-Allow-Origin", "*");
+
+            // End early if options request
+            if (HttpMethod.options.toString().equals(req.requestMethod())) return;
 
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
@@ -104,6 +94,13 @@ public class AnalysisServer {
 
             // Log each API request
             LOG.info("{} {} by {} of {}", req.requestMethod(), req.pathInfo(), req.attribute("email"), req.attribute("accessGroup"));
+        });
+
+        // Handle CORS Option's request
+        options("/*", (req, res) -> {
+            res.header("Access-Control-Allow-Headers", "*");
+            res.header("Access-Control-Allow-Methods", "*");
+            return "OK";
         });
 
         // Register all our HTTP request handlers with the Spark HTTP framework.
