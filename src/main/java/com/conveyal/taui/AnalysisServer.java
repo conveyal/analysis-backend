@@ -79,7 +79,8 @@ public class AnalysisServer {
             res.header("Access-Control-Allow-Origin", "*");
 
             // End early if options request
-            if (HttpMethod.options.toString().equals(req.requestMethod())) return;
+            String method = req.requestMethod();
+            if ("OPTIONS".equals(method)) return;
 
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
