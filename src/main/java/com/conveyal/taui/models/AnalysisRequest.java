@@ -58,6 +58,12 @@ public class AnalysisRequest {
     public int minCarTime = 10;
     public int streetTime = 90;
     public int suboptimalMinutes = 5;
+
+    /**
+     * Whether the R5 worker should log an analysis request it receives from the broker. analysis-backend translates
+     * front-end requests to the format expected by R5. To debug this translation process, set logRequest = true in
+     * the front-end profile request, then look for the full request received by the worker in its log.
+     */
     public boolean logRequest = false;
 
     // Regional only
