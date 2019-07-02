@@ -83,6 +83,9 @@ public abstract class AnalysisServerConfig {
         if (!offline && (bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || workerLogGroup == null)) {
             LOG.error("Application is missing config variables needed in online mode.");
         }
+        if (workerInstanceType == InstanceType.UNKNOWN_TO_SDK_VERSION) {
+            LOG.error("The EC2 instance type specified in the configuration was not recognized. You will not be able to start EC2 workers.");
+        }
         if (!missingKeys.isEmpty()) {
             LOG.error("You must provide these configuration properties: {}", String.join(", ", missingKeys));
             System.exit(1);
