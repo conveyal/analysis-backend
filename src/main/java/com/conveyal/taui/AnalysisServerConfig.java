@@ -1,9 +1,9 @@
 package com.conveyal.taui;
 
-import com.amazonaws.services.ec2.model.InstanceType;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.ec2.model.InstanceType;
 
 import java.io.FileInputStream;
 import java.util.HashSet;

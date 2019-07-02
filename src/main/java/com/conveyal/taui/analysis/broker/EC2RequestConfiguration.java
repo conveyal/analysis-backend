@@ -1,16 +1,16 @@
 package com.conveyal.taui.analysis.broker;
 
-import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
-import com.amazonaws.services.ec2.model.LaunchSpecification;
-import com.amazonaws.services.ec2.model.RequestSpotInstancesRequest;
-import com.amazonaws.services.ec2.model.ResourceType;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.ec2.model.ShutdownBehavior;
-import com.amazonaws.services.ec2.model.Tag;
-import com.amazonaws.services.ec2.model.TagSpecification;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.google.common.io.ByteStreams;
+import software.amazon.awssdk.services.ec2.model.IamInstanceProfileSpecification;
+import software.amazon.awssdk.services.ec2.model.RequestSpotInstancesRequest;
+import software.amazon.awssdk.services.ec2.model.RequestSpotLaunchSpecification;
+import software.amazon.awssdk.services.ec2.model.ResourceType;
+import software.amazon.awssdk.services.ec2.model.RunInstancesRequest;
+import software.amazon.awssdk.services.ec2.model.ShutdownBehavior;
+import software.amazon.awssdk.services.ec2.model.Tag;
+import software.amazon.awssdk.services.ec2.model.TagSpecification;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -88,40 +88,48 @@ public class EC2RequestConfiguration {
         }
     }
 
-    RequestSpotInstancesRequest prepareSpotRequest(){
-        LaunchSpecification launchSpecification = new LaunchSpecification()
-                .withImageId(AnalysisServerConfig.workerAmiId)
-                .withInstanceType(AnalysisServerConfig.workerInstanceType)
-                .withSubnetId(AnalysisServerConfig.workerSubnetId)
-                .withIamInstanceProfile(new IamInstanceProfileSpecification().withArn(AnalysisServerConfig.workerIamRole))
-                .withUserData(userDataScript)
-                .withEbsOptimized(true);
+    RequestSpotInstancesRequest prepareSpotRequest (int nSpot, String clientToken) {
+        RequestSpotLaunchSpecification launchSpecification = RequestSpotLaunchSpecification.builder()
+                .imageId(AnalysisServerConfig.workerAmiId)
+                .instanceType(AnalysisServerConfig.workerInstanceType)
+                .subnetId(AnalysisServerConfig.workerSubnetId)
+                .iamInstanceProfile(IamInstanceProfileSpecification.builder().arn(AnalysisServerConfig.workerIamRole).build())
+                .userData(userDataScript)
+                .ebsOptimized(true)
+                .build();
 
-        return new RequestSpotInstancesRequest()
-                .withLaunchSpecification(launchSpecification);
+        return RequestSpotInstancesRequest.builder()
+                .launchSpecification(launchSpecification)
+                .instanceCount(nSpot)
+                .clientToken(clientToken)
+                .build();
     }
 
-    RunInstancesRequest prepareOnDemandRequest(){
+    RunInstancesRequest prepareOnDemandRequest (int minInstances, int maxInstances, String clientToken) {
         // Set tags so we can identify the instances immediately in the EC2 console. The worker user data makes
         // workers tag themselves, but with a lag.
-        TagSpecification instanceTags = new TagSpecification().withResourceType(ResourceType.Instance)
-                .withTags(
-                        new Tag("Name", "Analysis Worker"),
-                        new Tag("Project", "Analysis"),
-                        new Tag("networkId", category.graphId),
-                        new Tag("workerVersion", category.workerVersion),
-                        new Tag("group", group),
-                        new Tag("user", user)
-                );
+        TagSpecification instanceTags = TagSpecification.builder().resourceType(ResourceType.INSTANCE).tags(
+            Tag.builder().key("Name").value("Analysis Worker").build(),
+            Tag.builder().key("Project").value("Analysis").build(),
+            Tag.builder().key("networkId").value(category.graphId).build(),
+            Tag.builder().key("workerVersion").value(category.workerVersion).build(),
+            Tag.builder().key("group").value(group).build(),
+            Tag.builder().key("user").value(user).build()
+        ).build();
 
-        return new RunInstancesRequest()
-            .withImageId(AnalysisServerConfig.workerAmiId)
-            .withInstanceType(AnalysisServerConfig.workerInstanceType)
-            .withSubnetId(AnalysisServerConfig.workerSubnetId)
-            .withIamInstanceProfile(new IamInstanceProfileSpecification().withArn(AnalysisServerConfig.workerIamRole))
-            .withInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate)
-            .withTagSpecifications(instanceTags)
-            .withUserData(userDataScript)
-            .withEbsOptimized(true);
+        return RunInstancesRequest.builder()
+            .imageId(AnalysisServerConfig.workerAmiId)
+            .instanceType(AnalysisServerConfig.workerInstanceType)
+            .subnetId(AnalysisServerConfig.workerSubnetId)
+            .iamInstanceProfile(IamInstanceProfileSpecification.builder().arn(AnalysisServerConfig.workerIamRole).build())
+            .instanceInitiatedShutdownBehavior(ShutdownBehavior.TERMINATE)
+            .tagSpecifications(instanceTags)
+            .userData(userDataScript)
+            .ebsOptimized(true)
+            .minCount(minInstances)
+            .maxCount(maxInstances)
+            .clientToken(clientToken)
+            .build();
     }
+
 }
