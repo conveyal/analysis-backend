@@ -123,7 +123,12 @@ public class AggregationAreaController {
             areas.put(maskName, union.union());
         } else {
             // Use provided name to read a name for each feature
-            features.stream().forEach(f -> areas.put(f.getProperty(maskName).getValue().toString(), (Geometry) f.getDefaultGeometry()));
+            try {
+                features.stream().forEach(f -> areas.put(f.getProperty(maskName).getValue().toString(), (Geometry) f.getDefaultGeometry()));
+            } catch (NullPointerException e) {
+                throw new AnalysisServerException("The supplied name was not a property of the uploaded features. " +
+                        "Double check that the name corresponds to a shapefile column.");
+            }
         }
 
         areas.forEach((String name, Geometry geometry) -> {
