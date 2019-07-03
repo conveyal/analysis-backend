@@ -6,6 +6,7 @@ import com.conveyal.gtfs.api.util.FeedSourceCache;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.analysis.LocalCluster;
 import com.conveyal.taui.controllers.AggregationAreaController;
+import com.conveyal.taui.controllers.BrokerController;
 import com.conveyal.taui.controllers.BundleController;
 import com.conveyal.taui.controllers.GraphQLController;
 import com.conveyal.taui.controllers.ModificationController;
@@ -14,7 +15,6 @@ import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.conveyal.taui.controllers.TimetableController;
-import com.conveyal.taui.controllers.BrokerController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
 import com.google.common.io.CharStreams;
@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
+import spark.route.HttpMethod;
 
 import javax.imageio.ImageIO;
 import java.io.File;
@@ -36,6 +37,7 @@ import java.util.Map;
 import static spark.Spark.before;
 import static spark.Spark.exception;
 import static spark.Spark.get;
+import static spark.Spark.options;
 import static spark.Spark.port;
 
 /**
@@ -73,6 +75,13 @@ public class AnalysisServer {
             // FIXME those internal endpoints should be hidden from the outside world by the reverse proxy.
             if (!req.pathInfo().startsWith("/api")) return;
 
+            // Handle CORS
+            res.header("Access-Control-Allow-Origin", "*");
+
+            // End early if options request
+            String method = req.requestMethod();
+            if ("OPTIONS".equals(method)) return;
+
             // Default is JSON, will be overridden by the few controllers that do not return JSON
             res.type("application/json");
 
@@ -86,6 +95,13 @@ public class AnalysisServer {
 
             // Log each API request
             LOG.info("{} {} by {} of {}", req.requestMethod(), req.pathInfo(), req.attribute("email"), req.attribute("accessGroup"));
+        });
+
+        // Handle CORS Option's request
+        options("/*", (req, res) -> {
+            res.header("Access-Control-Allow-Headers", "*");
+            res.header("Access-Control-Allow-Methods", "*");
+            return "OK";
         });
 
         // Register all our HTTP request handlers with the Spark HTTP framework.
@@ -116,8 +132,12 @@ public class AnalysisServer {
         InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
 
         try {
-            String index = CharStreams.toString(
-                    new InputStreamReader(indexStream)).replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl);
+            final String trackingId = AnalysisServerConfig.googleAnalyticsTrackingID != null
+                    ? AnalysisServerConfig.googleAnalyticsTrackingID
+                    : "";
+            final String index = CharStreams.toString(new InputStreamReader(indexStream))
+                    .replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl)
+                    .replace("${GOOGLE_ANALYTICS_TRACKING_ID}", trackingId);
             indexStream.close();
 
             get("/*", (req, res) -> {
@@ -153,9 +173,7 @@ public class AnalysisServer {
             LOG.info("Running in OFFLINE mode...");
             FeedSourceCache feedSourceCache = ApiMain.initialize(null, null, AnalysisServerConfig.localCacheDirectory);
             LOG.info("Starting local cluster of Analysis workers...");
-            // You have to make the worker machineId non-static if you want to launch more than one worker,
-            // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
-            LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
+            LocalCluster.start(feedSourceCache, OSMPersistence.cache);
         } else {
             ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
                     null, AnalysisServerConfig

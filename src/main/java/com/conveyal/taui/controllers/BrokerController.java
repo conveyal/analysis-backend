@@ -16,6 +16,7 @@ import com.conveyal.taui.analysis.broker.WorkerObservation;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
+import com.conveyal.taui.models.RegionalAnalysis;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.HttpStatus;
 import com.conveyal.taui.util.JsonUtil;
@@ -23,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
+import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -31,6 +33,8 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
+import org.mongojack.DBCursor;
+import org.mongojack.DBProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -239,8 +243,12 @@ public class BrokerController {
         Collection<JobStatus> jobStatuses = broker.getJobSummary();
         for (JobStatus jobStatus : jobStatuses) {
             if (!jobStatus.jobId.equals("SUM")) {
-                jobStatus.regionalAnalysis = Persistence.regionalAnalyses
-                        .find(QueryBuilder.start("_id").is(jobStatus.jobId).get()).next();
+                RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                        QueryBuilder.start("_id").is(jobStatus.jobId).get(),
+                        DBProjection.exclude("request.scenario.modifications")
+                ).next();
+
+                jobStatus.regionalAnalysis = analysis;
             }
         }
 
@@ -264,10 +272,16 @@ public class BrokerController {
             for (String networkId : observation.status.networks) {
                 Bundle bundle = bundleForNetworkId.get(networkId);
                 if (bundle == null) {
-                    bundle = Persistence.bundles.find(QueryBuilder.start("_id").is(networkId).get()).next();
-                    bundleForNetworkId.put(networkId, bundle);
+                    DBCursor<Bundle> cursor = Persistence.bundles.find(QueryBuilder.start("_id").is(networkId).get());
+                    // Bundle for a network may have been deleted
+                    if (cursor.hasNext()) {
+                        bundle = cursor.next();
+                        bundleForNetworkId.put(networkId, bundle);
+                    }
                 }
-                bundles.add(bundle);
+                if (bundle != null) {
+                    bundles.add(bundle);
+                }
             }
             observation.bundles = bundles;
         }

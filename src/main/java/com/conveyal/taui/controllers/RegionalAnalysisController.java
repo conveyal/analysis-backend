@@ -67,7 +67,14 @@ public class RegionalAnalysisController {
         String accessGroup = req.attribute("accessGroup");
         String email = req.attribute("email");
 
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("_id").is(req.params("_id")).get(),
+                        QueryBuilder.start("deleted").is(false).get(),
+                        QueryBuilder.start("accessGroup").is(accessGroup).get()
+                ).get(),
+                DBProjection.exclude("request.scenario.modifications")
+        ).next();
         analysis.deleted = true;
         Persistence.regionalAnalyses.updateByUserIfPermitted(analysis, email, accessGroup);
 
@@ -96,7 +103,13 @@ public class RegionalAnalysisController {
         // The response file format: PNG, TIFF, or GRID
         final String formatString = req.params("format");
 
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("_id").is(req.params("_id")).get(),
+                        QueryBuilder.start("accessGroup").is(req.attribute("accessGroup")).get()
+                ).get(),
+                DBProjection.exclude("request.scenario.modifications")
+        ).next();
         if (analysis == null || analysis.deleted) {
             throw AnalysisServerException.notFound("The specified regional analysis in unknown or has been deleted.");
         }
