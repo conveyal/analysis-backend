@@ -173,9 +173,7 @@ public class AnalysisServer {
             LOG.info("Running in OFFLINE mode...");
             FeedSourceCache feedSourceCache = ApiMain.initialize(null, null, AnalysisServerConfig.localCacheDirectory);
             LOG.info("Starting local cluster of Analysis workers...");
-            // You have to make the worker machineId non-static if you want to launch more than one worker,
-            // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
-            LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
+            LocalCluster.start(feedSourceCache, OSMPersistence.cache);
         } else {
             ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
                     null, AnalysisServerConfig
