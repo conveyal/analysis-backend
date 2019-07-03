@@ -10,6 +10,7 @@ import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.SelectingGridReducer;
 import com.conveyal.taui.analysis.broker.Broker;
+import com.conveyal.taui.analysis.broker.WorkerTags;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.OpportunityDataset;
@@ -307,7 +308,7 @@ public class RegionalAnalysisController {
         templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy, regionalAnalysis.projectId, regionalAnalysis.regionId);
+        broker.enqueueTasksForRegionalJob(templateTask, WorkerTags.fromRegionalAnalysis(regionalAnalysis));
 
         return regionalAnalysis;
     }

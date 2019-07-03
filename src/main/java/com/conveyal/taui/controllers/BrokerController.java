@@ -13,6 +13,7 @@ import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.broker.JobStatus;
 import com.conveyal.taui.analysis.broker.WorkerObservation;
+import com.conveyal.taui.analysis.broker.WorkerTags;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
@@ -139,7 +140,8 @@ public class BrokerController {
         String address = broker.getWorkerAddress(workerCategory);
         if (address == null) {
             // There are no workers that can handle this request. Request some.
-            broker.createOnDemandWorkerInCategory(workerCategory, accessGroup, userEmail, project._id, project.regionId);
+            WorkerTags workerTags = new WorkerTags(accessGroup, userEmail, project._id, project.regionId);
+            broker.createOnDemandWorkerInCategory(workerCategory, workerTags);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");

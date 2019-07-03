@@ -42,13 +42,8 @@ public class Job {
     /* A unique identifier for this job, we use random UUIDs. */
     public final String jobId;
 
-    // Tags for starting worker
-    // FIXME these fields should be grouped together a new type WorkerInstanceTags. They are being stored and passed around a lot.
-    // This type should explain these are strings purely for categorization of workers and should not be used for other purposes.
-    public final String accessGroup;
-    public final String createdBy;
-    public final String projectId;
-    public final String regionId;
+    /** Tags to be added to the worker instance to assist in usage analysis and cost breakdowns. */
+    public final WorkerTags workerTags;
 
     // This can be derived from other fields but is provided as a convenience.
     public final int nTasksTotal;
@@ -101,7 +96,7 @@ public class Job {
     // How many times we have started over delivering tasks, working through those that were not marked complete.
     public int deliveryPass = 0;
 
-    public Job (RegionalTask templateTask, String accessGroup, String createdBy, String projectId, String regionId) {
+    public Job (RegionalTask templateTask, WorkerTags workerTags) {
         this.jobId = templateTask.jobId;
         this.templateTask = templateTask;
         this.nTasksTotal = templateTask.width * templateTask.height;
@@ -109,10 +104,7 @@ public class Job {
         this.workerCategory = new WorkerCategory(templateTask.graphId, templateTask.workerVersion);
         this.nTasksCompleted = 0;
         this.nextTaskToDeliver = 0;
-        this.createdBy = createdBy;
-        this.accessGroup = accessGroup;
-        this.projectId = projectId;
-        this.regionId = regionId;
+        this.workerTags = workerTags;
     }
 
     public boolean markTaskCompleted(int taskId) {

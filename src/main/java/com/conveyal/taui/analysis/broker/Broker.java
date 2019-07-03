@@ -127,13 +127,13 @@ public class Broker {
      * TODO push the creation of the TemplateTask down into this method, to avoid last two parameters?
      * TODO make the tags a simple Map from String -> String here and for worker startup.
      */
-    public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, String accessGroup, String createdBy, String projectId, String regionId) {
+    public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, WorkerTags workerTags) {
         LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
         if (findJob(templateTask.jobId) != null) {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
-        Job job = new Job(templateTask, accessGroup, createdBy, projectId, regionId);
+        Job job = new Job(templateTask, workerTags);
         jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
@@ -142,7 +142,7 @@ public class Broker {
             return;
         }
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createOnDemandWorkerInCategory(job.workerCategory, accessGroup, createdBy, projectId, regionId);
+            createOnDemandWorkerInCategory(job.workerCategory, workerTags);
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             recentlyRequestedWorkers.remove(job.workerCategory);
@@ -151,23 +151,17 @@ public class Broker {
 
     /**
      * Create on-demand worker for a given job.
-     * @param user only used to tag the newly created instance
-     * @param group only used to tag the newly created instance
      */
-    public void createOnDemandWorkerInCategory(WorkerCategory category, String group, String user, String projectId, String regionId){
-        createWorkersInCategory(category, group, user, projectId, regionId, 1, 0);
+    public void createOnDemandWorkerInCategory(WorkerCategory category, WorkerTags workerTags){
+        createWorkersInCategory(category, workerTags, 1, 0);
     }
 
     /**
      * Create on-demand/spot workers for a given job, after certain checks
-     * @param user only used to tag the newly created instance
-     * @param group only used to tag the newly created instance
      * @param nOnDemand EC2 on-demand instances to request
      * @param nSpot EC2 spot instances to request
      */
-
-    public void createWorkersInCategory (WorkerCategory category, String group, String user,
-                                         String projectId, String regionId, int nOnDemand, int nSpot) {
+    public void createWorkersInCategory (WorkerCategory category, WorkerTags workerTags, int nOnDemand, int nSpot) {
 
         if (workOffline) {
             LOG.info("Work offline enabled, not creating workers for {}", category);
@@ -191,7 +185,7 @@ public class Broker {
             return;
         }
 
-        EC2RequestConfiguration config = new EC2RequestConfiguration(category, group, user, projectId, regionId);
+        EC2RequestConfiguration config = new EC2RequestConfiguration(category, workerTags);
 
         launcher.launch(config, nOnDemand, nSpot);
 
@@ -358,7 +352,7 @@ public class Broker {
             // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
             int nSpot = Math.min(MAX_WORKERS_PER_CATEGORY, job.nTasksTotal / TARGET_TASKS_PER_WORKER) -
                     categoryWorkersAlreadyRunning;
-            createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy, job.projectId, job.regionId, 0, nSpot);
+            createWorkersInCategory(job.workerCategory, job.workerTags, 0, nSpot);
         }
     }
 

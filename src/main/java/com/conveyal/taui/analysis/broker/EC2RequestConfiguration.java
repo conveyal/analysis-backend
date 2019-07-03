@@ -23,28 +23,22 @@ import java.util.stream.Collectors;
 public class EC2RequestConfiguration {
 
     private final WorkerCategory category;
-    private final String group;
-    private final String user;
-    private final String projectId;
-    private final String regionId;
+    private final WorkerTags workerTags;
     private final String userDataScript;
     private final TagSpecification instanceTags;
-    private Properties workerConfig; // FIXME this can't be made final because it's only initialized when offline=false
+    private Properties workerConfig;
 
     @Override
     public String toString() {
-        return String.format("%s for %s (%s)", category, user, group);
+        return String.format("%s for %s (%s)", category, workerTags.user, workerTags.group);
     }
 
     // The final four parameters should serve only as tags to identify how the worker started up.
     // Note that a worker could migrate to a new project after finishing a job on a different project.
     // The region ID is redundant (implied by the category.bundleId) but useful for categorizing costs in EC2.
-    EC2RequestConfiguration(WorkerCategory category, String group, String user, String projectId, String regionId) {
+    EC2RequestConfiguration(WorkerCategory category, WorkerTags workerTags) {
         this.category = category;
-        this.group = group;
-        this.user = user;
-        this.projectId = projectId;
-        this.regionId = regionId;
+        this.workerTags = workerTags;
 
         if (!AnalysisServerConfig.offline) {
             workerConfig = new Properties();
@@ -84,10 +78,10 @@ public class EC2RequestConfiguration {
                 Tag.builder().key("Name").value("AnalysisWorker").build(),
                 Tag.builder().key("networkId").value(category.graphId).build(),
                 Tag.builder().key("workerVersion").value(category.workerVersion).build(),
-                Tag.builder().key("group").value(group).build(),
-                Tag.builder().key("user").value(user).build(),
-                Tag.builder().key("project").value(projectId).build(),
-                Tag.builder().key("region").value(regionId).build()
+                Tag.builder().key("group").value(workerTags.group).build(),
+                Tag.builder().key("user").value(workerTags.user).build(),
+                Tag.builder().key("project").value(workerTags.projectId).build(),
+                Tag.builder().key("region").value(workerTags.regionId).build()
         ).build();
 
         // Convert the above tags to a command line parameter for the AWS CLI, to allow spot instances to tag themselves.
