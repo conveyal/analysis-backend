@@ -23,6 +23,7 @@ import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.json.simple.JSONObject;
+import org.opengis.feature.simple.SimpleFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
@@ -33,10 +34,13 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -56,7 +60,16 @@ public class AggregationAreaController {
             .build();
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
-    public static AggregationArea createAggregationArea (Request req, Response res) throws Exception {
+    /**
+     * Create binary .grid files for aggregation (aka mask) areas, save them to S3, and persist their details.
+     * @param req Must include a shapefile on which the aggregation area(s) will be based. If request includes
+     *            "union=true", features will be merged to a single aggregation area with the provided name. If not,
+     *            each feature will be its own aggregation area, named with its value of the attribute specified by
+     *            the provided name.
+     */
+
+    public static List<AggregationArea> createAggregationArea (Request req, Response res) throws Exception {
+        ArrayList<AggregationArea> aggregationAreas = new ArrayList<>();
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
 
@@ -99,46 +112,64 @@ public class AggregationAreaController {
 
         ShapefileReader reader = new ShapefileReader(shpFile);
 
-        List<Geometry> geometries =
-                reader.wgs84Stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
-        UnaryUnionOp union = new UnaryUnionOp(geometries);
-        Geometry merged = union.union();
+        List<SimpleFeature> features = reader.wgs84Stream().collect(Collectors.toList());
 
-        Envelope env = merged.getEnvelopeInternal();
-        Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
+        Map<String, Geometry> areas = new HashMap<>();
 
-        // Store the percentage each cell overlaps the mask, scaled as 0 to 100,000
-        List<Grid.PixelWeight> weights = maskGrid.getPixelWeights(merged, true);
-        weights.forEach(pixel -> maskGrid.grid[pixel.x][pixel.y] = pixel.weight * 100_000);
+        if (req.params("union") != null && req.params("union").equalsIgnoreCase("true")) {
+            List<Geometry> geometries = features.stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
+            UnaryUnionOp union = new UnaryUnionOp(geometries);
+            // Use provided name directly for this single unioned feature
+            areas.put(maskName, union.union());
+        } else {
+            // Use provided name to read a name for each feature
+            features.stream().forEach(f -> areas.put(f.getProperty(maskName).getValue().toString(), (Geometry) f.getDefaultGeometry()));
+        }
 
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentEncoding("gzip");
-        metadata.setContentType("application/octet-stream");
+        areas.forEach((String name, Geometry geometry) -> {
+            Envelope env = geometry.getEnvelopeInternal();
+            Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
 
-        AggregationArea aggregationArea = new AggregationArea();
-        aggregationArea.name = maskName;
-        aggregationArea.regionId = regionId;
+            // Store the percentage each cell overlaps the mask, scaled as 0 to 100,000
+            List<Grid.PixelWeight> weights = maskGrid.getPixelWeights(geometry, true);
+            weights.forEach(pixel -> maskGrid.grid[pixel.x][pixel.y] = pixel.weight * 100_000);
 
-        // Set `createdBy` and `accessGroup`
-        aggregationArea.accessGroup = req.attribute("accessGroup");
-        aggregationArea.createdBy = req.attribute("email");
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentEncoding("gzip");
+            metadata.setContentType("application/octet-stream");
 
-        File gridFile = new File(tempDir, "weights.grid");
-        OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
-        maskGrid.write(os);
-        os.close();
+            AggregationArea aggregationArea = new AggregationArea();
+            aggregationArea.name = name;
+            aggregationArea.regionId = regionId;
 
-        // Create the aggregation area before generating the S3 key so that the `_id` is generated
-        Persistence.aggregationAreas.create(aggregationArea);
+            // Set `createdBy` and `accessGroup`
+            aggregationArea.accessGroup = req.attribute("accessGroup");
+            aggregationArea.createdBy = req.attribute("email");
 
-        InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
-        // can't use putObject with File when we have metadata . . .
-        S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
-        is.close();
+            File gridFile = new File(tempDir, "weights.grid");
 
-        tempDir.delete();
+            try {
+                OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
+                maskGrid.write(os);
+                os.close();
 
-        return aggregationArea;
+                // Create the aggregation area before generating the S3 key so that the `_id` is generated
+                Persistence.aggregationAreas.create(aggregationArea);
+
+                aggregationAreas.add(aggregationArea);
+
+                InputStream is = new BufferedInputStream(new FileInputStream(gridFile));
+                // can't use putObject with File when we have metadata . . .
+                S3Util.s3.putObject(AnalysisServerConfig.gridBucket, aggregationArea.getS3Key(), is, metadata);
+                is.close();
+            } catch (IOException e) {
+                throw new AnalysisServerException("Error processing/uploading aggregation area");
+            }
+
+            tempDir.delete();
+        });
+
+        return aggregationAreas;
     }
 
     public static Object getAggregationArea (Request req, Response res) {
