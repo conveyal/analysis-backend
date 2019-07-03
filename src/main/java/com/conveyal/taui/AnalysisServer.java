@@ -177,9 +177,8 @@ public class AnalysisServer {
             // and change the listening ports. TODO port is hardwired here and also in SinglePointAnalysisController
             LocalCluster.start(feedSourceCache, OSMPersistence.cache, 1);
         } else {
-            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
-                    null, AnalysisServerConfig
-                    .localCacheDirectory);
+            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket, null,
+                    AnalysisServerConfig.localCacheDirectory);
         }
 
         LOG.info("Conveyal Analysis server is ready.");

@@ -307,7 +307,7 @@ public class RegionalAnalysisController {
         templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
+        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy, regionalAnalysis.projectId, regionalAnalysis.regionId);
 
         return regionalAnalysis;
     }

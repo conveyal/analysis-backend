@@ -62,7 +62,7 @@ public class RedeliveryTest {
         templateTask.height = 1;
         templateTask.width = N_TASKS_PER_JOB;
         templateTask.scenarioId = "FAKE";
-        RegionalAnalysisController.broker.enqueueTasksForRegionalJob(templateTask,"test", "test");
+        RegionalAnalysisController.broker.enqueueTasksForRegionalJob(templateTask,"test", "test", "projectId", "regionId");
     }
 
     public static String compactUUID() {

@@ -6,10 +6,7 @@
 # 0: the URL to grab the worker JAR from
 # 1: the AWS log group to use
 # 2: the worker configuration to use
-# 3: the (Auth0) accessGroup (useful for billing)
-# 4: the (Auth0) user who made the request that started the worker
-# 5: the UUID of the TransportNetwork the worker will start analyzing
-# 6: the worker version to use
+# 3: a string containing all tags to set on the worker in the format "Key=K0,Value=V0 Key=K1,Value=V1"
 # If you are reading this comment inside the EC2 user data field, this variable substitution has already happened.
 # Shell variable references that contain brackets are single-quoted to tell MessageFormat not to substitute them, and
 # are substituted by EC2 on startup. Be very careful not to put any stray single quotes in this file, even in comments!
@@ -104,12 +101,11 @@ while :
 do
     # Attempt to tag, with jitter to avoid exceeding (presumed) AWS rate limits
     sleep $[$RANDOM % 8 + 15]s
-    sudo -u ec2-user aws ec2 create-tags --resources $INSTANCE --tags Key=Name,Value=AnalysisWorker \
-    Key=Project,Value=Analysis Key=group,Value={3} Key=user,Value={4} Key=networkId,Value={5} Key=workerVersion,Value={6} \
+    sudo -u ec2-user aws ec2 create-tags --resources $INSTANCE --tags {3} \
     >> $LOGFILE 2>&1
     if [ $? -eq 0 ] # bash exit status 0 = success
     then
-        echo Instance $INSTANCE successfully tagged itself with group {3}. >> $LOGFILE
+        echo Instance $INSTANCE successfully tagged itself with {3}. >> $LOGFILE
         break
     fi
 done

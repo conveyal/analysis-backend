@@ -139,7 +139,7 @@ public class BrokerController {
         String address = broker.getWorkerAddress(workerCategory);
         if (address == null) {
             // There are no workers that can handle this request. Request some.
-            broker.createOnDemandWorkerInCategory(workerCategory, accessGroup, userEmail);
+            broker.createOnDemandWorkerInCategory(workerCategory, accessGroup, userEmail, project._id, project.regionId);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");
