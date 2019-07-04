@@ -175,9 +175,8 @@ public class AnalysisServer {
             LOG.info("Starting local cluster of Analysis workers...");
             LocalCluster.start(feedSourceCache, OSMPersistence.cache);
         } else {
-            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket,
-                    null, AnalysisServerConfig
-                    .localCacheDirectory);
+            ApiMain.initialize(AnalysisServerConfig.awsRegion, AnalysisServerConfig.bundleBucket, null,
+                    AnalysisServerConfig.localCacheDirectory);
         }
 
         LOG.info("Conveyal Analysis server is ready.");
