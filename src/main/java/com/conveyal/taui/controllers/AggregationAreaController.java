@@ -116,7 +116,7 @@ public class AggregationAreaController {
 
         Map<String, Geometry> areas = new HashMap<>();
 
-        if (req.params("union") != null && req.params("union").equalsIgnoreCase("true")) {
+        if (Boolean.parseBoolean(req.params("union"))) {
             List<Geometry> geometries = features.stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
             UnaryUnionOp union = new UnaryUnionOp(geometries);
             // Use provided name directly for this single unioned feature
