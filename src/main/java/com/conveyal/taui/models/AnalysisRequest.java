@@ -72,7 +72,7 @@ public class AnalysisRequest {
     public String opportunityDatasetId;
     public Integer travelTimePercentile;
     // Save all results in a regional analysis to S3 for display in a "static site".
-    public boolean makeStaticSite = false;
+    public boolean makeTauiSite = false;
     public int maxFare;
     public InRoutingFareCalculator inRoutingFareCalculator;
 
@@ -169,7 +169,7 @@ public class AnalysisRequest {
         // An exception is for Pareto searches on fares (i.e. when inRoutingFareCalulator specified), for which we use this
         // cutoff to achieve reasonable computation time. This does mean that isochrone results will be invalid if the user moves 
         // the slider up beyond the travel time set when making a fare-based request. FIXME Hack for fare requests.
-        if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeStaticSite) ||
+        if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeTauiSite) ||
                 task.inRoutingFareCalculator != null) {
             task.maxTripDurationMinutes = maxTripDurationMinutes;
         }

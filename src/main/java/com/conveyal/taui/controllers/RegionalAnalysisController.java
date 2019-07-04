@@ -213,7 +213,7 @@ public class RegionalAnalysisController {
         // destinations, and save results on S3.
         if (analysisRequest.name.contains("STATIC_SITE")) {
             // Hidden feature: allows us to run static sites experimentally without exposing a checkbox to all users.
-            analysisRequest.makeStaticSite = true;
+            analysisRequest.makeTauiSite = true;
         }
 
         // Create an internal RegionalTask and RegionalAnalysis from the AnalysisRequest sent by the client.
@@ -222,7 +222,7 @@ public class RegionalAnalysisController {
 
         // Set the destination grid.
         OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(analysisRequest.opportunityDatasetId, accessGroup);
-        task.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
+        task.destinationPointSetId = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Why are these being set to zero instead of leaving them at their default of -1?
         // Why does a regional analysis have an x and y at all since it represents many different tasks?
@@ -230,11 +230,7 @@ public class RegionalAnalysisController {
         task.y = 0;
 
         // Making a static site implies several different processes - turn them all on if requested.
-        if (analysisRequest.makeStaticSite) {
-            task.makeStaticSite = true;
-            task.travelTimeBreakdown = true;
-            task.returnPaths = true;
-        }
+        task.makeTauiSite = analysisRequest.makeTauiSite;
 
         // TODO remove duplicate fields from RegionalAnalysis that are already in the nested task.
         // The RegionalAnalysis should just be a minimal wrapper around the template task, adding the origin point set.
@@ -304,7 +300,7 @@ public class RegionalAnalysisController {
         templateTask.zoom = regionalAnalysis.zoom;
         templateTask.maxTripDurationMinutes = regionalAnalysis.cutoffMinutes;
         templateTask.percentiles = new double[] { regionalAnalysis.travelTimePercentile };
-        templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
+        templateTask.destinationPointSetId = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
         broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
