@@ -1,11 +1,15 @@
 package com.conveyal.taui.analysis.broker;
 
 import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
+import com.conveyal.taui.AnalysisServerException;
+import com.conveyal.taui.controllers.OpportunityDatasetController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
@@ -61,6 +65,8 @@ public class Job {
     // Every task in this job will be based on this template task, but have its origin coordinates changed.
     private final RegionalTask templateTask;
 
+    private final PointSet originPointSet;
+
     // This will serve as as a source of coordinates for each numbered task in the job - one per pointSet point.
     // We will eventually want to expand this to work with any PointSet of origins, not just a grid.
 //    private final WebMercatorGridPointSet originGrid;
@@ -71,13 +77,17 @@ public class Job {
      */
     private RegionalTask makeOneTask (int taskNumber) {
         RegionalTask task = templateTask.clone();
-        // We want to support any Pointset but for now we only have grids tied to the task itself.
-        // In the future we'll set origin coords from a PointSet object.
-        task.x = taskNumber % templateTask.width;
-        task.y = taskNumber / templateTask.width;
-        task.taskId = taskNumber;
-        task.fromLat = Grid.pixelToCenterLat(task.north + task.y, task.zoom);
-        task.fromLon = Grid.pixelToCenterLon(task.west + task.x, task.zoom);
+        if (originPointSet != null) {
+            task.taskId = taskNumber;
+            task.fromLat = originPointSet.getLat(taskNumber);
+            task.fromLon = originPointSet.getLon(taskNumber);
+        } else {
+            task.x = taskNumber % templateTask.width;
+            task.y = taskNumber / templateTask.width;
+            task.taskId = taskNumber;
+            task.fromLat = Grid.pixelToCenterLat(task.north + task.y, task.zoom);
+            task.fromLon = Grid.pixelToCenterLon(task.west + task.x, task.zoom);
+        }
         return task;
     }
 
@@ -105,6 +115,17 @@ public class Job {
         this.nextTaskToDeliver = 0;
         this.createdBy = createdBy;
         this.accessGroup = accessGroup;
+
+        if (templateTask.originPointSetId != null) {
+            try {
+                originPointSet = OpportunityDatasetController.readFreeForm(templateTask.originPointSetId, accessGroup);
+            } catch (IOException e){
+                throw new AnalysisServerException("Origin pointset not found");
+            }
+        } else {
+            originPointSet = null;
+        }
+
     }
 
     public boolean markTaskCompleted(int taskId) {

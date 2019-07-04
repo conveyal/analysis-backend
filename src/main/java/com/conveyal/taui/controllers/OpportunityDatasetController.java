@@ -2,7 +2,10 @@ package com.conveyal.taui.controllers;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.conveyal.r5.analyst.FreeFormPointSet;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerConfig;
@@ -14,6 +17,7 @@ import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.persistence.Persistence;
 import com.conveyal.taui.util.JsonUtil;
+import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
 import com.mongodb.QueryBuilder;
 import org.apache.commons.fileupload.FileItem;
@@ -27,6 +31,8 @@ import spark.Request;
 import spark.Response;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -39,8 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
-import static java.lang.Boolean.parseBoolean;
 import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.path;
@@ -427,6 +433,41 @@ public class OpportunityDatasetController {
         }
 
         return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format));
+    }
+
+    public static void writeFreeForm(OpportunityDataset dataset, FreeFormPointSet pointSet) throws IOException {
+
+        File tempFile = File.createTempFile("freeform", ".pointset");
+        FileOutputStream fop = new FileOutputStream(tempFile);
+        ObjectMetadata om = new ObjectMetadata();
+        om.setContentType("application/octet-stream");
+        om.setContentEncoding("gzip");
+        pointSet.write(new GZIPOutputStream(fop));
+
+        PutObjectRequest por = new PutObjectRequest(BUCKET, dataset.getKey(), tempFile).withMetadata(om);
+        s3.putObject(por);
+        tempFile.delete();
+
+    }
+
+    public static FreeFormPointSet readFreeForm(String id, String accessGroup) throws IOException {
+        OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(id, accessGroup);
+        S3Object s3Object = s3.getObject(BUCKET, opportunityDataset.getKey());
+        File tempFile = File.createTempFile("freeform", ".pointset");
+        FileOutputStream fos = new FileOutputStream(tempFile);
+        InputStream is = s3Object.getObjectContent();
+        try {
+            ByteStreams.copy(is, fos);
+        } finally {
+            is.close();
+            fos.close();
+        }
+
+        FileInputStream fis = new FileInputStream(tempFile);
+        FreeFormPointSet pointSet = new FreeFormPointSet(fis);
+        fis.close();
+        tempFile.delete();
+        return pointSet;
     }
 
     public static class OpportunityDatasetUploadStatus {
