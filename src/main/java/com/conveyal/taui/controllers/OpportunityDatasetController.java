@@ -198,6 +198,57 @@ public class OpportunityDatasetController {
         return dataset;
     }
 
+    public static OpportunityDatasetUploadStatus fromFreeFormCsv(Request req, Response res) {
+        final String key = req.params("sourceId") + ".csv";
+        final String accessGroup = req.attribute("accessGroup");
+        final String email = req.attribute("email");
+        final String regionId = req.attribute("regionId");
+
+        final OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, key);
+        status.status = Status.PROCESSING;
+
+        ExecutorServices.heavy.execute(() -> {
+            try {
+            // Get CSV from S3
+            // TODO check permissions -- find by id if permitted
+            S3Object s3Object = s3.getObject(BUCKET, key);
+            File tempFile = File.createTempFile("temp", ".csv");
+            FileOutputStream fos = new FileOutputStream(tempFile);
+            InputStream is = s3Object.getObjectContent();
+            ByteStreams.copy(is, fos);
+            is.close();
+            fos.close();
+
+            // Process to freeform pointset
+            FreeFormPointSet pointSet = FreeFormPointSet.fromCsv(tempFile);
+
+            // Upload serialized freeform pointset back to S3
+            writeFreeForm(key, pointSet);
+
+            // Register each an Opportunity Dataset for each property of the pointset
+
+            pointSet.properties.forEach((propName, propIndex) -> {
+                OpportunityDataset dataset = new OpportunityDataset();
+                dataset.sourceName = pointSet.label;
+                dataset.sourceId = key;
+                dataset.name = propName;
+                dataset.createdBy = email;
+                dataset.accessGroup = accessGroup;
+                dataset.regionId = regionId;
+                Persistence.opportunityDatasets.create(dataset);
+            });
+
+            } catch (IOException e){
+                throw new AnalysisServerException("Error processing pointset: " + e);
+            } finally {
+                status.status = Status.DONE;
+                status.completed();
+            }
+        });
+
+        return status;
+    }
+
     /**
      * Handle many types of file upload. Returns a OpportunityDatasetUploadStatus which has a handle to request status.
      */
@@ -435,16 +486,16 @@ public class OpportunityDatasetController {
         return GridExporter.downloadFromS3(s3, bucketName, opportunityDataset.getKey(format));
     }
 
-    public static void writeFreeForm(OpportunityDataset dataset, FreeFormPointSet pointSet) throws IOException {
+    public static void writeFreeForm(String key, FreeFormPointSet pointSet) throws IOException {
 
-        File tempFile = File.createTempFile("freeform", ".pointset");
+        File tempFile = File.createTempFile(key, ".pointset");
         FileOutputStream fop = new FileOutputStream(tempFile);
         ObjectMetadata om = new ObjectMetadata();
         om.setContentType("application/octet-stream");
         om.setContentEncoding("gzip");
         pointSet.write(new GZIPOutputStream(fop));
 
-        PutObjectRequest por = new PutObjectRequest(BUCKET, dataset.getKey(), tempFile).withMetadata(om);
+        PutObjectRequest por = new PutObjectRequest(BUCKET, key, tempFile).withMetadata(om);
         s3.putObject(por);
         tempFile.delete();
 
@@ -502,6 +553,7 @@ public class OpportunityDatasetController {
     public static void register() {
         path("/api/opportunities", () -> {
             post("", OpportunityDatasetController::createOpportunityDataset, JsonUtil.objectMapper::writeValueAsString);
+            post("/region/:regionId/toFreeForm/:sourceId", OpportunityDatasetController::fromFreeFormCsv, JsonUtil.objectMapper::writeValueAsString);
             post("/region/:regionId/download", OpportunityDatasetController::downloadLODES, JsonUtil.objectMapper::writeValueAsString);
             get("/region/:regionId/status", OpportunityDatasetController::getRegionUploadStatuses, JsonUtil.objectMapper::writeValueAsString);
             delete("/region/:regionId/status/:statusId", OpportunityDatasetController::clearStatus, JsonUtil.objectMapper::writeValueAsString);
