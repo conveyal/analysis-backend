@@ -1,12 +1,11 @@
-package com.conveyal.taui;
+package com.conveyal.taui.results;
 
+import com.conveyal.r5.OneOriginContainer;
 import com.conveyal.r5.analyst.LittleEndianIntOutputStream;
 import com.conveyal.r5.analyst.cluster.AnalysisTask;
-import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
+import com.conveyal.r5.analyst.cluster.CombinedWorkResult;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.google.common.io.ByteStreams;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -17,9 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.BitSet;
 import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.r5.common.Util.human;
@@ -44,9 +40,7 @@ import static com.conveyal.r5.common.Util.human;
  * (4 byte int) number of values per pixel
  * (repeated 4-byte int) values of each pixel in row major order.
  */
-public class GridResultAssembler {
-
-    public static final Logger LOG = LoggerFactory.getLogger(com.conveyal.r5.analyst.cluster.GridResultAssembler.class);
+public class GridAccessAssembler extends MultiOriginAssembler {
 
     /** The version of the access grids we produce */
     public static final int ACCESS_GRID_VERSION = 0;
@@ -54,42 +48,12 @@ public class GridResultAssembler {
     /** The offset to get to the data section of the access grid file. */
     public static final long HEADER_LENGTH_BYTES = 9 * Integer.BYTES;
 
-    public final AnalysisTask request;
-
-    private File bufferFile;
-
-    private RandomAccessFile randomAccessFile;
-
-    /** TODO use Java NewIO file channel for native byte order output to our output file. */
-//    private FileChannel outputFileChannel;
-
-    private boolean error = false;
-
-    /**
-     * The number of results received for unique origin points (i.e. two results for the same origin should only
-     * increment this once). It does not need to be an atomic int as it's incremented in a synchronized block.
-     */
-    public int nComplete = 0;
-
-    // We need to keep track of which specific origins are completed, to avoid double counting if we receive more than
-    // one result for the same origin.
-    private BitSet originsReceived;
-
-    /** Total number of results expected. */
-    public int nTotal;
-
-    /** The bucket on S3 to which the final result will be written. */
-    public final String outputBucket;
-
     /**
      * Construct an assembler for a single regional analysis result grid.
      * This also creates the on-disk scratch buffer into which the results from the workers will be accumulated.
      */
-    public GridResultAssembler(AnalysisTask request, String outputBucket) {
-        this.request = request;
-        this.outputBucket = outputBucket;
-        nTotal = request.width * request.height;
-        originsReceived = new BitSet(nTotal);
+    public GridAccessAssembler(AnalysisTask request, String outputBucket) {
+        super(request, outputBucket, request.width * request.height );
         LOG.info("Expecting results for regional analysis with width {}, height {}, 1 value per origin.",
                 request.width, request.height);
 
@@ -163,24 +127,12 @@ public class GridResultAssembler {
         }
     }
 
-    private void checkDimension (RegionalWorkResult workResult, String dimensionName, int seen, int expected) {
+    private void checkDimension (CombinedWorkResult workResult, String dimensionName, int seen, int expected) {
         if (seen != expected) {
             LOG.error("Result for task {} of job {} has {} {}, expected {}.",
                     workResult.taskId, workResult.jobId, dimensionName, seen, expected);
             error = true;
         }
-    }
-
-
-    /**
-     * TODO is this inefficient? Would it be reasonable to just store the regional results in memory in a byte buffer
-     * instead of writing mini byte buffers into files? We should also be able to use a filechannel with native order.
-     */
-    public static byte[] intToLittleEndianByteArray (int i) {
-        final ByteBuffer byteBuffer = ByteBuffer.allocate(Integer.BYTES);
-        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-        byteBuffer.putInt(i);
-        return byteBuffer.array();
     }
 
     /**
@@ -192,25 +144,18 @@ public class GridResultAssembler {
         int index1d = y * request.width + x;
         long offset = HEADER_LENGTH_BYTES + index1d * Integer.BYTES;
         // RandomAccessFile is not threadsafe and multiple threads may call this, so the actual writing is synchronized.
-        synchronized (this) {
-            randomAccessFile.seek(offset);
-            randomAccessFile.write(intToLittleEndianByteArray(value));
-            // Don't double-count origins if we receive them more than once.
-            if (!originsReceived.get(index1d)) {
-                originsReceived.set(index1d);
-                nComplete += 1;
-            }
-        }
+        writeValueAndMarkOriginComplete(index1d, offset, value);
     }
 
     /**
      * Process a single result.
      * We have bootstrap replications turned off, so there should be only one accessibility result per origin
      * and no delta coding is necessary anymore within each origin.
-     * We are also iterating over three dimensions (grids, percentiles, cutoffs) but those should produce completely
+     * We are also iterating over three dimensions (pointsets, percentiles, cutoffs) but those should produce completely
      * separate access grid files, and are all size 1 for now anyway.
      */
-    public void handleMessage (RegionalWorkResult workResult) {
+    @Override
+    public void handleMessage (CombinedWorkResult workResult) {
         try {
             // Infer x and y cell indexes based on the template task
             int taskNumber = workResult.taskId;
@@ -223,8 +168,8 @@ public class GridResultAssembler {
             int nCutoffs = 1;
 
             // Drop work results for this particular origin into a little-endian output file.
-            // We only have one file for now because only one grid, percentile, and cutoff value.
-            checkDimension(workResult, "destination grids", workResult.accessibilityValues.length, nGrids);
+            // We only have one file for now because only one pointset, percentile, and cutoff value.
+            checkDimension(workResult, "destination pointsets", workResult.accessibilityValues.length, nGrids);
             for (int[][] gridResult : workResult.accessibilityValues) {
                 checkDimension(workResult, "percentiles", gridResult.length, nPercentiles);
                 for (int[] percentileResult : gridResult) {
@@ -243,16 +188,4 @@ public class GridResultAssembler {
             return;
         }
     }
-
-    /** Clean up and cancel a consumer. */
-    public synchronized void terminate () throws IOException {
-        this.randomAccessFile.close();
-        bufferFile.delete();
-    }
-
-    /** This leaks the file object out of the abstraction so is not ideal, but will work for now. */
-    public File getBufferFile() {
-        return bufferFile;
-    }
-
 }

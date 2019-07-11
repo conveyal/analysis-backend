@@ -3,8 +3,8 @@ package com.conveyal.taui.controllers;
 import com.amazonaws.services.s3.Headers;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.CombinedWorkResult;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.r5.common.JsonUtilities;
@@ -24,7 +24,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
-import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -298,14 +297,26 @@ public class BrokerController {
      */
     private Object workerPoll (Request request, Response response) {
         WorkerStatus workerStatus = objectFromRequestBody(request, WorkerStatus.class);
+
+        List<CombinedWorkResult> perOriginResults;
+
+        if (workerStatus.combinedResults != null) {
+            perOriginResults = workerStatus.combinedResults;
+        } else { // For R5 v4.6.0 and before
+            perOriginResults = new ArrayList<>();
+            workerStatus.results.forEach(result -> result.toCombinedResult());
+        }
+
         // Record any regional analysis results that were supplied by the worker and mark them completed.
-        for (RegionalWorkResult workResult : workerStatus.results) {
+
+        for (CombinedWorkResult workResult : perOriginResults) {
             // TODO merge these two methods on the broker?
-            broker.handleRegionalWorkResult(workResult);
-            broker.markTaskCompleted(workResult);
+            broker.handleResult(workResult);
+            broker.markTaskCompleted(workResult.jobId, workResult.taskId);
         }
         // Clear out the results field so it's not visible in the worker list API endpoint.
-        workerStatus.results = null;
+        workerStatus.combinedResults = null;
+
         // Add this worker to our catalog, tracking its graph affinity and the last time it was seen among other things.
         broker.recordWorkerObservation(workerStatus);
         WorkerCategory workerCategory = workerStatus.getWorkerCategory();

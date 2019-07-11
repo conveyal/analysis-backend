@@ -1,13 +1,14 @@
 package com.conveyal.taui.analysis.broker;
 
 import com.conveyal.r5.analyst.WorkerCategory;
+import com.conveyal.r5.analyst.cluster.CombinedWorkResult;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.WorkerStatus;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
-import com.conveyal.taui.GridResultAssembler;
+import com.conveyal.taui.results.GridAccessAssembler;
 import com.conveyal.taui.analysis.RegionalAnalysisStatus;
+import com.conveyal.taui.results.MultiOriginAssembler;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import gnu.trove.TCollections;
@@ -97,7 +98,7 @@ public class Broker {
     private EC2Launcher launcher;
 
     /** These objects piece together results received from workers into one regional analysis result file per job. */
-    private static Map<String, GridResultAssembler> resultAssemblers = new HashMap<>();
+    private static Map<String, MultiOriginAssembler> resultAssemblers = new HashMap<>();
 
     /**
      * keep track of which graphs we have launched workers on and how long ago we launched them,
@@ -136,7 +137,13 @@ public class Broker {
         Job job = new Job(templateTask, accessGroup, createdBy);
         jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
-        resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
+        MultiOriginAssembler assembler;
+        if (templateTask.originPointSetId == null) { // Use every grid cell as an origin
+            assembler = new GridAccessAssembler(templateTask, AnalysisServerConfig.resultsBucket);
+        } else { // Origin points explicitly specified in freeform pointset
+            assembler = new MultiOriginAssembler(templateTask, AnalysisServerConfig.resultsBucket, 1);
+        }
+        resultAssemblers.put(templateTask.jobId, assembler);
         if (AnalysisServerConfig.testTaskRedelivery) {
             // This is a fake job for testing, don't confuse the worker startup code below with null graph ID.
             return;
@@ -232,9 +239,7 @@ public class Broker {
      * this would also allow returning errors as JSON and the grid result separately.
      * @return whether the task was found and removed.
      */
-    public synchronized boolean markTaskCompleted (RegionalWorkResult workResult) {
-        String jobId = workResult.jobId;
-        int taskId = workResult.taskId;
+    public synchronized boolean markTaskCompleted (String jobId, int taskId) {
         Job job = findJob(jobId);
         if (job == null) {
             LOG.error("Could not find a job with ID {} and therefore could not mark the task as completed.", jobId);
@@ -248,7 +253,7 @@ public class Broker {
             job.verifyComplete();
             jobs.remove(job.workerCategory, job);
             // This method is called after the regional work results are handled, finishing and closing the local file.
-            // So we can harmlessly remove the GridResultAssembler now that the job is removed.
+            // So we can harmlessly remove the GridAccessAssembler now that the job is removed.
             resultAssemblers.remove(jobId);
         }
         return true;
@@ -269,14 +274,14 @@ public class Broker {
         boolean success = jobs.remove(job.workerCategory, job);
         // Shut down the object used for assembling results, removing its associated temporary disk file.
         // TODO just put the assembler in the Job object
-        GridResultAssembler assembler = resultAssemblers.remove(jobId);
+        MultiOriginAssembler assembler = resultAssemblers.remove(jobId);
         try {
             assembler.terminate();
         } catch (Exception e) {
             LOG.error("Could not terminate grid result assembler, this may waste disk space. Reason: {}", e.toString());
             success = false;
         }
-        // TODO where do we delete the regional analysis from Persistence so it doesn't show up in the UI after deletion?
+        // Note updateByUserIfPermitted in caller, which deletes regional analysis from Persistence
         return success;
     }
 
@@ -335,8 +340,8 @@ public class Broker {
      * network + R5 version) are completed sequentially.
      * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
      */
-    public void handleRegionalWorkResult (RegionalWorkResult workResult) {
-        GridResultAssembler assembler = resultAssemblers.get(workResult.jobId);
+    public void handleResult(CombinedWorkResult workResult) {
+        MultiOriginAssembler assembler = resultAssemblers.get(workResult.jobId);
         if (assembler == null) {
             LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
         } else {
@@ -344,13 +349,12 @@ public class Broker {
             // When results for the task with the magic number are received, consider boosting the job by starting EC2
             // spot instances
             if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK) {
-                requestExtraWorkersIfAppropriate(workResult);
+                requestExtraWorkersIfAppropriate(findJob(workResult.jobId));
             }
         }
     }
 
-    private void requestExtraWorkersIfAppropriate(RegionalWorkResult workResult) {
-        Job job = findJob(workResult.jobId);
+    private void requestExtraWorkersIfAppropriate(Job job) {
         WorkerCategory workerCategory = job.workerCategory;
         int categoryWorkersAlreadyRunning = workerCatalog.countWorkersInCategory(workerCategory);
         if (categoryWorkersAlreadyRunning < MAX_WORKERS_PER_CATEGORY) {
@@ -366,20 +370,20 @@ public class Broker {
      * Returns a simple status object intended to inform the UI of job progress.
      */
     public RegionalAnalysisStatus getJobStatus (String jobId) {
-        GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
-        if (gridResultAssembler == null) {
+        MultiOriginAssembler gridAccessAssembler = resultAssemblers.get(jobId);
+        if (gridAccessAssembler == null) {
             return null;
         } else {
-            return new RegionalAnalysisStatus(gridResultAssembler);
+            return new RegionalAnalysisStatus(gridAccessAssembler);
         }
     }
 
     public File getPartialRegionalAnalysisResults (String jobId) {
-        GridResultAssembler gridResultAssembler = resultAssemblers.get(jobId);
-        if (gridResultAssembler == null) {
+        MultiOriginAssembler gridAccessAssembler = resultAssemblers.get(jobId);
+        if (gridAccessAssembler == null) {
             return null;
         } else {
-            return gridResultAssembler.getBufferFile();
+            return gridAccessAssembler.getBufferFile();
         }
     }
 

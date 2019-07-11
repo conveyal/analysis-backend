@@ -1,7 +1,8 @@
 package com.conveyal.taui.analysis;
 
 
-import com.conveyal.taui.GridResultAssembler;
+import com.conveyal.taui.results.GridAccessAssembler;
+import com.conveyal.taui.results.MultiOriginAssembler;
 
 import java.io.Serializable;
 
@@ -14,7 +15,7 @@ public final class RegionalAnalysisStatus implements Serializable {
 
     public RegionalAnalysisStatus() { /* No-arg constructor for deserialization only. */ }
 
-    public RegionalAnalysisStatus(GridResultAssembler assembler) {
+    public RegionalAnalysisStatus(MultiOriginAssembler assembler) {
         total = assembler.nTotal;
         complete = assembler.nComplete;
     }
