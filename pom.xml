@@ -200,10 +200,12 @@
             <version>1.4</version>
         </dependency>
 
+        <!-- httpclient is also used by AWS SDK but it depends on a newer version than the one pulled in by
+             transitive dependencies. So specify the same version used by AWS SDK here to force it. -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.5.3</version>
+            <version>4.5.6</version>
         </dependency>
 
         <!-- AWS SDK for interacting with EC2. Version numbers are provided by Bill of Materials imported below. -->
