@@ -25,8 +25,8 @@ class ModificationStop {
     private static int DEFAULT_SEGMENT_SPEED_KPH = 15;
 
     // Conversion Factors
-    public static int SECONDS_PER_HOUR = 60 * 60;
-    public static int METERS_PER_KM = 1000;
+    public static double SECONDS_PER_HOUR = 60 * 60;
+    public static double METERS_PER_KM = 1000;
 
     /** Internal stop spec representation. */
     private final StopSpec stopSpec;
@@ -102,7 +102,8 @@ class ModificationStop {
 
             Coordinate[] coords = segment.geometry.getCoordinates();
             if (previousSegmentFinalCoordinate != null && !coords[0].equals2D(previousSegmentFinalCoordinate)) {
-                throw AnalysisServerException.unknown("Segment coordinates do not align.");
+                throw AnalysisServerException.unknown("Start of segment " + i + 1 + " not at end of previous segment:" +
+                        " " + previousSegmentFinalCoordinate + " and " + coords[0]);
             }
 
             // Iterate over the coordinates of the segment geometry (which is generally a LineString).

@@ -1,9 +1,9 @@
 package com.conveyal.taui;
 
-import com.amazonaws.services.ec2.model.InstanceType;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.ec2.model.InstanceType;
 
 import java.io.FileInputStream;
 import java.util.HashSet;
@@ -42,6 +42,7 @@ public abstract class AnalysisServerConfig {
     public static final String auth0ClientId = getProperty("auth0-client-id", false);
     public static final byte[] auth0Secret = new Base64(true).decode(getProperty("auth0-secret", false));
     public static final String localCacheDirectory = getProperty("local-cache", true);
+    public static final String googleAnalyticsTrackingID = getProperty("google-analytics-tracking-id", false);
     public static final String frontendUrl = getProperty("frontend-url", true);
     public static final int serverPort = Integer.parseInt(getProperty("server-port", true));
     public static final boolean offline = Boolean.parseBoolean(getProperty("offline", true));
@@ -61,7 +62,7 @@ public abstract class AnalysisServerConfig {
     public static final String workerAmiId = getProperty("worker-ami-id", true);
     public static final String workerSubnetId = getProperty("worker-subnet-id", true);
     public static final String workerIamRole = getProperty("worker-iam-role", true);
-    public static final InstanceType workerInstanceType = InstanceType.valueOf(getProperty("worker-type", true));
+    public static final InstanceType workerInstanceType = InstanceType.fromValue(getProperty("worker-type", true));
 
     // For use in testing - setting this field will activate alternate code paths that cause intentional failures.
     public static boolean testTaskRedelivery = false;
@@ -81,6 +82,9 @@ public abstract class AnalysisServerConfig {
     static {
         if (!offline && (bundleBucket == null || auth0ClientId == null || auth0Secret == null || gridBucket == null || resultsBucket == null || workerLogGroup == null)) {
             LOG.error("Application is missing config variables needed in online mode.");
+        }
+        if (workerInstanceType == InstanceType.UNKNOWN_TO_SDK_VERSION) {
+            LOG.error("The EC2 instance type specified in the configuration was not recognized. You will not be able to start EC2 workers.");
         }
         if (!missingKeys.isEmpty()) {
             LOG.error("You must provide these configuration properties: {}", String.join(", ", missingKeys));

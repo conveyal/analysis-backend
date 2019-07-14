@@ -66,14 +66,14 @@ public class Broker {
 
     /** Used when auto-starting spot instances. Set to a smaller value to increase the number of workers requested
      * automatically*/
-    public final int TARGET_TASKS_PER_WORKER = 400;
+    public final int TARGET_TASKS_PER_WORKER = 800;
 
     /** We want to request spot instances to "boost" regional analyses after a few regional task results are received
      * for a given workerCategory. Do so after receiving results for an arbitrary task toward the beginning of the job*/
-    public final int AUTO_START_SPOT_INSTANCES_AT_TASK  = MAX_TASKS_PER_WORKER * 2 + 10; //42
+    public final int AUTO_START_SPOT_INSTANCES_AT_TASK = 42;
 
     /** The maximum number of spot instances allowable in an automatic request */
-    public final int MAX_WORKERS_PER_CATEGORY = 100;
+    public final int MAX_WORKERS_PER_CATEGORY = 250;
 
     /**
      * How long to give workers to start up (in ms) before assuming that they have started (and starting more
@@ -127,13 +127,13 @@ public class Broker {
      * TODO push the creation of the TemplateTask down into this method, to avoid last two parameters?
      * TODO make the tags a simple Map from String -> String here and for worker startup.
      */
-    public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, String accessGroup, String createdBy) {
+    public synchronized void enqueueTasksForRegionalJob (RegionalTask templateTask, WorkerTags workerTags) {
         LOG.info("Enqueuing tasks for job {} using template task.", templateTask.jobId);
         if (findJob(templateTask.jobId) != null) {
             LOG.error("Someone tried to enqueue job {} but it already exists.", templateTask.jobId);
             throw new RuntimeException("Enqueued duplicate job " + templateTask.jobId);
         }
-        Job job = new Job(templateTask, accessGroup, createdBy);
+        Job job = new Job(templateTask, workerTags);
         jobs.put(job.workerCategory, job);
         // Register the regional job so results received from multiple workers can be assembled into one file.
         resultAssemblers.put(templateTask.jobId, new GridResultAssembler(templateTask, AnalysisServerConfig.resultsBucket));
@@ -142,7 +142,7 @@ public class Broker {
             return;
         }
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
-            createOnDemandWorkerInCategory(job.workerCategory, accessGroup, createdBy);
+            createOnDemandWorkerInCategory(job.workerCategory, workerTags);
         } else {
             // Workers exist in this category, clear out any record that we're waiting for one to start up.
             recentlyRequestedWorkers.remove(job.workerCategory);
@@ -151,23 +151,17 @@ public class Broker {
 
     /**
      * Create on-demand worker for a given job.
-     * @param user only used to tag the newly created instance
-     * @param group only used to tag the newly created instance
      */
-    public void createOnDemandWorkerInCategory(WorkerCategory category, String group, String user){
-        createWorkersInCategory(category, group, user, 1, 0);
+    public void createOnDemandWorkerInCategory(WorkerCategory category, WorkerTags workerTags){
+        createWorkersInCategory(category, workerTags, 1, 0);
     }
 
     /**
      * Create on-demand/spot workers for a given job, after certain checks
-     * @param user only used to tag the newly created instance
-     * @param group only used to tag the newly created instance
      * @param nOnDemand EC2 on-demand instances to request
      * @param nSpot EC2 spot instances to request
      */
-
-    public void createWorkersInCategory (WorkerCategory category, String group, String user, int
-            nOnDemand, int nSpot) {
+    public void createWorkersInCategory (WorkerCategory category, WorkerTags workerTags, int nOnDemand, int nSpot) {
 
         if (workOffline) {
             LOG.info("Work offline enabled, not creating workers for {}", category);
@@ -191,7 +185,7 @@ public class Broker {
             return;
         }
 
-        EC2RequestConfiguration config = new EC2RequestConfiguration(category, group, user);
+        EC2RequestConfiguration config = new EC2RequestConfiguration(category, workerTags);
 
         launcher.launch(config, nOnDemand, nSpot);
 
@@ -317,6 +311,10 @@ public class Broker {
         return jobStatusList;
     }
 
+    public synchronized void unregisterSinglePointWorker (WorkerCategory category) {
+        workerCatalog.tryToReassignSinglePointWork(category);
+    }
+
     /**
      * Record information that a worker sent about itself.
      */
@@ -354,7 +352,7 @@ public class Broker {
             // TODO more refined determination of number of workers to start (e.g. using tasks per minute)
             int nSpot = Math.min(MAX_WORKERS_PER_CATEGORY, job.nTasksTotal / TARGET_TASKS_PER_WORKER) -
                     categoryWorkersAlreadyRunning;
-            createWorkersInCategory(job.workerCategory, job.accessGroup, job.createdBy, 0, nSpot);
+            createWorkersInCategory(job.workerCategory, job.workerTags, 0, nSpot);
         }
     }
 

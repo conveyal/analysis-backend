@@ -67,11 +67,10 @@ public class WorkerCatalog {
 
     /**
      * Before fetching worker information, call this method to remove any workers that we haven't heard from for a
-     * while. This does leave a 2 minute window where a worker is still in the catalog but not
-     * reachable after shutdown. FIXME That delay will sometimes be a problem for single-point requests.
+     * while.
      * Perhaps we should be calling this method on a timer instead of every time read-oriented methods are called.
      */
-    private void purgeDeadWorkers () {
+    private synchronized void purgeDeadWorkers () {
         long now = System.currentTimeMillis();
         long oldestAcceptable = now - WORKER_RECORD_DURATION_MSEC;
         List<WorkerObservation> ancientObservations = new ArrayList<>();
@@ -84,6 +83,28 @@ public class WorkerCatalog {
             observationsByWorkerId.remove(observation.workerId);
             workerIdsByCategory.remove(observation.category, observation.workerId);
             singlePointWorkerIdByCategory.remove(observation.category, observation.workerId);
+        }
+    }
+
+    /**
+     * If a single-point worker has shut down, single-point work for a given workerCategory should be re-assigned. If
+     * no other workers of the requested workerCategory exist, the caller in the Broker should start one.
+     *
+     * @param workerCategory of worker that could not be reached for a single-point request (and has presumably shut
+     *                       down)
+     */
+    public synchronized void tryToReassignSinglePointWork (WorkerCategory workerCategory) {
+        String oldSinglePointWorkerId = singlePointWorkerIdByCategory.get(workerCategory);
+
+        // Clear the shut down worker from places it had been cataloged
+        singlePointWorkerIdByCategory.remove(workerCategory);
+        observationsByWorkerId.remove(oldSinglePointWorkerId);
+        workerIdsByCategory.remove(workerCategory, oldSinglePointWorkerId);
+
+        // If another worker for this workerCategory is running, set it to handle single-point work.
+        if (workerIdsByCategory.get(workerCategory).size() > 0) {
+            String nextWorkerId = workerIdsByCategory.get(workerCategory).iterator().next();
+            singlePointWorkerIdByCategory.put(workerCategory, nextWorkerId);
         }
     }
 

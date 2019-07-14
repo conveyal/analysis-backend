@@ -10,6 +10,7 @@ import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.SelectingGridReducer;
 import com.conveyal.taui.analysis.broker.Broker;
+import com.conveyal.taui.analysis.broker.WorkerTags;
 import com.conveyal.taui.grids.GridExporter;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.OpportunityDataset;
@@ -67,7 +68,14 @@ public class RegionalAnalysisController {
         String accessGroup = req.attribute("accessGroup");
         String email = req.attribute("email");
 
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("_id").is(req.params("_id")).get(),
+                        QueryBuilder.start("deleted").is(false).get(),
+                        QueryBuilder.start("accessGroup").is(accessGroup).get()
+                ).get(),
+                DBProjection.exclude("request.scenario.modifications")
+        ).next();
         analysis.deleted = true;
         Persistence.regionalAnalyses.updateByUserIfPermitted(analysis, email, accessGroup);
 
@@ -96,7 +104,13 @@ public class RegionalAnalysisController {
         // The response file format: PNG, TIFF, or GRID
         final String formatString = req.params("format");
 
-        RegionalAnalysis analysis = Persistence.regionalAnalyses.findByIdFromRequestIfPermitted(req);
+        RegionalAnalysis analysis = Persistence.regionalAnalyses.find(
+                QueryBuilder.start().and(
+                        QueryBuilder.start("_id").is(req.params("_id")).get(),
+                        QueryBuilder.start("accessGroup").is(req.attribute("accessGroup")).get()
+                ).get(),
+                DBProjection.exclude("request.scenario.modifications")
+        ).next();
         if (analysis == null || analysis.deleted) {
             throw AnalysisServerException.notFound("The specified regional analysis in unknown or has been deleted.");
         }
@@ -294,7 +308,7 @@ public class RegionalAnalysisController {
         templateTask.grid = opportunityDataset.getKey(GridExporter.Format.GRID);
 
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask, regionalAnalysis.accessGroup, regionalAnalysis.createdBy);
+        broker.enqueueTasksForRegionalJob(templateTask, WorkerTags.fromRegionalAnalysis(regionalAnalysis));
 
         return regionalAnalysis;
     }
