@@ -60,44 +60,42 @@ public class AnalysisServer {
             LOG.error("Unable to create cache directory.");
         }
 
-        // Set up Spark, the HTTP framework wrapping Jetty
-        // Set the port on which the HTTP server will listen for connections.
+        // Set up Spark, the HTTP framework wrapping Jetty, including the port on which it will listen for connections.
         LOG.info("Analysis server will listen for HTTP connections on port {}.", AnalysisServerConfig.serverPort);
         port(AnalysisServerConfig.serverPort);
 
-        // Initialize ImageIO
-        // http://stackoverflow.com/questions/20789546
+        // Initialize ImageIO. See http://stackoverflow.com/questions/20789546
         ImageIO.scanForPlugins();
 
-        // Before handling each request, check if the user is authenticated.
+        // Configure Spark framework, specifying actions to take before the main logic of handling each HTTP request.
         before((req, res) -> {
             // Don't require authentication to view the main page, or for internal API endpoints contacted by workers.
             // FIXME those internal endpoints should be hidden from the outside world by the reverse proxy.
             if (!req.pathInfo().startsWith("/api")) return;
 
-            // Handle CORS
+            // Set CORS headers, to allow requests to this API server from any page.
             res.header("Access-Control-Allow-Origin", "*");
 
-            // End early if options request
+            // For OPTIONS HTTP requests, return early without performing authentication.
             String method = req.requestMethod();
             if ("OPTIONS".equals(method)) return;
 
-            // Default is JSON, will be overridden by the few controllers that do not return JSON
+            // The default MIME type is JSON. This will be overridden by the few controllers that do not return JSON.
             res.type("application/json");
 
+            // If we're working offline, hard-wire the user and group names. Otherwise authenticate the request.
             if (AnalysisServerConfig.offline) {
-                // hardwire group name if we're working offline
                 req.attribute("accessGroup", "OFFLINE");
                 req.attribute("email", "analysis@conveyal.com");
             } else {
                 handleAuthentication(req, res);
             }
 
-            // Log each API request
+            // Log each API request.
             LOG.info("{} {} by {} of {}", req.requestMethod(), req.pathInfo(), req.attribute("email"), req.attribute("accessGroup"));
         });
 
-        // Handle CORS Option's request
+        // Handle CORS Options requests.
         options("/*", (req, res) -> {
             res.header("Access-Control-Allow-Headers", "*");
             res.header("Access-Control-Allow-Methods", "*");
@@ -115,17 +113,16 @@ public class AnalysisServer {
         AggregationAreaController.register();
         TimetableController.register();
 
-        // TODO wire up Spark without using static methods:
-//        spark.Service httpService = spark.Service.ignite()
-//                .port(1234)
-//                .staticFileLocation("/public")
-//                .threadPool(40);
-//
-//        httpService.get("/hello", (q, a) -> "Hello World!");
-//        httpService.get("/goodbye", (q, a) -> "Goodbye!");
-//        httpService.redirect.any("/hi", "/hello");
+        // This is an example of the new way to wire up Spark without using static methods:
+        // spark.Service httpService = spark.Service.ignite()
+        //         .port(1234)
+        //         .staticFileLocation("/public")
+        //         .threadPool(40);
+        //
+        // httpService.get("/hello", (q, a) -> "Hello World!");
+        // httpService.get("/goodbye", (q, a) -> "Goodbye!");
 
-        // TODO pass in non-static Analysis server config
+        // TODO make AnalysisServerConfig object non-static and pass it in to component constructors.
         new BrokerController(RegionalAnalysisController.broker).register();
 
         // Load index.html and register a handler with Spark to serve it up.
