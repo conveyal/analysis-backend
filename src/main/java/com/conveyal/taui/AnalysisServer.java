@@ -125,27 +125,6 @@ public class AnalysisServer {
         // TODO make AnalysisServerConfig object non-static and pass it in to component constructors.
         new BrokerController(RegionalAnalysisController.broker).register();
 
-        // Load index.html and register a handler with Spark to serve it up.
-        InputStream indexStream = AnalysisServer.class.getClassLoader().getResourceAsStream("public/index.html");
-
-        try {
-            final String trackingId = AnalysisServerConfig.googleAnalyticsTrackingID != null
-                    ? AnalysisServerConfig.googleAnalyticsTrackingID
-                    : "";
-            final String index = CharStreams.toString(new InputStreamReader(indexStream))
-                    .replace("${ASSET_LOCATION}", AnalysisServerConfig.frontendUrl)
-                    .replace("${GOOGLE_ANALYTICS_TRACKING_ID}", trackingId);
-            indexStream.close();
-
-            get("/*", (req, res) -> {
-                res.type("text/html");
-                return index;
-            });
-        } catch (IOException e) {
-            LOG.error("Unable to load index.html");
-            System.exit(1);
-        }
-
         exception(AnalysisServerException.class, (e, request, response) -> {
             AnalysisServer.respondToException(e, request, response, e.type.name(), e.message, e.httpCode);
         });
