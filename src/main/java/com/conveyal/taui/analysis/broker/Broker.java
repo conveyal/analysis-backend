@@ -136,18 +136,22 @@ public class Broker {
         }
         Job job = new Job(templateTask, accessGroup, createdBy);
         jobs.put(job.workerCategory, job);
+
         // Register the regional job so results received from multiple workers can be assembled into one file.
         MultiOriginAssembler assembler;
         if (templateTask.originPointSetId == null) { // Use every grid cell as an origin
-            assembler = new GridAccessAssembler(templateTask, AnalysisServerConfig.resultsBucket);
+            assembler = new GridAccessAssembler(job, AnalysisServerConfig.resultsBucket);
         } else { // Origin points explicitly specified in freeform pointset
-            assembler = new MultiOriginAssembler(templateTask, AnalysisServerConfig.resultsBucket, 1);
+            assembler = new MultiOriginAssembler(job, AnalysisServerConfig.resultsBucket);
+            assembler.prepare();
         }
         resultAssemblers.put(templateTask.jobId, assembler);
+
         if (AnalysisServerConfig.testTaskRedelivery) {
             // This is a fake job for testing, don't confuse the worker startup code below with null graph ID.
             return;
         }
+
         if (workerCatalog.noWorkersAvailable(job.workerCategory, workOffline)) {
             createOnDemandWorkerInCategory(job.workerCategory, accessGroup, createdBy);
         } else {

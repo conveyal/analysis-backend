@@ -1,9 +1,9 @@
 package com.conveyal.taui.results;
 
-import com.conveyal.r5.OneOriginContainer;
 import com.conveyal.r5.analyst.LittleEndianIntOutputStream;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
 import com.conveyal.r5.analyst.cluster.CombinedWorkResult;
+import com.conveyal.r5.analyst.cluster.RegionalTask;
+import com.conveyal.taui.analysis.broker.Job;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
 import com.google.common.io.ByteStreams;
 
@@ -25,8 +25,8 @@ import static com.conveyal.r5.common.Util.human;
  *
  * During distributed computation of access to gridded destinations, workers return raw results for single
  * origins to the worker while polling. These results contain one accessibility measurement per origin grid cell.
- * This class pulls results off the queue as they become available,
- * and assembles them into a single large file containing a delta-coded version of the same data for all origin points.
+ * This class assembles these results into a single large file containing a delta-coded version of the same data for
+ * all origin points.
  *
  * Access grids look like this:
  * Header (ASCII text "ACCESSGR") (note that this header is eight bytes, so the full grid can be mapped into a
@@ -42,6 +42,8 @@ import static com.conveyal.r5.common.Util.human;
  */
 public class GridAccessAssembler extends MultiOriginAssembler {
 
+    public final RegionalTask request;
+
     /** The version of the access grids we produce */
     public static final int ACCESS_GRID_VERSION = 0;
 
@@ -52,11 +54,12 @@ public class GridAccessAssembler extends MultiOriginAssembler {
      * Construct an assembler for a single regional analysis result grid.
      * This also creates the on-disk scratch buffer into which the results from the workers will be accumulated.
      */
-    public GridAccessAssembler(AnalysisTask request, String outputBucket) {
-        super(request, outputBucket, request.width * request.height );
+    public GridAccessAssembler(Job job, String outputBucket) {
+        super(job, outputBucket, job.templateTask.width * job.templateTask.height);
+        this.request = job.templateTask;
         LOG.info("Expecting results for regional analysis with width {}, height {}, 1 value per origin.",
                 request.width, request.height);
-
+        // TODO combine with superclass
         long outputFileSizeBytes = request.width * request.height * Integer.BYTES;
         LOG.info("Creating temporary file to store regional analysis results, size is {}.",
                 human(outputFileSizeBytes, "B"));
@@ -86,7 +89,7 @@ public class GridAccessAssembler extends MultiOriginAssembler {
             // This is a newly created temp file, so setting it to a larger size should just create a sparse file
             // full of blocks of zeros (at least on Linux, I don't know what it does on Windows).
             this.randomAccessFile = new RandomAccessFile(bufferFile, "rw");
-            randomAccessFile.setLength(outputFileSizeBytes);
+            randomAccessFile.setLength(outputFileSizeBytes); //TODO check if this should include header length
             LOG.info("Created temporary file of {} to accumulate results from workers.", human(randomAccessFile.length(), "B"));
         } catch (Exception e) {
             error = true;
@@ -97,6 +100,7 @@ public class GridAccessAssembler extends MultiOriginAssembler {
     /**
      * Gzip the access grid and upload it to S3.
      */
+    @Override
     protected synchronized void finish () {
         LOG.info("Finished receiving data for regional analysis {}, uploading to S3", request.jobId);
         try {
@@ -127,24 +131,15 @@ public class GridAccessAssembler extends MultiOriginAssembler {
         }
     }
 
-    private void checkDimension (CombinedWorkResult workResult, String dimensionName, int seen, int expected) {
-        if (seen != expected) {
-            LOG.error("Result for task {} of job {} has {} {}, expected {}.",
-                    workResult.taskId, workResult.jobId, dimensionName, seen, expected);
-            error = true;
-        }
-    }
-
     /**
      * Write to the proper subregion of the buffer for this origin.
      * The origins we receive have 2d coordinates.
      * Flatten them to compute file offsets and for the origin checklist.
      */
-    private void writeOneValue (int x, int y, int value) throws IOException {
-        int index1d = y * request.width + x;
-        long offset = HEADER_LENGTH_BYTES + index1d * Integer.BYTES;
+    private void writeOneValue (int taskNumber, int value) throws IOException {
+        long offset = HEADER_LENGTH_BYTES + taskNumber * Integer.BYTES;
         // RandomAccessFile is not threadsafe and multiple threads may call this, so the actual writing is synchronized.
-        writeValueAndMarkOriginComplete(index1d, offset, value);
+        writeValueAndMarkOriginComplete(taskNumber, offset, value);
     }
 
     /**
@@ -159,8 +154,6 @@ public class GridAccessAssembler extends MultiOriginAssembler {
         try {
             // Infer x and y cell indexes based on the template task
             int taskNumber = workResult.taskId;
-            int x = taskNumber % request.width;
-            int y = taskNumber / request.width;
 
             // Check the dimensions of the result by comparing with fields of this.request
             int nGrids = 1;
@@ -175,7 +168,7 @@ public class GridAccessAssembler extends MultiOriginAssembler {
                 for (int[] percentileResult : gridResult) {
                     checkDimension(workResult, "cutoffs", percentileResult.length, nCutoffs);
                     for (int accessibilityForCutoff : percentileResult) {
-                        writeOneValue(x, y, accessibilityForCutoff);
+                        writeOneValue(taskNumber, accessibilityForCutoff);
                     }
                 }
             }
@@ -185,7 +178,6 @@ public class GridAccessAssembler extends MultiOriginAssembler {
         } catch (Exception e) {
             error = true; // the file is garbage TODO better resilience, tell the UI, transmit all errors.
             LOG.error("Error assembling results for query {}", request.jobId, e);
-            return;
         }
     }
 }

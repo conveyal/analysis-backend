@@ -63,13 +63,9 @@ public class Job {
     protected int nTasksDelivered;
 
     // Every task in this job will be based on this template task, but have its origin coordinates changed.
-    private final RegionalTask templateTask;
+    public final RegionalTask templateTask;
 
-    private final PointSet originPointSet;
-
-    // This will serve as as a source of coordinates for each numbered task in the job - one per pointSet point.
-    // We will eventually want to expand this to work with any PointSet of origins, not just a grid.
-//    private final WebMercatorGridPointSet originGrid;
+    public final PointSet originPointSet;
 
     /**
      * The only thing that changes from one task to the next is the origin coordinates.
@@ -108,8 +104,6 @@ public class Job {
     public Job (RegionalTask templateTask, String accessGroup, String createdBy) {
         this.jobId = templateTask.jobId;
         this.templateTask = templateTask;
-        this.nTasksTotal = templateTask.width * templateTask.height;
-        this.completedTasks = new BitSet(nTasksTotal);
         this.workerCategory = new WorkerCategory(templateTask.graphId, templateTask.workerVersion);
         this.nTasksCompleted = 0;
         this.nextTaskToDeliver = 0;
@@ -119,12 +113,16 @@ public class Job {
         if (templateTask.originPointSetId != null) {
             try {
                 originPointSet = OpportunityDatasetController.readFreeForm(templateTask.originPointSetId, accessGroup);
+                this.nTasksTotal = originPointSet.featureCount();
             } catch (IOException e){
                 throw new AnalysisServerException("Origin pointset not found");
             }
         } else {
             originPointSet = null;
+            this.nTasksTotal = templateTask.width * templateTask.height;
         }
+
+        this.completedTasks = new BitSet(nTasksTotal);
 
     }
 
