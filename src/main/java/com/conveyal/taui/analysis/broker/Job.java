@@ -1,5 +1,6 @@
 package com.conveyal.taui.analysis.broker;
 
+import com.conveyal.r5.analyst.FreeFormPointSet;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.WorkerCategory;
@@ -77,6 +78,9 @@ public class Job {
             task.taskId = taskNumber;
             task.fromLat = originPointSet.getLat(taskNumber);
             task.fromLon = originPointSet.getLon(taskNumber);
+            if (originPointSet instanceof FreeFormPointSet){
+                task.id = ((FreeFormPointSet) originPointSet).ids[taskNumber];
+            }
         } else {
             task.x = taskNumber % templateTask.width;
             task.y = taskNumber / templateTask.width;
@@ -112,8 +116,12 @@ public class Job {
 
         if (templateTask.originPointSetId != null) {
             try {
+                // TODO don't block while loading freeform pointset
                 originPointSet = OpportunityDatasetController.readFreeForm(templateTask.originPointSetId, accessGroup);
                 this.nTasksTotal = originPointSet.featureCount();
+                // TODO handle multiple destination pointsets
+                templateTask.nTravelTimeTargetsPerOrigin = templateTask.oneToOne ? 1 :
+                        OpportunityDatasetController.getSize(templateTask.destinationPointSetId,accessGroup);
             } catch (IOException e){
                 throw new AnalysisServerException("Origin pointset not found");
             }

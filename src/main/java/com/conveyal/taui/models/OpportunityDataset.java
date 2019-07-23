@@ -20,6 +20,8 @@ public class OpportunityDataset extends Model {
     /** Total Opportunities */
     public double totalOpportunities;
 
+    public Integer freeFormSize;
+
     /**
      * For backwards compatibility.
      */
@@ -31,8 +33,8 @@ public class OpportunityDataset extends Model {
         return String.format("%s/%s.%s", this.regionId, this.key == null ? this._id : this.key, format.toString().toLowerCase());
     }
 
-    public String getKey () {
-        return String.format("%s/s.pointset", this.regionId, this._id);
+    public String getFreeformKey () {
+        return String.format("%s/%s.pointset", this.regionId, this._id);
     }
 
     /** Region this dataset was uploaded in */

@@ -235,6 +235,7 @@ public class OpportunityDatasetController {
                 dataset.createdBy = email;
                 dataset.accessGroup = accessGroup;
                 dataset.regionId = regionId;
+                dataset.freeFormSize = pointSet.featureCount();
                 Persistence.opportunityDatasets.create(dataset);
             });
 
@@ -501,9 +502,20 @@ public class OpportunityDatasetController {
 
     }
 
+    public static int getSize(String id, String accessGroup) {
+        OpportunityDataset dataset = Persistence.opportunityDatasets.findByIdIfPermitted(id, accessGroup);
+        if (dataset.freeFormSize != null) {
+            // Freeform pointset, with number of features saved
+            return dataset.freeFormSize;
+        } else {
+            // Grid pointset
+            return dataset.width * dataset.height;
+        }
+    }
+
     public static FreeFormPointSet readFreeForm(String id, String accessGroup) throws IOException {
         OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(id, accessGroup);
-        S3Object s3Object = s3.getObject(BUCKET, opportunityDataset.getKey());
+        S3Object s3Object = s3.getObject(BUCKET, opportunityDataset.getFreeformKey());
         File tempFile = File.createTempFile("freeform", ".pointset");
         FileOutputStream fos = new FileOutputStream(tempFile);
         InputStream is = s3Object.getObjectContent();

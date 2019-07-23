@@ -2,23 +2,18 @@ package com.conveyal.taui.results;
 
 import com.conveyal.r5.analyst.FreeFormPointSet;
 import com.conveyal.r5.analyst.cluster.CombinedWorkResult;
-import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.broker.Job;
 import com.csvreader.CsvWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
-import java.io.Reader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -73,12 +68,10 @@ public class MultiOriginAssembler {
     }
 
     public MultiOriginAssembler(Job job, String outputBucket) {
-        RegionalTask task = job.templateTask;
         this.job = job;
         this.outputBucket = outputBucket;
         this.nPercentiles = job.templateTask.percentiles.length;
-        // TODO allow non-square origin-destination skims
-        this.nTotal = task.oneToOne ? job.nTasksTotal : job.nTasksTotal * job.nTasksTotal;
+        this.nTotal = job.nTasksTotal * job.templateTask.nTravelTimeTargetsPerOrigin;
     }
 
     public void prepare() {
@@ -122,16 +115,20 @@ public class MultiOriginAssembler {
 
             CsvWriter csvWriter = new CsvWriter(job.jobId + "_times.csv");
 
-            // TODO allow non-square origin-destination skims
             for (int origin = 0; origin < nTotal; origin++) {
-                for (int destination = 0; destination < nTotal; destination ++) {
-                    String originId = ((FreeFormPointSet) job.originPointSet).ids[origin];
-                    String destinationId = ((FreeFormPointSet) job.originPointSet).ids[destination];
-                    ArrayList<Integer> times = new ArrayList<>();
-                    for (int p = 0; p < nPercentiles; p++) {
-                        times.add(reader.read());
+                for (int destination = 0; destination < job.templateTask.nTravelTimeTargetsPerOrigin; destination ++) {
+                    if (job.originPointSet == null) {
+                        throw new AnalysisServerException("Trying to assemble freeform results without a supplied " +
+                                "origin pointset");
+                    } else {
+                        String originId = ((FreeFormPointSet) job.originPointSet).ids[origin];
+                        String destinationId = ((FreeFormPointSet) job.originPointSet).ids[destination];
+                        ArrayList<String> times = new ArrayList<>();
+                        for (int p = 0; p < nPercentiles; p++) {
+                            times.add(Integer.toString(reader.read()));
+                        }
+                        csvWriter.writeRecord(new String[]{originId, destinationId, String.join(",", times)});
                     }
-                    csvWriter.writeRecord(new String[]{originId, destinationId, times.toArray().toString()});
                 }
             }
 
@@ -175,8 +172,7 @@ public class MultiOriginAssembler {
             checkDimension(workResult, "percentiles", workResult.travelTimeValues.length, nPercentiles);
             for (int i = 0; i < workResult.travelTimeValues.length; i++) {
                 int[] percentileResult = workResult.travelTimeValues[i];
-                checkDimension(workResult, "destinations", percentileResult.length,
-                        job.templateTask.destinationPointSet.featureCount());
+                checkDimension(workResult, "destinations", percentileResult.length, job.templateTask.nTravelTimeTargetsPerOrigin);
                 for (int travelTimeAtPercentile : percentileResult) {
                     long offset = (workResult.taskId + i) * Integer.BYTES;
                     writeValueAndMarkOriginComplete(workResult.taskId, offset, travelTimeAtPercentile);
