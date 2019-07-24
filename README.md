@@ -1,14 +1,8 @@
 # Conveyal Analysis
 
-This is the server component of [Conveyal Analysis](http://conveyal.com/analysis), which allows users to create public 
-transport scenarios and evaluate them in terms of accessibility.
+This is the server component of [Conveyal Analysis](http://conveyal.com/analysis), which allows users to create public transport scenarios and evaluate them in terms of cumulative opportunities accessibility indicators. 
 
-**Please note:** At this time Conveyal does not provide support for third-party deployments of Analysis. We provide paid 
-subscriptions to a hosted deployment of this system, as well as transportation planning consulting for subscribers.
-
-For now, the project is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in 
-planning and decision making processes. It is likely that over time the system will become easier to deploy by third 
-parties, but we do not plan to provide technical support for such deployments.
+**Please note** that Conveyal does not provide technical support for third-party deployments of Analysis. We provide paid subscriptions to a cloud-based deployment of this system which performs these complex calculations hundreds of times faster using a compute cluster. This project is open source primarily to ensure transparency and reproducibility in public planning and decision making processes, and in hopes that it may help researchers, students, and potential collaborators to understand and build upon our methodology.
 
 ## Configuration
 
