@@ -15,7 +15,7 @@ public class AddTripPattern extends Modification {
         return type;
     }
 
-    // Using Integer because transitMode can be null
+    // Previous versions did not have a transitMode field. To maintain compatibility and allow null values we use Integer.
     public Integer transitMode;
 
     public List<Segment> segments;
