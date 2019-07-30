@@ -15,6 +15,9 @@ public class AddTripPattern extends Modification {
         return type;
     }
 
+    // Previous versions did not have a transitMode field. To maintain compatibility and allow null values we use Integer.
+    public Integer transitMode;
+
     public List<Segment> segments;
 
     public boolean bidirectional;
@@ -46,6 +49,10 @@ public class AddTripPattern extends Modification {
     public AddTrips toR5 () {
         AddTrips at = new AddTrips();
         at.comment = name;
+
+        if (transitMode != null) {
+            at.mode = transitMode;
+        }
 
         at.bidirectional = bidirectional;
         at.frequencies = new ArrayList<>();
