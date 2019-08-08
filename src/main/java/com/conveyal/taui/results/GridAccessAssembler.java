@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.BitSet;
 import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.r5.common.Util.human;
@@ -43,6 +46,8 @@ import static com.conveyal.r5.common.Util.human;
 public class GridAccessAssembler extends MultiOriginAssembler {
 
     public final RegionalTask request;
+
+    private RandomAccessFile randomAccessFile;
 
     /** The version of the access grids we produce */
     public static final int ACCESS_GRID_VERSION = 0;
@@ -132,6 +137,17 @@ public class GridAccessAssembler extends MultiOriginAssembler {
     }
 
     /**
+     * TODO is this inefficient? Would it be reasonable to just store the regional results in memory in a byte buffer
+     * instead of writing mini byte buffers into files? We should also be able to use a filechannel with native order.
+     */
+    public static byte[] intToLittleEndianByteArray (int i) {
+        final ByteBuffer byteBuffer = ByteBuffer.allocate(Integer.BYTES);
+        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        byteBuffer.putInt(i);
+        return byteBuffer.array();
+    }
+
+    /**
      * Write to the proper subregion of the buffer for this origin.
      * The origins we receive have 2d coordinates.
      * Flatten them to compute file offsets and for the origin checklist.
@@ -139,7 +155,15 @@ public class GridAccessAssembler extends MultiOriginAssembler {
     private void writeOneValue (int taskNumber, int value) throws IOException {
         long offset = HEADER_LENGTH_BYTES + taskNumber * Integer.BYTES;
         // RandomAccessFile is not threadsafe and multiple threads may call this, so the actual writing is synchronized.
-        writeValueAndMarkOriginComplete(taskNumber, offset, value);
+        synchronized (this) {
+            randomAccessFile.seek(offset);
+            randomAccessFile.write(intToLittleEndianByteArray(value));
+            // Don't double-count origins if we receive them more than once.
+            if (!originsReceived.get(taskNumber)) {
+                originsReceived.set(taskNumber);
+                nComplete += 1;
+            }
+        }
     }
 
     /**
