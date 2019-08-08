@@ -310,9 +310,7 @@ public class BrokerController {
         // Record any regional analysis results that were supplied by the worker and mark them completed.
 
         for (CombinedWorkResult workResult : perOriginResults) {
-            // TODO merge these two methods on the broker?
             broker.handleResult(workResult);
-            broker.markTaskCompleted(workResult.jobId, workResult.taskId);
         }
         // Clear out the results field so it's not visible in the worker list API endpoint.
         workerStatus.combinedResults = null;

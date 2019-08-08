@@ -239,15 +239,13 @@ public class Broker {
     /**
      * Take a normal (non-priority) task out of a job queue, marking it as completed so it will not be re-delivered.
      * The result of the computation is supplied.
-     * TODO separate completion out from returning the work product, since they have different synchronization requirements
      * this would also allow returning errors as JSON and the grid result separately.
      * @return whether the task was found and removed.
      */
-    public synchronized boolean markTaskCompleted (String jobId, int taskId) {
+    public synchronized void markTaskCompleted (String jobId, int taskId) {
         Job job = findJob(jobId);
         if (job == null) {
             LOG.error("Could not find a job with ID {} and therefore could not mark the task as completed.", jobId);
-            return false;
         }
         if (!job.markTaskCompleted(taskId)) {
             LOG.error("Failed to mark task {} completed on job {}.", taskId, jobId);
@@ -260,7 +258,6 @@ public class Broker {
             // So we can harmlessly remove the GridAccessAssembler now that the job is removed.
             resultAssemblers.remove(jobId);
         }
-        return true;
     }
 
     /** Find the job for the given jobId, returning null if that job does not exist. */
@@ -345,7 +342,16 @@ public class Broker {
      * @param workResult an object representing accessibility results for a single-origin, sent by a worker.
      */
     public void handleResult(CombinedWorkResult workResult) {
-        MultiOriginAssembler assembler = resultAssemblers.get(workResult.jobId);
+        // Retrieving the job and assembler from their maps is not threadsafe, so we do so in a synchronized block
+        // here. Once the job is retrieved, it can be used to requestExtraWorkers below without synchronization,
+        // because that method only uses final fields of the job.
+        Job job;
+        MultiOriginAssembler assembler;
+        synchronized (this) {
+            job = findJob(workResult.jobId);
+            assembler = resultAssemblers.get(workResult.jobId);
+        }
+
         if (assembler == null) {
             LOG.error("Received result for unrecognized job ID {}, discarding.", workResult.jobId);
         } else {
@@ -353,9 +359,12 @@ public class Broker {
             // When results for the task with the magic number are received, consider boosting the job by starting EC2
             // spot instances
             if (workResult.taskId == AUTO_START_SPOT_INSTANCES_AT_TASK) {
-                requestExtraWorkersIfAppropriate(findJob(workResult.jobId));
+                requestExtraWorkersIfAppropriate(job);
             }
         }
+
+        markTaskCompleted(workResult.jobId, workResult.taskId);
+
     }
 
     private void requestExtraWorkersIfAppropriate(Job job) {
