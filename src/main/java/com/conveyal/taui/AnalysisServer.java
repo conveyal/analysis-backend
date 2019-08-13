@@ -97,7 +97,7 @@ public class AnalysisServer {
 
         // Handle CORS Options requests.
         options("/*", (req, res) -> {
-            res.header("Access-Control-Allow-Headers", "Authorization, Origin");
+            res.header("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Origin");
             res.header("Access-Control-Allow-Methods", "DELETE, GET, OPTIONS, POST, PUT");
             return "OK";
         });
