@@ -39,9 +39,6 @@ public abstract class Modification extends Model implements Cloneable {
     /** what variants is this modification a part of? */
     public boolean[] variants;
 
-    /** is this modification shown on the map in the UI at the moment? */
-    public boolean showOnMap = true;
-
     /** A description/comment about this modification */
     public String description;
 
