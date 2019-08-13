@@ -1,22 +1,22 @@
 package com.conveyal.taui.persistence;
 
 import com.conveyal.taui.AnalysisServerConfig;
+import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.models.Bookmark;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.JsonViews;
-import com.conveyal.taui.models.AggregationArea;
 import com.conveyal.taui.models.Model;
 import com.conveyal.taui.models.Modification;
 import com.conveyal.taui.models.OpportunityDataset;
 import com.conveyal.taui.models.Project;
 import com.conveyal.taui.models.Region;
 import com.conveyal.taui.models.RegionalAnalysis;
+import com.conveyal.taui.models.Resource;
 import com.conveyal.taui.util.JsonUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoClient;
-import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import org.mongojack.JacksonDBCollection;
 import org.slf4j.Logger;
@@ -39,6 +39,7 @@ public class Persistence {
     public static MongoMap<Bookmark> bookmarks;
     public static MongoMap<AggregationArea> aggregationAreas;
     public static MongoMap<OpportunityDataset> opportunityDatasets;
+    public static MongoMap<Resource> resources;
 
     public static void initialize () {
         LOG.info("Connecting to MongoDB...");
@@ -59,6 +60,7 @@ public class Persistence {
         bookmarks = getTable("bookmarks", Bookmark.class);
         aggregationAreas = getTable("aggregationAreas", AggregationArea.class);
         opportunityDatasets = getTable("opportunityDatasets", OpportunityDataset.class);
+        resources = getTable("resources", Resource.class);
     }
 
     /** Connect to a Mongo table using MongoJack, which persists Java objects into Mongo. */

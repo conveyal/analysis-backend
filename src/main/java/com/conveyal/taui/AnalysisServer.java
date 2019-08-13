@@ -14,10 +14,10 @@ import com.conveyal.taui.controllers.OpportunityDatasetController;
 import com.conveyal.taui.controllers.ProjectController;
 import com.conveyal.taui.controllers.RegionController;
 import com.conveyal.taui.controllers.RegionalAnalysisController;
+import com.conveyal.taui.controllers.ResourceController;
 import com.conveyal.taui.controllers.TimetableController;
 import com.conveyal.taui.persistence.OSMPersistence;
 import com.conveyal.taui.persistence.Persistence;
-import com.google.common.io.CharStreams;
 import org.apache.commons.fileupload.FileUploadException;
 import org.joda.time.DateTime;
 import org.json.simple.JSONObject;
@@ -25,18 +25,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
-import spark.route.HttpMethod;
 
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Map;
 
 import static spark.Spark.before;
 import static spark.Spark.exception;
-import static spark.Spark.get;
 import static spark.Spark.options;
 import static spark.Spark.port;
 
@@ -112,6 +108,7 @@ public class AnalysisServer {
         RegionalAnalysisController.register();
         AggregationAreaController.register();
         TimetableController.register();
+        new ResourceController();
 
         // This is an example of the new way to wire up Spark without using static methods:
         // spark.Service httpService = spark.Service.ignite()

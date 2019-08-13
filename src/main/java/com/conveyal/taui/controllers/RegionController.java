@@ -1,6 +1,5 @@
 package com.conveyal.taui.controllers;
 
-import com.conveyal.osmlib.OSM;
 import com.conveyal.r5.util.ExceptionUtils;
 import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.models.Region;
@@ -59,7 +58,7 @@ public class RegionController {
      * @param files MIME multipart upload (including osm.pbf)
      * @throws Exception
      */
-    public static void uploadOSM(Region region, Map<String, List<FileItem>> files) throws Exception {
+    public static void uploadOSM(Region region, Map<String, List<FileItem>> files) {
         try {
             // Set the status to Started
             region.statusCode = Region.StatusCode.STARTED;
