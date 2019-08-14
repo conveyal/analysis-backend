@@ -4,7 +4,7 @@ language: java
 services: mongodb
 
 jdk:
-  - oraclejdk8
+  - openjdk8
 
 env:
   global:
