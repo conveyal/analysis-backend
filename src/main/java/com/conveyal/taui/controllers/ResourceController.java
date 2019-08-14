@@ -64,7 +64,7 @@ public class ResourceController {
         Resource resource = Persistence.resources.removeIfPermitted(req.params("_id"), req.attribute("accessGroup"));
 
         if (AnalysisServerConfig.offline) {
-            File file = resource.getFile(basePath);
+            File file = resource.getLocalFile(basePath);
             return file.delete();
         } else {
             s3.deleteObject(basePath, resource.getPath());
@@ -78,7 +78,7 @@ public class ResourceController {
 
         if (AnalysisServerConfig.offline) {
             OutputStream os = res.raw().getOutputStream();
-            FileUtils.copyFile(resource.getFile(basePath), os);
+            FileUtils.copyFile(resource.getLocalFile(basePath), os);
             return res.raw();
         } else {
             res.type("text");
@@ -93,7 +93,7 @@ public class ResourceController {
         Resource resource = Persistence.resources.findByIdFromRequestIfPermitted(req);
 
         InputStream is = req.raw().getPart("file").getInputStream();
-        FileUtils.copyInputStreamToFile(is, resource.getFile(basePath));
+        FileUtils.copyInputStreamToFile(is, resource.getLocalFile(basePath));
 
         return true;
     }

@@ -32,7 +32,7 @@ public class Resource extends Model {
         return String.join("/", this.accessGroup, this.regionId.toString(), appendedFilename);
     }
 
-    public File getFile (String basePath) {
+    public File getLocalFile(String basePath) {
         return new File(String.join(basePath, this.getPath()));
     }
 
