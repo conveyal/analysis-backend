@@ -3,7 +3,6 @@ package com.conveyal.taui.models;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import org.bson.types.ObjectId;
 
 import java.io.File;
 import java.net.URL;
@@ -12,7 +11,7 @@ import java.util.Date;
 public class Resource extends Model {
     private static final int REQUEST_TIMEOUT_MSEC = 3600 * 1000;
 
-    public ObjectId regionId;
+    public String regionId;
 
     // Original filename
     public String filename;
@@ -29,7 +28,7 @@ public class Resource extends Model {
 
     public String getPath () {
         String appendedFilename = String.join("-", this._id, this.filename);
-        return String.join("/", this.accessGroup, this.regionId.toString(), appendedFilename);
+        return String.join("/", this.accessGroup, this.regionId, appendedFilename);
     }
 
     public File getLocalFile(String basePath) {

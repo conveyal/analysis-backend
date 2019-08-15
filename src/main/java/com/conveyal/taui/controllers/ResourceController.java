@@ -5,8 +5,6 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.conveyal.taui.AnalysisServerConfig;
 import com.conveyal.taui.models.Resource;
 import com.conveyal.taui.persistence.Persistence;
-import org.apache.commons.fileupload.FileItemFactory;
-import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONObject;
 import spark.Request;
@@ -25,22 +23,21 @@ import static spark.Spark.put;
 
 public class ResourceController {
     // Local folder in offline mode and S3 bucket in online mode
-    private static final String basePath = "cache";
+    private final String basePath = "cache";
 
-    private static final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+    private final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
             .withRegion(AnalysisServerConfig.awsRegion)
             .build();
-    private static FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
     public ResourceController() {
         path("/api/resources", () -> {
             get("", (req, res) -> Persistence.resources.findAllForRequest(req));
-            post("", (req, res) -> this.createResource(req, res));
-            post("/:_id/upload", (req, res) -> this.uploadResource(req, res));
+            post("", (req, res) -> createResource(req, res));
+            post("/:_id/upload", (req, res) -> uploadResource(req, res));
             get("/:_id", (req, res) -> Persistence.resources.findByIdFromRequestIfPermitted(req));
-            get("/:id/download", (req, res) -> this.download(req, res));
+            get("/:id/download", (req, res) -> download(req, res));
             put("/:_id", (req, res) -> Persistence.resources.updateFromJSONRequest(req));
-            delete("/:_id", (req, res) -> this.deleteResource(req, res));
+            delete("/:_id", (req, res) -> deleteResource(req, res));
         });
     }
 
