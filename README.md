@@ -74,6 +74,8 @@ The `(<scope>)` is optional. The `<summary>` should be in the present tense. The
 
 The body of the commit message (if any) should begin after one blank line. If the commit meets the definition of a major version change according to semantic versioning (e.g. a change in API visible to an external module), the commit message body should begin with `BREAKING CHANGE: <description>`.
 
-Presence of a `fix` commit in a release will increment the number in the third position.
-Presence of a `feat` commit in a release will increment the number in the second position.
-Presence of a `BREAKING CHANGE` commit in a release will increment the number in the first position.
+Presence of a `fix` commit in a release should increment the number in the third (PATCH) position.
+Presence of a `feat` commit in a release should increment the number in the second (MINOR) position.
+Presence of a `BREAKING CHANGE` commit in a release should increment the number in the first (MAJOR) position.
+
+This is based on https://www.conventionalcommits.org.
