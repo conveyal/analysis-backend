@@ -43,6 +43,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
@@ -62,19 +63,20 @@ public class AggregationAreaController {
 
     /**
      * Create binary .grid files for aggregation (aka mask) areas, save them to S3, and persist their details.
-     * @param req Must include a shapefile on which the aggregation area(s) will be based. If request includes
-     *            "union=true", features will be merged to a single aggregation area with the provided name. If not,
-     *            each feature will be its own aggregation area, named with its value of the attribute specified by
-     *            the provided name.
+     * @param req Must include a shapefile on which the aggregation area(s) will be based.
+     *
+     *            Expected HTTP query parameters include "union" and "name." If "union==true", features will be merged
+     *            to a single aggregation area, named using the value of the "name" query parameter directly.  If
+     *            "union==false", each feature will be an aggregation area, named using its value for the shapefile
+     *            property specified by "name."
      */
 
-    public static List<AggregationArea> createAggregationArea (Request req, Response res) throws Exception {
+    public static List<AggregationArea> createAggregationAreas (Request req, Response res) throws Exception {
         ArrayList<AggregationArea> aggregationAreas = new ArrayList<>();
         ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
         Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
 
-        // extract relevant files: .shp, .prj, .dbf, and .shx.
-        // We need the SHX even though we're looping over every feature as they might be sparse.
+        // 1. Extract relevant files: .shp, .prj, .dbf, and .shx. ======================================================
         Map<String, FileItem> filesByName = query.get("files").stream()
                 .collect(Collectors.toMap(FileItem::getName, f -> f));
 
@@ -112,25 +114,22 @@ public class AggregationAreaController {
 
         ShapefileReader reader = new ShapefileReader(shpFile);
 
+        // 2. Read features ============================================================================================
         List<SimpleFeature> features = reader.wgs84Stream().collect(Collectors.toList());
 
         Map<String, Geometry> areas = new HashMap<>();
 
         if (Boolean.parseBoolean(req.params("union"))) {
+            // Union (single combined aggregation area) requested
             List<Geometry> geometries = features.stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
             UnaryUnionOp union = new UnaryUnionOp(geometries);
-            // Use provided name directly for this single unioned feature
+            // Name the area using the name in the request directly
             areas.put(maskName, union.union());
         } else {
-            // Use provided name to read a name for each feature
-            try {
-                features.stream().forEach(f -> areas.put(f.getProperty(maskName).getValue().toString(), (Geometry) f.getDefaultGeometry()));
-            } catch (NullPointerException e) {
-                throw new AnalysisServerException("The supplied name was not a property of the uploaded features. " +
-                        "Double check that the name corresponds to a shapefile column.");
-            }
+            // Don't union. Name each area by looking up its value for the name property in the request.
+            features.stream().forEach(f -> areas.put(readProperty(f, maskName), (Geometry) f.getDefaultGeometry()));
         }
-
+        // 3. Convert to raster grids, then store them. ================================================================
         areas.forEach((String name, Geometry geometry) -> {
             Envelope env = geometry.getEnvelopeInternal();
             Grid maskGrid = new Grid(SeamlessCensusGridExtractor.ZOOM, env.getMaxY(), env.getMaxX(), env.getMinY(), env.getMinX());
@@ -151,9 +150,8 @@ public class AggregationAreaController {
             aggregationArea.accessGroup = req.attribute("accessGroup");
             aggregationArea.createdBy = req.attribute("email");
 
-            File gridFile = new File(tempDir, "weights.grid");
-
             try {
+                File gridFile = File.createTempFile(UUID.randomUUID().toString(),"grid");
                 OutputStream os = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(gridFile)));
                 maskGrid.write(os);
                 os.close();
@@ -177,6 +175,15 @@ public class AggregationAreaController {
         return aggregationAreas;
     }
 
+    static String readProperty (SimpleFeature feature, String propertyName) {
+        try {
+            return feature.getProperty(propertyName).getValue().toString();
+        } catch (NullPointerException e) {
+            throw new AnalysisServerException("The supplied Name was not a property of the uploaded features. " +
+                    "Double check that the Name corresponds to a shapefile column.");
+        }
+    }
+
     public static Object getAggregationArea (Request req, Response res) {
         final String accessGroup = req.attribute("accessGroup");
         final String maskId = req.params("maskId");
@@ -197,6 +204,7 @@ public class AggregationAreaController {
 
     public static void register () {
         get("/api/region/:regionId/aggregationArea/:maskId", AggregationAreaController::getAggregationArea, JsonUtil.objectMapper::writeValueAsString);
-        post("/api/region/:regionId/aggregationArea", AggregationAreaController::createAggregationArea, JsonUtil.objectMapper::writeValueAsString);
+        post("/api/region/:regionId/aggregationArea", AggregationAreaController::createAggregationAreas,
+                JsonUtil.objectMapper::writeValueAsString);
     }
 }
