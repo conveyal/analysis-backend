@@ -114,9 +114,9 @@ public class AggregationAreaController {
 
         ShapefileReader reader = new ShapefileReader(shpFile);
 
+
         // 2. Read features ============================================================================================
         List<SimpleFeature> features = reader.wgs84Stream().collect(Collectors.toList());
-
         Map<String, Geometry> areas = new HashMap<>();
 
         if (Boolean.parseBoolean(req.params("union"))) {
