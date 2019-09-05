@@ -26,13 +26,9 @@ script:
 before_cache: rm -rf $HOME/.m2/repository/com/conveyal
 
 after_success:
-  # Upload coverage results to codecov
-  - bash <(curl -s https://codecov.io/bash)
   # Upload a shaded jar to S3
-  - pip install --user awscli && export PATH=$PATH:~/.local/bin/
-  # TODO once we have tags use git describe
+  - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then pip install --user awscli && export PATH=$PATH:~/.local/bin/; fi
   - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]]; then aws s3 cp --acl public-read target/analysis.jar s3://analyst-builds/analysis-${TRAVIS_BRANCH}-`git rev-parse --short HEAD`.jar; fi
-  - if [[ "$TRAVIS_SECURE_ENV_VARS" = true ]] && [[ "$TRAVIS_BRANCH" = master ]]; then aws s3 cp --acl public-read target/analyst.jar s3://analyst-builds/analysis-latest.jar; fi
 
 # We want to cache the local Maven repo and PIP directories.
 # The Maven dependencies and plugins take a long time to download, as does AWSCLI which is installed via PIP.
@@ -42,4 +38,3 @@ cache:
   - $HOME/.m2
   - $HOME/.local
   - $HOME/.cache/pip
-
