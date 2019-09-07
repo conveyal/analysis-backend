@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -60,6 +61,10 @@ public class AggregationAreaController {
             .withRegion(awsRegion)
             .build();
     private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
+
+    private static int MAX_FEATURES = 60; // Arbitrary limit to prevent UI clutter from many aggregation  areas (e.g.
+    // if someone uploads thousands of blocks). Someone might reasonably request an aggregation area for
+    // each of Chicago's 50 wards, so that's a good approximate limit for now.
 
     /**
      * Create binary .grid files for aggregation (aka mask) areas, save them to S3, and persist their details.
@@ -118,6 +123,11 @@ public class AggregationAreaController {
         List<SimpleFeature> features = reader.wgs84Stream().collect(Collectors.toList());
 
         Map<String, Geometry> areas = new HashMap<>();
+
+        if (features.size() > MAX_FEATURES) {
+            throw AnalysisServerException.fileUpload(MessageFormat.format("The uploaded shapefile has {0} features, " +
+                    "which exceeds the limit of {1}", features.size(), MAX_FEATURES));
+        }
 
         if (Boolean.parseBoolean(req.params("union"))) {
             // Union (single combined aggregation area) requested
