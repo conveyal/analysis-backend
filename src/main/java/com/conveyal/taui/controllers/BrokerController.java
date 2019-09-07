@@ -13,6 +13,7 @@ import com.conveyal.taui.AnalysisServerException;
 import com.conveyal.taui.analysis.broker.Broker;
 import com.conveyal.taui.analysis.broker.JobStatus;
 import com.conveyal.taui.analysis.broker.WorkerObservation;
+import com.conveyal.taui.analysis.broker.WorkerTags;
 import com.conveyal.taui.models.AnalysisRequest;
 import com.conveyal.taui.models.Bundle;
 import com.conveyal.taui.models.Project;
@@ -139,7 +140,8 @@ public class BrokerController {
         String address = broker.getWorkerAddress(workerCategory);
         if (address == null) {
             // There are no workers that can handle this request. Request some.
-            broker.createOnDemandWorkerInCategory(workerCategory, accessGroup, userEmail);
+            WorkerTags workerTags = new WorkerTags(accessGroup, userEmail, project._id, project.regionId);
+            broker.createOnDemandWorkerInCategory(workerCategory, workerTags);
             // No workers exist. Kick one off and return "service unavailable".
             response.header("Retry-After", "30");
             return jsonResponse(response, HttpStatus.ACCEPTED_202, "Starting routing server. Expect status updates within a few minutes.");
@@ -177,10 +179,13 @@ public class BrokerController {
             // probably degrades the perceived responsiveness of single-point requests.
             return ByteStreams.toByteArray(entity.getContent());
         } catch (SocketTimeoutException ste) {
-            LOG.info("Timeout waiting for response from worker. Perhaps an old version of R5 has blocked while preparing a network.");
+            LOG.info("Timeout waiting for response from worker.");
             // Aborting the request might help release resources - we had problems with exhausting connection pools here.
             httpPost.abort();
-            return jsonResponse(response, HttpStatus.ACCEPTED_202, "Preparing network for analysis");
+            return jsonResponse(response, HttpStatus.BAD_REQUEST_400, "Routing server timed out. For the " +
+                    "complexity of this scenario, your request may have too many simulated schedules. If you are " +
+                    "using Routing Engine version < 4.5.1, your scenario may still be in preparation and you should " +
+                    "try again in a few minutes.");
         } catch (NoRouteToHostException nrthe){
             LOG.info("Worker in category {} was previously cataloged but is not reachable now. This is expected if a " +
                     "user made a single-point request within WORKER_RECORD_DURATION_MSEC after shutdown.", workerCategory);

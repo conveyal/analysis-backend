@@ -6,7 +6,7 @@
 
     <groupId>com.conveyal</groupId>
     <artifactId>analysis</artifactId>
-    <version>5.5.0-SNAPSHOT</version>
+    <version>5.8.0-SNAPSHOT</version>
     <build>
         <plugins>
             <plugin>
@@ -57,26 +57,6 @@
                                 </filter>
                             </filters>
                         </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- The Jacoco plugin generates code coverage reports during the Maven test phase. -->
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.7.9</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -200,17 +180,18 @@
             <version>1.4</version>
         </dependency>
 
+        <!-- httpclient is also used by AWS SDK but it depends on a newer version than the one pulled in by
+             transitive dependencies. So specify the same version used by AWS SDK here to force it. -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.5.3</version>
+            <version>4.5.6</version>
         </dependency>
 
-        <!-- AWS SDK for interacting with EC2 -->
+        <!-- AWS SDK for interacting with EC2. Version numbers are provided by Bill of Materials imported below. -->
         <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-ec2</artifactId>
-            <version>1.11.341</version>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ec2</artifactId>
         </dependency>
 
         <!-- Rest Assured is an assertion library that makes testing web APIs easy. -->
@@ -243,4 +224,18 @@
             <version>e6a78d3af9d67f6f6240261fcba497d3b50f9399</version>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Import AWS SDK Bill of Materials in case different modules should be at different version numbers. -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>2.6.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
 </project>

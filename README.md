@@ -1,14 +1,8 @@
 # Conveyal Analysis
 
-This is the server component of [Conveyal Analysis](http://conveyal.com/analysis), which allows users to create public 
-transport scenarios and evaluate them in terms of accessibility.
+This is the server component of [Conveyal Analysis](http://conveyal.com/analysis), which allows users to create public transport scenarios and evaluate them in terms of cumulative opportunities accessibility indicators. 
 
-**Please note:** At this time Conveyal does not provide support for third-party deployments of Analysis. We provide paid 
-subscriptions to a hosted deployment of this system, as well as transportation planning consulting for subscribers.
-
-For now, the project is open source primarily to prevent vendor lock-in for our clients and to ensure transparency in 
-planning and decision making processes. It is likely that over time the system will become easier to deploy by third 
-parties, but we do not plan to provide technical support for such deployments.
+**Please note** that Conveyal does not provide technical support for third-party deployments of Analysis. We provide paid subscriptions to a cloud-based deployment of this system which performs these complex calculations hundreds of times faster using a compute cluster. This project is open source primarily to ensure transparency and reproducibility in public planning and decision making processes, and in hopes that it may help researchers, students, and potential collaborators to understand and build upon our methodology.
 
 ## Configuration
 
@@ -61,3 +55,27 @@ Check to make sure that the version of R5 matches the version specified in the a
 
 You can then create a run configuration for `com.conveyal.taui.AnalysisServer`, which is the main class. You will need to
 configure the options mentioned above.
+
+## Structured Commit Messages
+
+We use structured commit messages to allow automated tools to determine release version numbers and generate changelogs.
+
+The first line of these messages is in the following format: `<type>(<scope>): <summary>` 
+
+The `(<scope>)` is optional. The `<summary>` should be in the present tense. The type should be one of the following:
+
+- feat: A new feature from the user point of view, not a new feature for the build.
+- fix: A bug fix from the user point of view, not a fix to the build.
+- docs: Changes to the user documentation, or to code comments.
+- style: Formatting, semicolons, brackets, indentation, line breaks. No change to program logic.
+- refactor: Changes to code which do not change behavior, e.g. renaming a variable.
+- test: Adding tests, refactoring tests. No changes to user code.
+- chore: Updating build process, scripts, etc. No changes to user code.
+
+The body of the commit message (if any) should begin after one blank line. If the commit meets the definition of a major version change according to semantic versioning (e.g. a change in API visible to an external module), the commit message body should begin with `BREAKING CHANGE: <description>`.
+
+Presence of a `fix` commit in a release should increment the number in the third (PATCH) position.
+Presence of a `feat` commit in a release should increment the number in the second (MINOR) position.
+Presence of a `BREAKING CHANGE` commit in a release should increment the number in the first (MAJOR) position.
+
+This is based on https://www.conventionalcommits.org.
