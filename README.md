@@ -1,8 +1,28 @@
 # Conveyal Analysis
 
-This is the server component of [Conveyal Analysis](http://conveyal.com/analysis), which allows users to create public transport scenarios and evaluate them in terms of cumulative opportunities accessibility indicators. 
+This is the server component of [Conveyal Analysis](http://conveyal.com/), which allows users to create transportation scenarios and evaluate them in terms of cumulative opportunities accessibility indicators. 
 
-**Please note** that Conveyal does not provide technical support for third-party deployments of Analysis. We provide paid subscriptions to a cloud-based deployment of this system which performs these complex calculations hundreds of times faster using a compute cluster. This project is open source primarily to ensure transparency and reproducibility in public planning and decision making processes, and in hopes that it may help researchers, students, and potential collaborators to understand and build upon our methodology.
+**Please note** that the Conveyal team does not provide technical support for third-party deployments. We provide paid subscriptions to a cloud-based deployment of this system, which performs these complex calculations hundreds of times faster using a compute cluster. This project is open source primarily to ensure transparency and reproducibility in public planning and decision making processes, and in hopes that it may help researchers, students, and potential collaborators to understand and build upon our methodology.
+
+## R<sup>5</sup> Routing Engine: Rapid Realistic Routing on Real-world and Reimagined networks
+
+Conveyal Analysis relies on R<sup>5</sup>, our routing engine for multimodal (transit/bike/walk/car) networks. It is intended primarily for analysis applications (one-to-many trees, travel time matrices, and cumulative opportunities accessibility indicators). R<sup>5</sup> is included as a module in this repository. Prior to June 2020, it was developed in a [separate repository](https://github.com/conveyal/r5).
+
+We refer to the routing method as "realistic" because it works by planning many trips at different departure times in a time window, which better reflects how people use transportation system than planning a single trip at an exact departure time. 
+
+We say "Real-world and Reimagined" networks because R5's networks are built from widely available open OSM and GTFS data describing baseline transportation systems, but R5 includes a system for applying light-weight patches to those networks for immediate, interactive scenario comparison.
+
+## Methodology
+
+For details on the core methods implemented in Conveyal Analysis and R<sup>5</sup>, see:
+
+* [Conway, Byrd, and van der Linden (2017)](http://hdl.handle.net/2286/R.A.218654)
+* [Conway, Byrd, and van Eggermond (2018)](https://www.jtlu.org/index.php/jtlu/article/view/1074)
+* [Conway and Stewart (2019)](https://files.indicatrix.org/Conway-Stewart-2019-Charlie-Fare-Constraints.pdf)
+
+### Citations
+
+The Conveyal team is always eager to see cutting-edge uses of our software, so feel free to send us a copy of any thesis, report, or paper produced using this software. We also ask that any academic publications using this software cite the papers above, where relevant and appropriate.
 
 ## Configuration
 
