@@ -2,6 +2,7 @@
 
 # Auth0 authentication configuration. The values will be ignored when configuration option offline=true.
 auth0-client-id=X
+auth0-domain=auth.domain.com
 auth0-secret=Y
 
 # Access group for administrators
@@ -44,13 +45,6 @@ server-port=7070
 # This allows you to locate temporary storage on an extra drive in case your main drive does not have enough space.
 # local-cache=/home/ec2-user/cache
 local-cache=cache
-
-# This is the private IP address of the EC2 instance where the broker is running.
-# Instances have a seprate public and private network interface. We want the broker bound only to
-# the private one so that it is not accessible on the public Internet.
-# The broker is running on the same instance as the main backend, which is visible on the internet.
-# Internet since it also runs the frontend server)
-server-address=10.0.0.123
 
 # Java threads for lighter async operations
 light-threads=3
