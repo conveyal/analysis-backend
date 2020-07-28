@@ -185,7 +185,7 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
-        <!-- For the polyline encoder
+        <!-- For the polyline encoder -->
         <repository>
             <id>axiom-public-releases</id>
             <name>Axiom Releases</name>

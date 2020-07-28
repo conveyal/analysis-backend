@@ -72,12 +72,7 @@ public class HttpApi implements Component {
             //       Or now with non-static Spark we can run two HTTP servers on different ports.
 
             // Set CORS headers, to allow requests to this API server from any page.
-            if (authentication instanceof LocalAuthentication) {
-
-            } else {
-                // working online, all requests need
-                res.header("Access-Control-Allow-Origin", "*");
-            }
+            res.header("Access-Control-Allow-Origin", "*");
 
             // The default MIME type is JSON. This will be overridden by the few controllers that do not return JSON.
             res.type("application/json");
