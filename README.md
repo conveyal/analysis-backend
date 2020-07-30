@@ -43,7 +43,7 @@ Database configuration variables include:
 ## Building and running
 
 Once you have configured `analysis.properties` and started mongo locally, build the application with `mvn package` and 
-start it with `java -Xmx2g -jar target/shaded/vX.Y.Z.jar`
+start it with `java -Xmx2g -cp target/shaded/vX.Y.Z.jar com.conveyal.analysis.BackendMain`
 
 Next, follow the instructions to start the [analysis-ui frontend](https://github.com/conveyal/analysis-ui). Once that 
 is running, you should be able to log in without authentication (using the frontend URL, e.g. http://localhost:3000). 
