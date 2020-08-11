@@ -399,6 +399,8 @@ public class RegionalAnalysisController implements HttpController {
             // Also do a preflight validation of the cutoffs and percentiles arrays for all non-TAUI regional tasks.
             task.validateCutoffsMinutes();
             task.validatePercentiles();
+        } else {
+            task.destinationPointSetKeys = new String[0];
         }
 
         // Set the origin pointset if one is specified.
