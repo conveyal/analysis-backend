@@ -27,14 +27,28 @@ public class Scenario implements Serializable {
 
     /**
      * If this ID is non null, this scenario should be identical to all others with the same ID. This enables us to
-     * cache things like linked point sets and modified networks keyed on the scenario that has been applied.
+     * cache things like linked point sets and modified networks keyed on the scenario that has been applied. It also
+     * allows the scenario itself to be stored by the backend, then retrieved and cached by many regional workers.
+     * TODO Should the ID always be non-null?
+     *      Should we make it final and initialize it in a constructor Scenario(modifications)?
+     *
+     * Note that these are not persistent database IDs that remain the same when the modifications composing the
+     * scenario are changed, as scenarios are not directly represented by database records. They are just the set of
+     * all modifications in a project with the same scenario index enabled. For both single point and regional
+     * analyses, this ID is always derived from the contents of the scenario in the manner of a hash, including a CRC
+     * of the modifications themselves.
      */
     public String id;
 
+    /**
+     * By default we are now setting this to be the scenario name at the time of creation.
+     */
     public String description = "no description provided";
 
     public List<Modification> modifications = Lists.newArrayList();
 
+    // TODO We appear to only read this, never write it!
+    //      Do we see "Scenario does not have feed checksums" on every analysis?
     /** Map from feed ID to feed CRC32 to ensure that we can't apply scenarios to the wrong feeds */
     public Map<String, Long> feedChecksums;
 

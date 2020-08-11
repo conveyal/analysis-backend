@@ -17,7 +17,7 @@ import com.conveyal.analysis.persistence.Persistence;
 import com.conveyal.analysis.util.HttpStatus;
 import com.conveyal.analysis.util.JsonUtil;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.AnalysisWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.cluster.RegionalWorkResult;
 import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
@@ -87,7 +87,7 @@ public class BrokerController implements HttpController {
      * This HTTP client contacts workers to send them single-point tasks for immediate processing.
      * TODO we should eventually switch to the new Java standard HttpClient.
      */
-    private static HttpClient httpClient = AnalystWorker.makeHttpClient();
+    private static HttpClient httpClient = AnalysisWorker.makeHttpClient();
 
     /**
      * Spark handler functions return Objects.

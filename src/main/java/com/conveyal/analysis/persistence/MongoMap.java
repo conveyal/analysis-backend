@@ -133,6 +133,9 @@ public class MongoMap<V extends Model> {
         return create(json);
     }
 
+    /**
+     * Note that this has side effects on the object passed in! It assigns it an ID and creation/update time stamps.
+     */
     public V create(V value) {
         // Create an ID
         value._id = new ObjectId().toString();

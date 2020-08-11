@@ -14,11 +14,7 @@ import java.util.List;
 
 /**
  * A Job is a collection of tasks that represent all the origins in a regional analysis. All the
- * tasks must have the same network ID and be run against the same R5 version on the workers.
- * <p>
- * There is no concern about multiple tasks having the same ID, because those IDs are created by the
- * broker. An unlikely potential problem is that if the broker restarts, the workers might mark the
- * wrong tasks as completed.
+ * tasks in a Job must have the same network ID and be run against the same R5 version on the workers.
  */
 public class Job {
 
@@ -70,10 +66,7 @@ public class Job {
      */
     protected int nTasksDelivered;
 
-    /**
-     * Every task in this job will be based on this template task, but have its origin
-     * coordinates changed.
-     */
+    /** Every task in this job will be based on this template task, but have its origin coordinates changed. */
     public final RegionalTask templateTask;
 
     /**

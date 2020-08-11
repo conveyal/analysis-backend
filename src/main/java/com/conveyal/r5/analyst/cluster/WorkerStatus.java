@@ -54,7 +54,7 @@ public class WorkerStatus {
     public WorkerStatus() { }
 
     /** Constructor that fills in all the fields with information about the machine it's running on. */
-    public WorkerStatus (AnalystWorker worker) {
+    public WorkerStatus (AnalysisWorker worker) {
 
         workerName = "R5";
         workerVersion = BackendVersion.instance.describe;

@@ -2,6 +2,7 @@ package com.conveyal.analysis.results;
 
 import com.conveyal.analysis.AnalysisServerException;
 import com.conveyal.analysis.components.broker.Job;
+import com.conveyal.analysis.models.RegionalAnalysis;
 import com.conveyal.file.FileStorage;
 import com.conveyal.file.FileStorageFormat;
 import com.conveyal.r5.analyst.PointSet;
@@ -23,16 +24,26 @@ public class MultiOriginAssembler {
 
     public static final Logger LOG = LoggerFactory.getLogger(MultiOriginAssembler.class);
 
-    // Component Dependencies
-    private final FileStorage fileStorage;
+    /**
+     * The regional analysis for which this object is assembling results.
+     * We retain the whole object rather than just its ID so we'll have the full details, e.g. destination point set
+     * IDs and scenario, things that are stripped out of the template task sent to the workers.
+     */
+    private final RegionalAnalysis regionalAnalysis;
 
+    /**
+     * The object representing the progress of the regional analysis as tracked by the broker.
+     * It may appear job.templateTask has all the information needed, making the regionalAnalysis field
+     * unnecessary. But the templateTask is for worker consumption, while the regionalAnalysis has fields that are more
+     * readily usable in the backend assembler (e.g. destination pointset id, instead of full storage key).
+     */
     public final Job job;
 
     /**
-     * We create one GridResultWriter for each percentile, so one output file per percentile. Each of those output
-     * files contains data for all travel time cutoffs at each origin.
+     * We create one GridResultWriter for each destination pointset and percentile.  Each of those output files
+     * contains data for all travel time cutoffs at each origin.
      */
-    private GridResultWriter[] accessibilityGridWriters;
+    private GridResultWriter[][] accessibilityGridWriters;
 
     private CsvResultWriter timeCsvWriter;
 
@@ -82,6 +93,9 @@ public class MultiOriginAssembler {
     /** The number of different percentiles for which we're calculating accessibility on the workers. */
     private final int nPercentiles;
 
+    /** The number of destination pointsets to which we're calculating accessibility */
+    private final int nDestinationPointSets;
+
     /**
      * The number of different travel time cutoffs being applied when computing accessibility for each origin. This
      * is the number of values stored per origin cell in an accessibility results grid.
@@ -95,13 +109,21 @@ public class MultiOriginAssembler {
     /**
      * Constructor. This sets up one or more ResultWriters depending on whether we're writing gridded or non-gridded
      * cumulative opportunities accessibility, or origin-destination travel times.
+     * TODO do not pass the FileStorage component down into this non-component and the ResultWriter non-component,
+     *      clarify design concepts on this point (e.g. only components should know other components exist).
+     *      Rather than pushing the component all the way down to the leaf function call, we return the finished
+     *      file up to an umbrella location where a single reference to the file storage can be used to
+     *      store all of them.
      */
-    public MultiOriginAssembler (Job job, String outputBucket, FileStorage fileStorage) {
-        this.fileStorage = fileStorage;
+    public MultiOriginAssembler (RegionalAnalysis regionalAnalysis, Job job, String outputBucket,
+                                 FileStorage fileStorage) {
+
+        this.regionalAnalysis = regionalAnalysis;
         this.job = job;
         this.nPercentiles = job.templateTask.percentiles.length;
         // Newly launched analyses have the cutoffs field, even when being sent to old workers that don't read it.
         this.nCutoffs = job.templateTask.cutoffsMinutes.length;
+        this.nDestinationPointSets = job.templateTask.destinationPointSetKeys.length;
         this.nOriginsTotal = job.nTasksTotal;
         this.originsReceived = new BitSet(job.nTasksTotal);
         this.originPointSet = job.originPointSet;
@@ -117,16 +139,19 @@ public class MultiOriginAssembler {
                     );
                     writeAccessibilityCsv = true;
                 } else {
-                    // Create one grid writer per percentile.
-                    accessibilityGridWriters = new GridResultWriter[nPercentiles];
-                    for (int p = 0; p < nPercentiles; p++) {
-                        accessibilityGridWriters[p] = new GridResultWriter(job.templateTask, outputBucket, fileStorage);
+                    // Create one grid writer per percentile and destination pointset
+                    accessibilityGridWriters = new GridResultWriter[nDestinationPointSets][nPercentiles];
+                    for (int d = 0; d < nDestinationPointSets; d++) {
+                        for (int p = 0; p < nPercentiles; p++) {
+                            accessibilityGridWriters[d][p] =
+                                    new GridResultWriter(job.templateTask, outputBucket, fileStorage);
+                        }
                     }
                     writeAccessibilityGrid = true;
                 }
             }
 
-            if (job.templateTask.grid.endsWith(FileStorageFormat.FREEFORM.extension)) {
+            if (job.templateTask.destinationPointSetKeys[0].endsWith(FileStorageFormat.FREEFORM.extension)) {
                 // It's kind of fragile to read from an external network service here. But this is
                 // only triggered when destinations are freeform, which is an experimental feature.
                 destinationPointSet = PointSetCache.readFreeFormFromFileStore(job.templateTask.grid);
@@ -157,9 +182,14 @@ public class MultiOriginAssembler {
         LOG.info("Finished receiving data for multi-origin analysis {}", job.jobId);
         try {
             if (writeAccessibilityGrid) {
-                for (int p = 0; p < nPercentiles; p++) {
-                    String gridFileName = String.format("%s_P%d.access", job.jobId, (int)(job.templateTask.percentiles[p]));
-                    accessibilityGridWriters[p].finish(gridFileName);
+                for (int d = 0; d < nDestinationPointSets; d++) {
+                    for (int p = 0; p < nPercentiles; p++) {
+                        int percentile = job.templateTask.percentiles[p];
+                        String destinationPointSetId = regionalAnalysis.destinationPointSetIds[d];
+                        String gridFileName =
+                                String.format("%s_%s_P%d.access", job.jobId, destinationPointSetId, percentile);
+                        accessibilityGridWriters[d][p].finish(gridFileName);
+                    }
                 }
             }
             if (writeAccessibilityCsv) {
@@ -189,11 +219,10 @@ public class MultiOriginAssembler {
                 // Infer x and y cell indexes based on the template task
                 int taskNumber = workResult.taskId;
                 // Drop work results for this particular origin into a little-endian output file.
-                // We only have one file for now because only one pointset, percentile, and cutoff value.
-                // Also sanity-check the dimensions of the result.
                 // TODO more efficient way to write little-endian integers
                 // TODO check monotonic increasing invariants here rather than in worker.
-                for (int[][] percentilesForGrid : workResult.accessibilityValues) {
+                for (int d = 0; d < workResult.accessibilityValues.length; d++) {
+                    int[][] percentilesForGrid = workResult.accessibilityValues[d];
                     if (writeAccessibilityCsv) {
                         String originId = originPointSet.getId(workResult.taskId);
                         // FIXME this is writing only accessibility for the first percentile and cutoff
@@ -202,7 +231,7 @@ public class MultiOriginAssembler {
                     if (writeAccessibilityGrid) {
                         for (int p = 0; p < nPercentiles; p++) {
                             int[] cutoffsForPercentile = percentilesForGrid[p];
-                            GridResultWriter writer = accessibilityGridWriters[p];
+                            GridResultWriter writer = accessibilityGridWriters[d][p];
                             writer.writeOneOrigin(taskNumber, cutoffsForPercentile);
                         }
                     }
@@ -247,7 +276,7 @@ public class MultiOriginAssembler {
      * There are different dimension requirements for accessibility and travel time results, so two different methods.
      */
     private void checkAccessibilityDimension (RegionalWorkResult workResult) {
-        checkDimension(workResult, "destination pointsets", workResult.accessibilityValues.length, 1);
+        checkDimension(workResult, "destination pointsets", workResult.accessibilityValues.length, this.nDestinationPointSets);
         for (int[][] percentilesForGrid : workResult.accessibilityValues) {
             checkDimension(workResult, "percentiles", percentilesForGrid.length, this.nPercentiles);
             for (int[] cutoffsForPercentile : percentilesForGrid) {
@@ -273,8 +302,10 @@ public class MultiOriginAssembler {
     /** Clean up and cancel this grid assembler, typically when a job is canceled while still being processed. */
     public synchronized void terminate () throws IOException {
         if (writeAccessibilityGrid) {
-            for (GridResultWriter writer : accessibilityGridWriters) {
-                writer.terminate();
+            for (GridResultWriter[] writers : accessibilityGridWriters) {
+                for (GridResultWriter writer : writers) {
+                    writer.terminate();
+                }
             }
         }
         if (writeAccessibilityCsv) {
@@ -295,7 +326,7 @@ public class MultiOriginAssembler {
             return null;
         } else {
             // TODO this returns only one buffer file, which has not been processed by the SelectingGridReducer
-            return accessibilityGridWriters[0].bufferFile;
+            return accessibilityGridWriters[0][0].bufferFile;
         }
     }
 

@@ -80,6 +80,7 @@ import static org.apache.commons.math3.util.FastMath.tan;
  * TODO functionality to write and read grids should probably be in a separate class from the main Grid class.
  */
 public class Grid extends PointSet {
+
     public static final Logger LOG = LoggerFactory.getLogger(Grid.class);
 
     /** The web mercator zoom level for this grid. */
@@ -217,10 +218,19 @@ public class Grid extends PointSet {
                 if (x < 0 || x >= width || y < 0 || y >= height) continue; // off the grid
 
                 Geometry pixel = getPixelGeometry(x + west, y + north, zoom);
-
                 if (pixelAreaAtLat == -1) pixelAreaAtLat = pixel.getArea(); //Recalculate for a new latitude.
 
-                if (preparedGeom.intersects(pixel)){ // pixel is at least partly inside the feature
+                // Pixel completely within feature:
+                // This is an optimization following an example in the online JTS javadoc for containsProperly.
+                // The contains (vs. containsProperly) predicate could be used instead, but it is less efficient. In
+                // "edge" cases (pun intended) where a polygon contains but does not containProperly the pixel,
+                // the correct result will still be calculated below.
+                if (preparedGeom.containsProperly(pixel)) {
+                    double weight = relativeToPixels ? 1 : pixelAreaAtLat / area;
+                    weights.add(new PixelWeight(x, y, weight));
+                }
+                // Pixel partly within feature:
+                else if (preparedGeom.intersects(pixel)){
                     Geometry intersection = pixel.intersection(geometry);
                     double denominator = relativeToPixels ? pixelAreaAtLat : area;
                     double weight = intersection.getArea() / denominator;

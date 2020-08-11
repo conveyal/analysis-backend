@@ -4,7 +4,7 @@ import com.conveyal.analysis.components.broker.WorkerTags;
 import com.conveyal.file.FileStorage;
 import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.r5.analyst.WorkerCategory;
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.AnalysisWorker;
 import com.conveyal.r5.streets.OSMCache;
 import com.conveyal.r5.transit.TransportNetworkCache;
 import org.slf4j.Logger;
@@ -90,7 +90,7 @@ public class LocalWorkerLauncher implements WorkerLauncher {
             if (i > 0) {
                 singleWorkerConfig.setProperty("listen-for-single-point", "false");
             }
-            AnalystWorker worker = new AnalystWorker(singleWorkerConfig, fileStorage, transportNetworkCache);
+            AnalysisWorker worker = new AnalysisWorker(singleWorkerConfig, fileStorage, transportNetworkCache);
             Thread workerThread = new Thread(worker, "WORKER " + i);
             workerThreads.add(workerThread);
             workerThread.start();

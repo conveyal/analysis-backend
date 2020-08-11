@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * times to each destination. Several travel times to each destination are returned, representing
  * selected percentiles of all travel times from the chosen origin to that destination.
  */
-public class TravelTimeSurfaceTask extends AnalysisTask {
+public class TravelTimeSurfaceTask extends AnalysisWorkerTask {
 
     // FIXME red flag - what is this enum enumerating Java types?
 

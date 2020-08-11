@@ -1,7 +1,7 @@
 package com.conveyal.r5.analyst;
 
 import com.conveyal.r5.OneOriginResult;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.cluster.AnalysisWorkerTask;
 import com.conveyal.r5.analyst.cluster.PathWriter;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
@@ -44,11 +44,11 @@ import static com.conveyal.r5.profile.PerTargetPropagater.MM_PER_METER;
 public class TravelTimeComputer {
 
     private static final Logger LOG = LoggerFactory.getLogger(TravelTimeComputer.class);
-    private final AnalysisTask request;
+    private final AnalysisWorkerTask request;
     private final TransportNetwork network;
 
     /** Constructor. */
-    public TravelTimeComputer (AnalysisTask request, TransportNetwork network) {
+    public TravelTimeComputer (AnalysisWorkerTask request, TransportNetwork network) {
         this.request = request;
         this.network = network;
     }
@@ -82,16 +82,15 @@ public class TravelTimeComputer {
         // destination pointset is used for all steps below.
         // This reuses the logic for finding the appropriate grid size and linking, which is now in the NetworkPreloader.
         // We could change the preloader to retain these values in a compound return type, to avoid repetition here.
-        // TODO merge multiple destination pointsets from a regional request into a single supergrid?
         PointSet destinations;
 
-        if (request instanceof  RegionalTask && ((RegionalTask) request).destinationPointSet instanceof FreeFormPointSet) {
+        if (request instanceof  RegionalTask && ((RegionalTask) request).destinationPointSets[0] instanceof FreeFormPointSet) {
             // Freeform; destination pointset was set by handleOneRequest in the main AnalystWorker
-            destinations = ((RegionalTask) request).destinationPointSet;
+            destinations = ((RegionalTask) request).destinationPointSets[0];
         } else {
             WebMercatorExtents destinationGridExtents = request.getWebMercatorExtents();
             // Destination points can be inferred from a regular grid (WebMercatorGridPointSet)
-            destinations = AnalysisTask.gridPointSetCache.get(destinationGridExtents, network.fullExtentGridPointSet);
+            destinations = AnalysisWorkerTask.gridPointSetCache.get(destinationGridExtents, network.fullExtentGridPointSet);
             travelTimeReducer.checkOpportunityExtents(destinations);
         }
 
@@ -192,9 +191,9 @@ public class TravelTimeComputer {
                     accessMode
             );
 
-            // FIXME this is iterating over every cell in the (possibly huge) destination grid just to get the access times around the origin.
-            // We could construct a sub-grid that's an envelope around sr.originSplit's lat/lon, then iterate over the
-            // points in that sub-grid.
+            // This is iterating over every cell in the (possibly huge) destination grid just to get the access times
+            // around the origin. If this is measured to be inefficient, we could construct a sub-grid that's an
+            // envelope around sr.originSplit's lat/lon, then iterate over the points in that sub-grid.
 
             Split origin = sr.getOriginSplit();
 
@@ -229,6 +228,7 @@ public class TravelTimeComputer {
             // If multiple P+Rs reach the same stop, only one with shortest time is returned. Stops were searched for during graph building phase.
             // time to stop is time from CAR streetrouter to stop + CAR PARK time + time to walk to stop based on request walk speed
             // by default 20 CAR PARKS are found it can be changed with sr.maxVertices variable
+            // FIXME we should not limit the number of car parks found.
             StreetRouter sr = new StreetRouter(network.streetLayer);
             sr.profileRequest = request;
             sr = PointToPointQuery.findParkRidePath(request, sr, network.transitLayer);
@@ -240,7 +240,7 @@ public class TravelTimeComputer {
                 foundAnyOriginPoint = true;
             }
             // Disallow non-transit access.
-            // TODO should we allow non transit access with park and ride?
+            // TODO should we allow non transit access with park and ride? Maybe with an additional parameter?
             nonTransitTravelTimesToDestinations = PointSetTimes.allUnreached(destinations);
         }
 

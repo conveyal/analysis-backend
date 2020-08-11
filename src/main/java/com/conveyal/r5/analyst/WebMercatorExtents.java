@@ -1,12 +1,15 @@
 package com.conveyal.r5.analyst;
 
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.cluster.AnalysisWorkerTask;
 import org.locationtech.jts.geom.Envelope;
 
 import java.util.Arrays;
 
 import static com.conveyal.r5.analyst.Grid.latToPixel;
 import static com.conveyal.r5.analyst.Grid.lonToPixel;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkElementIndex;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Really we should be embedding one of these in the tasks, grids, etc. to factor out all the common fields.
@@ -32,19 +35,27 @@ public class WebMercatorExtents {
         this.zoom = zoom;
     }
 
-    public static WebMercatorExtents forTask (AnalysisTask task) {
+    public static WebMercatorExtents forTask (AnalysisWorkerTask task) {
         return new WebMercatorExtents(task.west, task.north, task.width, task.height, task.zoom);
     }
 
-    public static WebMercatorExtents forGrid (PointSet pointSet) {
-        if (pointSet instanceof Grid) {
-            Grid grid = (Grid) pointSet;
-            return new WebMercatorExtents(grid.west, grid.north, grid.width, grid.height, grid.zoom);
+    public static WebMercatorExtents forPointsets (PointSet[] pointSets) {
+        checkNotNull(pointSets);
+        checkElementIndex(0, pointSets.length, "You must supply at least one destination PointSet.");
+        if (pointSets[0] instanceof Grid) {
+            WebMercatorExtents extents = pointSets[0].getWebMercatorExtents();
+            // TODO handle case of pointsets with different extents; for now just validate that they are identical.
+            for (PointSet pointSet : pointSets) {
+                checkArgument(pointSet instanceof Grid, "All destination PointSets must be of the same type.");
+                checkArgument(extents.equals(pointSet.getWebMercatorExtents()));
+            }
+            return extents;
         } else {
             // Temporary way to bypass network preloading while freeform pointset functionality is being
             // developed. For now, the null return value is used in TravelTimeComputer to signal that the worker
             // should use a provided freeform pointset, rather than creating a WebMercatorGridPointSet based on the
             // parameters of the request.
+            checkArgument(pointSets.length == 1, "You may only specify one non-gridded PointSet.");
             return null;
         }
     }

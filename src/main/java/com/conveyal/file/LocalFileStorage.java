@@ -72,4 +72,5 @@ public class LocalFileStorage implements FileStorage {
     public boolean exists(FileStorageKey key) {
         return getFile(key).exists();
     }
+
 }

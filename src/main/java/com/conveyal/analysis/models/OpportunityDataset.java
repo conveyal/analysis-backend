@@ -2,6 +2,7 @@ package com.conveyal.analysis.models;
 
 import com.conveyal.file.FileStorageFormat;
 import com.conveyal.file.FileStorageKey;
+import com.conveyal.r5.analyst.WebMercatorExtents;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
@@ -93,6 +94,11 @@ public class OpportunityDataset extends Model {
     @JsonIgnore
     public FileStorageKey getStorageKey (FileStorageFormat fileFormat) {
         return new FileStorageKey(this.bucketName, storageLocation(fileFormat.extension));
+    }
+
+    @JsonIgnore
+    public WebMercatorExtents getWebMercatorExtents () {
+        return new WebMercatorExtents(west, north, width, height, ZOOM);
     }
 
     /** Analysis region this dataset was uploaded in. */

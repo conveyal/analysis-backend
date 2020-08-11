@@ -4,8 +4,8 @@ import com.conveyal.analysis.AnalysisServerException;
 import com.conveyal.analysis.SelectingGridReducer;
 import com.conveyal.analysis.components.broker.Broker;
 import com.conveyal.analysis.components.broker.JobStatus;
-import com.conveyal.analysis.components.broker.WorkerTags;
 import com.conveyal.analysis.models.AnalysisRequest;
+import com.conveyal.analysis.models.OpportunityDataset;
 import com.conveyal.analysis.models.Project;
 import com.conveyal.analysis.models.RegionalAnalysis;
 import com.conveyal.analysis.persistence.Persistence;
@@ -16,7 +16,6 @@ import com.conveyal.file.FileStorageKey;
 import com.conveyal.file.FileUtils;
 import com.conveyal.r5.analyst.Grid;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
-import com.conveyal.r5.analyst.scenario.Scenario;
 import com.google.common.primitives.Ints;
 import com.mongodb.QueryBuilder;
 import gnu.trove.list.array.TIntArrayList;
@@ -41,6 +40,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static com.conveyal.analysis.util.JsonUtil.toJson;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -88,6 +88,11 @@ public class RegionalAnalysisController implements HttpController {
 
     private Collection<RegionalAnalysis> getRegionalAnalysesForRegion(Request req, Response res) {
         return getRegionalAnalysesForRegion(req.params("regionId"), req.attribute("accessGroup"));
+    }
+
+    // Note: this includes the modifications object which can be very large
+    private RegionalAnalysis getRegionalAnalysis(Request req, Response res) {
+        return Persistence.regionalAnalyses.findByIdIfPermitted(req.params("_id"), req.attribute("accessGroup"));
     }
 
     /**
@@ -178,26 +183,32 @@ public class RegionalAnalysisController implements HttpController {
         }
 
         // Which channel to extract from results with multiple values per origin (for different travel time cutoffs)
-        // and multiple output files per analysis (for different percentiles of travel time). The base case is older
-        // regional analyses with only a single cutoff, and no percentile in the file name.
+        // and multiple output files per analysis (for different percentiles of travel time and/or different
+        // destination pointsets). These initial values are for older regional analysis results with only a single
+        // cutoff, and no percentile or destination gridId in the file name.
+        // For newer analyses that have multiple cutoffs, percentiles, or destination pointsets, these initial values
+        // are coming from deprecated fields, are not meaningful and will be overwritten below from query parameters.
         int percentile = analysis.travelTimePercentile;
         int cutoffMinutes = analysis.cutoffMinutes;
         int cutoffIndex = 0;
+        String destinationPointSetId = analysis.grid;
 
-        // Handle newer regional analyses with multiple cutoffs in an array. If a query parameter is supplied, range
-        // check it, otherwise use the middle value in the list.
+        // Handle newer regional analyses with multiple cutoffs in an array.
+        // If a query parameter is supplied, range check it, otherwise use the middle value in the list.
+        // The cutoff variable holds the actual cutoff in minutes, not the position in the array of cutoffs.
         if (analysis.cutoffsMinutes != null) {
             int nCutoffs = analysis.cutoffsMinutes.length;
             checkState(nCutoffs > 0, "Regional analysis has no cutoffs.");
             cutoffMinutes = getIntQueryParameter(req, "cutoff", analysis.cutoffsMinutes[nCutoffs / 2]);
             cutoffIndex = new TIntArrayList(analysis.cutoffsMinutes).indexOf(cutoffMinutes);
-            checkArgument(cutoffIndex >= 0,
+            checkState(cutoffIndex >= 0,
                     "Travel time cutoff for this regional analysis must be taken from this list: (%s)",
                     Ints.join(", ", analysis.cutoffsMinutes)
             );
         }
 
         // Handle newer regional analyses with multiple percentiles in an array.
+        // If a query parameter is supplied, range check it, otherwise use the middle value in the list.
         // The percentile variable holds the actual percentile (25, 50, 95) not the position in the array.
         if (analysis.travelTimePercentiles != null) {
             int nPercentiles = analysis.travelTimePercentiles.length;
@@ -206,6 +217,19 @@ public class RegionalAnalysisController implements HttpController {
             checkArgument(new TIntArrayList(analysis.travelTimePercentiles).contains(percentile),
                     "Percentile for this regional analysis must be taken from this list: (%s)",
                     Ints.join(", ", analysis.travelTimePercentiles));
+        }
+
+        // Handle even newer regional analyses with multiple destination pointsets per analysis.
+        if (analysis.destinationPointSetIds != null) {
+            int nGrids = analysis.destinationPointSetIds.length;
+            checkState(nGrids > 0, "Regional analysis has no grids.");
+            destinationPointSetId = req.queryParams("destinationPointSetId");
+            if (destinationPointSetId == null) {
+                destinationPointSetId = analysis.destinationPointSetIds[0];
+            }
+            checkArgument(Arrays.asList(analysis.destinationPointSetIds).contains(destinationPointSetId),
+                    "Destination gridId must be one of: %s",
+                    String.join(",", analysis.destinationPointSetIds));
         }
 
         // It seems like you would check regionalAnalysis.complete to choose between redirecting to s3 and fetching
@@ -240,8 +264,8 @@ public class RegionalAnalysisController implements HttpController {
             }
         } else {
             // The analysis has already completed, results should be stored and retrieved from S3 via redirects.
-            LOG.info("Returning {} minute accessibility (percentile {}) for regional analysis {}.",
-                    cutoffMinutes, percentile, regionalAnalysisId);
+            LOG.info("Returning {} minute accessibility to pointset {} (percentile {}) for regional analysis {}.",
+                    cutoffMinutes, destinationPointSetId, percentile, regionalAnalysisId);
             FileStorageFormat format = FileStorageFormat.valueOf(fileFormatExtension.toUpperCase());
             if (!FileStorageFormat.GRID.equals(format) && !FileStorageFormat.PNG.equals(format) && !FileStorageFormat.TIFF.equals(format)) {
                 throw AnalysisServerException.badRequest("Format \"" + format + "\" is invalid. Request format must be \"grid\", \"png\", or \"tiff\".");
@@ -251,15 +275,28 @@ public class RegionalAnalysisController implements HttpController {
             // We do this even for results generated by older workers, so they will be re-extracted with the new name.
             // These grids are reasonably small, we may be able to just send all cutoffs to the UI instead of selecting.
             String singleCutoffKey =
-                    String.format("%s_P%d_C%d.%s", regionalAnalysisId, percentile, cutoffMinutes, fileFormatExtension);
+                    String.format("%s_%s_P%d_C%d.%s", regionalAnalysisId, destinationPointSetId, percentile, cutoffMinutes, fileFormatExtension);
 
             // A lot of overhead here - UI contacts backend, backend calls S3, backend responds to UI, UI contacts S3.
             FileStorageKey singleCutoffFileStorageKey = new FileStorageKey(config.resultsBucket(), singleCutoffKey);
             if (!fileStorage.exists(singleCutoffFileStorageKey)) {
-                // Old single-percentile regional analysis result grids don't have a percentile component in the S3 key.
-                String multiCutoffKey = (analysis.travelTimePercentiles == null)
-                        ? regionalAnalysisId + ".access"
-                        : String.format("%s_P%d.access", regionalAnalysisId, percentile);
+                // An accessibility grid for this particular cutoff has apparently never been extracted from the
+                // regional results file before. Extract one and save it for future reuse. Older regional analyses
+                // may not have arrays allowing multiple cutoffs, percentiles, or destination pointsets. The
+                // filenames of such regional accessibility results will not have a percentile or pointset ID.
+                String multiCutoffKey;
+                if (analysis.travelTimePercentiles == null) {
+                    // Oldest form of results, single-percentile, single grid.
+                    multiCutoffKey = regionalAnalysisId + ".access";
+                } else {
+                    if (analysis.destinationPointSetIds == null) {
+                        // Newer form of regional results: multi-percentile, single grid.
+                        multiCutoffKey = String.format("%s_P%d.access", regionalAnalysisId, percentile);
+                    } else {
+                        // Newest form of regional results: multi-percentile, multi-grid.
+                        multiCutoffKey = String.format("%s_%s_P%d.access", regionalAnalysisId, destinationPointSetId, percentile);
+                    }
+                }
                 LOG.info("Single-cutoff grid {} not found on S3, deriving it from {}.", singleCutoffKey, multiCutoffKey);
                 FileStorageKey multiCutoffFileStorageKey = new FileStorageKey(config.resultsBucket(), multiCutoffKey);
 
@@ -322,9 +359,47 @@ public class RegionalAnalysisController implements HttpController {
         //   why is some stuff set in this populate method, and other things set here in the caller?
         RegionalTask task = (RegionalTask) analysisRequest.populateTask(new RegionalTask(), project);
 
-        // Set the destination pointset (which is still called "grid" for backward worker compatibility).
-        task.grid = Persistence.opportunityDatasets
-                .findByIdIfPermitted(analysisRequest.opportunityDatasetId, accessGroup).storageLocation();
+        // Set the destination PointSets, which are required for all non-Taui regional requests.
+        if (! analysisRequest.makeTauiSite) {
+            checkNotNull(analysisRequest.destinationPointSetIds);
+            checkState(analysisRequest.destinationPointSetIds.length > 0,
+                "At least one destination pointset ID must be supplied.");
+            int nPointSets = analysisRequest.destinationPointSetIds.length;
+            task.destinationPointSetKeys = new String[nPointSets];
+            List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
+            for (int i = 0; i < nPointSets; i++) {
+                String destinationPointSetId = analysisRequest.destinationPointSetIds[i];
+                OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(
+                        destinationPointSetId,
+                        accessGroup
+                );
+                checkNotNull(opportunityDataset, "Opportunity dataset could not be found in database.");
+                opportunityDatasets.add(opportunityDataset);
+                task.destinationPointSetKeys[i] = opportunityDataset.storageLocation();
+            }
+            // For backward compatibility with old workers, communicate any single pointSet via the deprecated field.
+            if (nPointSets == 1) {
+                task.grid = task.destinationPointSetKeys[0];
+            }
+            // Preflight check that all destination pointsets are exactly the same size. Equivalent to worker-side
+            // checks in AnalysisWorkerTask.loadAndValidateDestinationPointSets and WebMercatorExtents.forPointsets.
+            for (OpportunityDataset dataset : opportunityDatasets) {
+                if (dataset.format == FileStorageFormat.FREEFORM) {
+                    checkArgument(
+                        nPointSets == 1,
+                        "If a freeform destination PointSet is specified, it must be the only one."
+                    );
+                } else {
+                    checkArgument(
+                        dataset.getWebMercatorExtents().equals(opportunityDatasets.get(0).getWebMercatorExtents()),
+                        "If multiple grids are specified as destinations, they must have identical extents."
+                    );
+                }
+            }
+            // Also do a preflight validation of the cutoffs and percentiles arrays for all non-TAUI regional tasks.
+            task.validateCutoffsMinutes();
+            task.validatePercentiles();
+        }
 
         // Set the origin pointset if one is specified.
         if (analysisRequest.originPointSetId != null) {
@@ -346,9 +421,10 @@ public class RegionalAnalysisController implements HttpController {
 
         // TODO remove duplicate fields from RegionalAnalysis that are already in the nested task.
         // The RegionalAnalysis should just be a minimal wrapper around the template task, adding the origin point set.
-        // The RegionalAnalysis object contains a reference to the template task itself.
+        // The RegionalAnalysis object contains a reference to the worker task itself.
         // In fact, there are three separate classes all containing almost the same info:
-        // AnalysisRequest, RegionalTask, RegionalAnalysis.
+        // AnalysisRequest (from UI to backend), RegionalTask (template sent to worker), RegionalAnalysis (in Mongo).
+        // And for regional analyses, two instances of the worker task: the one with the scenario, and the templateTask.
         RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
         regionalAnalysis.request = task;
         regionalAnalysis.height = task.height;
@@ -359,7 +435,7 @@ public class RegionalAnalysisController implements HttpController {
         regionalAnalysis.accessGroup = accessGroup;
         regionalAnalysis.bundleId = project.bundleId;
         regionalAnalysis.createdBy = email;
-        regionalAnalysis.grid = analysisRequest.opportunityDatasetId;
+        regionalAnalysis.destinationPointSetIds = analysisRequest.destinationPointSetIds;
         regionalAnalysis.name = analysisRequest.name;
         regionalAnalysis.projectId = analysisRequest.projectId;
         regionalAnalysis.regionId = project.regionId;
@@ -367,79 +443,41 @@ public class RegionalAnalysisController implements HttpController {
         regionalAnalysis.workerVersion = analysisRequest.workerVersion;
         regionalAnalysis.zoom = task.zoom;
 
-        // Handle new multiple cutoff and multiple percentile arrays if they are present.
-        if (analysisRequest.cutoffsMinutes != null) {
-            // Store invalid value (-1 was already used) in deprecated field to make it clear it should not be used.
+        // Store the full array of multiple cutoffs which will be understood by newer workers and backends,
+        // rather then the older single cutoff value.
+        checkNotNull(analysisRequest.cutoffsMinutes);
+        checkArgument(analysisRequest.cutoffsMinutes.length > 0);
+        regionalAnalysis.cutoffsMinutes = analysisRequest.cutoffsMinutes;
+        if (analysisRequest.cutoffsMinutes.length == 1) {
+            // Ensure older workers expecting a single cutoff will still function.
+            regionalAnalysis.cutoffMinutes = analysisRequest.cutoffsMinutes[0];
+        } else {
+            // Store invalid value in deprecated field (-1 was already used) to make it clear it should not be used.
             regionalAnalysis.cutoffMinutes = -2;
-            // Store the full array which will be read by newer workers and backends.
-            regionalAnalysis.cutoffsMinutes = analysisRequest.cutoffsMinutes;
-        } else {
-            // Replicate the older system, with a single cutoff. This ensures older workers will still function.
-            regionalAnalysis.cutoffMinutes = task.maxTripDurationMinutes;
-            // Create a one-element array so newer workers won't have to check deprecated non-array fields.
-            regionalAnalysis.cutoffsMinutes = new int[] { regionalAnalysis.cutoffMinutes };
         }
-        // Same process as for cutoffsMinutes, but for percentiles UI has been observed to send one-element arrays.
-        if (analysisRequest.percentiles != null) {
-            if (analysisRequest.percentiles.length == 1) {
-                regionalAnalysis.travelTimePercentile = analysisRequest.percentiles[0];
-            } else {
-                regionalAnalysis.travelTimePercentile = -2;
-            }
-            regionalAnalysis.travelTimePercentiles = analysisRequest.percentiles;
+
+        // Same process as for cutoffsMinutes, but for percentiles.
+        checkNotNull(analysisRequest.percentiles);
+        checkArgument(analysisRequest.percentiles.length > 0);
+        regionalAnalysis.travelTimePercentiles = analysisRequest.percentiles;
+        if (analysisRequest.percentiles.length == 1) {
+            regionalAnalysis.travelTimePercentile = analysisRequest.percentiles[0];
         } else {
-            regionalAnalysis.travelTimePercentile = analysisRequest.travelTimePercentile;
-            regionalAnalysis.travelTimePercentiles = new int[] { regionalAnalysis.travelTimePercentile };
+            regionalAnalysis.travelTimePercentile = -2;
         }
 
         // Propagate any changes to the cutoff and percentiles arrays down into the nested RegionalTask.
+        // TODO propagate single (non-array) values for old workers
+        // TODO propagate the other direction, setting these values when initializing the task
         task.cutoffsMinutes = regionalAnalysis.cutoffsMinutes;
         task.percentiles = regionalAnalysis.travelTimePercentiles;
-
-        // Set the maximum trip duration just high enough to compute accessibility for the highest cutoff.
-        task.maxTripDurationMinutes = Arrays.stream(regionalAnalysis.cutoffsMinutes).max().getAsInt();
 
         // Persist this newly created RegionalAnalysis to Mongo.
         // Why are we overwriting the regionalAnalysis reference with the result of saving it? This looks like a no-op.
         regionalAnalysis = Persistence.regionalAnalyses.create(regionalAnalysis);
 
-        // The single RegionalAnalysis object represents a lot of individual accessibility tasks at many different
-        // origin points, typically on a grid. Before passing that object on to the Broker (which distributes tasks to
-        // workers and tracks progress), we remove the details of the scenario, substituting the scenario's unique ID
-        // to save time and bandwidth. This avoids repeatedly sending the scenario details to the worker in every task,
-        // as they are often quite voluminous. The workers will fetch the scenario once from S3 and cache it based on
-        // its ID only. We protectively clone this task because we're going to null out its scenario field, and don't
-        // want to affect the original object which contains all the scenario details.
-        // TODO why is the request object cloned? Why is all this detail added after the Persistence call?
-        //      We don't want to store all the details added below in Mongo?
-        RegionalTask templateTask = regionalAnalysis.request.clone();
-        Scenario scenario = templateTask.scenario;
-        templateTask.scenarioId = scenario.id;
-        templateTask.scenario = null;
-        String fileName = String.format("%s_%s.json", regionalAnalysis.bundleId, scenario.id);
-        FileStorageKey fileStorageKey = new FileStorageKey(config.bundleBucket(), fileName);
-        try {
-            File localScenario = FileUtils.createScratchFile("json");
-            JsonUtil.objectMapper.writeValue(localScenario, scenario);
-            fileStorage.moveIntoStorage(fileStorageKey, localScenario);
-        } catch (IOException e) {
-            LOG.error("Error saving scenario to disk", e);
-        }
-
-        // Fill in all the fields in the template task that will remain the same across all tasks in a job.
-        // Re-setting all these fields may not be necessary (they might already be set previously),
-        // but we can't eliminate these lines without thoroughly checking that assumption.
-        templateTask.jobId = regionalAnalysis._id;
-        templateTask.graphId = regionalAnalysis.bundleId;
-        templateTask.workerVersion = regionalAnalysis.workerVersion;
-        templateTask.height = regionalAnalysis.height;
-        templateTask.width = regionalAnalysis.width;
-        templateTask.north = regionalAnalysis.north;
-        templateTask.west = regionalAnalysis.west;
-        templateTask.zoom = regionalAnalysis.zoom;
-
         // Register the regional job with the broker, which will distribute individual tasks to workers and track progress.
-        broker.enqueueTasksForRegionalJob(templateTask, WorkerTags.fromRegionalAnalysis(regionalAnalysis));
+        broker.enqueueTasksForRegionalJob(regionalAnalysis);
 
         return regionalAnalysis;
     }
@@ -459,6 +497,7 @@ public class RegionalAnalysisController implements HttpController {
         });
         sparkService.path("/api/regional", () -> {
             // For grids, no transformer is supplied: render raw bytes or input stream rather than transforming to JSON.
+            sparkService.get("/:_id", this::getRegionalAnalysis);
             sparkService.get("/:_id/grid/:format", this::getRegionalResults);
             sparkService.delete("/:_id", this::deleteRegionalAnalysis, toJson);
             sparkService.post("", this::createRegionalAnalysis, toJson);

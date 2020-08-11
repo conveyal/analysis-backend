@@ -1,7 +1,7 @@
 package com.conveyal.r5.analyst.scenario;
 
 import com.conveyal.r5.analyst.FileCategory;
-import com.conveyal.r5.analyst.cluster.AnalystWorker;
+import com.conveyal.r5.analyst.cluster.AnalysisWorker;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
 import org.geotools.geojson.feature.FeatureJSON;
@@ -104,7 +104,7 @@ public class IndexedPolygonCollection {
     }
 
     public void loadFromS3GeoJson() throws Exception {
-        InputStream s3InputStream = AnalystWorker.filePersistence.getData(FileCategory.POLYGON, polygonLayer);
+        InputStream s3InputStream = AnalysisWorker.filePersistence.getData(FileCategory.POLYGON, polygonLayer);
         // To test on local files:
         //InputStream s3InputStream = new FileInputStream("/Users/abyrd/" + polygonLayer);
         if (polygonLayer.endsWith(".gz")) {

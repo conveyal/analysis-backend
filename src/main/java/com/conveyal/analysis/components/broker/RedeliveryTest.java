@@ -2,6 +2,7 @@ package com.conveyal.analysis.components.broker;
 
 import com.conveyal.analysis.components.Components;
 import com.conveyal.analysis.components.LocalComponents;
+import com.conveyal.analysis.models.RegionalAnalysis;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +64,9 @@ public class RedeliveryTest {
         templateTask.height = 1;
         templateTask.width = N_TASKS_PER_JOB;
         templateTask.scenarioId = "FAKE";
-        WorkerTags workerTags = new WorkerTags("testGroup", "testUser", "projectId", "regionId");
-        broker.enqueueTasksForRegionalJob(templateTask, workerTags);
+        RegionalAnalysis regionalAnalysis = new RegionalAnalysis();
+        regionalAnalysis.request = templateTask;
+        broker.enqueueTasksForRegionalJob(regionalAnalysis);
     }
 
     public static String compactUUID() {

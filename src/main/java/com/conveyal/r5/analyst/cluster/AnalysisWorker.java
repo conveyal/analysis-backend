@@ -45,6 +45,7 @@ import java.io.OutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +58,10 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import static com.conveyal.r5.profile.PerTargetPropagater.SECONDS_PER_MINUTE;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * This is a main class run by worker machines in our Analysis computation cluster.
@@ -68,10 +71,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  *
  * The worker can poll for work over two different channels. One is for large asynchronous batch jobs, the other is
  * intended for interactive single point requests that should return as fast as possible.
- *
- * TODO rename AnalysisWorker <---
  */
-public class AnalystWorker implements Runnable {
+public class AnalysisWorker implements Runnable {
 
     /**
      * Worker ID - just a random ID so we can differentiate machines used for computation.
@@ -89,7 +90,7 @@ public class AnalystWorker implements Runnable {
      */
     public static final String machineId = UUID.randomUUID().toString().replaceAll("-", "");
 
-    private static final Logger LOG = LoggerFactory.getLogger(AnalystWorker.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AnalysisWorker.class);
 
     private static final String DEFAULT_BROKER_ADDRESS = "localhost";
 
@@ -170,7 +171,7 @@ public class AnalystWorker implements Runnable {
     ThroughputTracker throughputTracker = new ThroughputTracker();
 
     /**
-     * This worker will only listen for inccoming single point requests if this field is true when run() is invoked.
+     * This worker will only listen for incoming single point requests if this field is true when run() is invoked.
      * Setting this to false before running creates a regional-only cluster worker. This is useful in testing when
      * running many workers on the same machine.
      */
@@ -218,7 +219,7 @@ public class AnalystWorker implements Runnable {
     /** The HTTP server that receives single-point requests. */
     private spark.Service sparkHttpService;
 
-    public static AnalystWorker forConfig (Properties config) {
+    public static AnalysisWorker forConfig (Properties config) {
         // FIXME why is there a separate configuration parsing section here? Why not always make the cache based on the configuration?
         // FIXME why is some configuration done here and some in the constructor?
         boolean workOffline = Boolean.parseBoolean(config.getProperty("work-offline", "false"));
@@ -236,11 +237,11 @@ public class AnalystWorker implements Runnable {
         GTFSCache gtfsCache = new GTFSCache(fileStore, () -> graphsBucket);
 
         TransportNetworkCache cache = new TransportNetworkCache(fileStore, gtfsCache, osmCache, graphsBucket);
-        return new AnalystWorker(config, fileStore, cache);
+        return new AnalysisWorker(config, fileStore, cache);
     }
 
     // TODO merge this constructor with the forConfig factory method, so we don't have different logic for local and cluster workers
-    public AnalystWorker(Properties config, FileStorage fileStore, TransportNetworkCache transportNetworkCache) {
+    public AnalysisWorker (Properties config, FileStorage fileStore, TransportNetworkCache transportNetworkCache) {
         // print out date on startup so that CloudWatch logs has a unique fingerprint
         LOG.info("Analyst worker {} starting at {}", machineId,
                 LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
@@ -491,18 +492,22 @@ public class AnalystWorker implements Runnable {
             task.recordAccessibility = false;
         }
 
-        try {
-            // Having a non-null opportunity density grid in the task triggers the computation of accessibility values.
-            // The pointSet should not be set on static site tasks (or single-point tasks which don't even have the field).
-            // Resolve the grid ID to an actual grid - this is important to determine the grid extents for the path.
-            // Fetching data grids should be relatively fast so we can do it synchronously.
-            // Perhaps this can be done higher up in the call stack where we know whether or not it's a regional task.
-            // TODO move this after the asynchronous loading of the rest of the necessary data?
-            if (!task.makeTauiSite) {
-                task.destinationPointSet = pointSetCache.get(task.grid);
-            }
+        // Bump the max trip duration up to find opportunities past the cutoff when using wide decay functions.
+        // Save the existing hard-cutoff value which is used when saving travel times.
+        // TODO this needs to happen for both regional and single point tasks when calculating accessibility on the worker
+        {
+            task.decayFunction.prepare();
+            int maxCutoffMinutes = Arrays.stream(task.cutoffsMinutes).max().getAsInt();
+            int maxTripDurationSeconds = task.decayFunction.reachesZeroAt(maxCutoffMinutes * SECONDS_PER_MINUTE);
+            int maxTripDurationMinutes = (int)(Math.ceil(maxTripDurationSeconds / 60D));
+            checkState(maxTripDurationMinutes <= 120, "Distance decay function must reach zero at or before 120 minutes.");
+            task.maxTripDurationMinutes = maxTripDurationMinutes;
+            LOG.info("Maximum cutoff was {} minutes, limiting trip duration to {} minutes based on decay function {}.",
+                    maxCutoffMinutes, maxTripDurationMinutes, task.decayFunction.getClass().getSimpleName());
+        }
 
-            // TODO (re)validate multi-percentle and multi-cutoff parameters. Validation currently in TravelTimeReducer.
+        try {
+            // TODO (re)validate multi-percentile and multi-cutoff parameters. Validation currently in TravelTimeReducer.
             //  This version should require both arrays to be present, and single values to be missing.
             // Using a newer backend, the task should have been normalized to use arrays not single values.
             checkNotNull(task.cutoffsMinutes, "This worker requires an array of cutoffs (rather than a single value).");
@@ -520,6 +525,13 @@ public class AnalystWorker implements Runnable {
             // reinventing the wheel of LoadingCache) or we'll need to make preparation for regional tasks async.
             TransportNetwork transportNetwork = networkPreloader.transportNetworkCache.getNetworkForScenario(task
                     .graphId, task.scenarioId);
+
+            // Static site tasks do not specify destinations, but all other regional tasks should.
+            // Load the PointSets based on the IDs (actually, full storage keys including IDs) in the task.
+            // The presence of these grids in the task will then trigger the computation of accessibility values.
+            if (!task.makeTauiSite) {
+                task.loadAndValidateDestinationPointSets(pointSetCache);
+            }
 
             // If we are generating a static site, there must be a single metadata file for an entire batch of results.
             // Arbitrarily we create this metadata as part of the first task in the job.
@@ -681,21 +693,21 @@ public class AnalystWorker implements Runnable {
     /**
      * Generate and write out metadata describing what's in a directory of static site output.
      */
-    public static void saveStaticSiteMetadata (AnalysisTask analysisTask, TransportNetwork network) {
+    public static void saveStaticSiteMetadata (AnalysisWorkerTask analysisWorkerTask, TransportNetwork network) {
         try {
             // Save the regional analysis request, giving the UI some context to display the results.
             // This is the request object sent to the workers to generate these static site regional results.
-            PersistenceBuffer buffer = PersistenceBuffer.serializeAsJson(analysisTask);
-            AnalystWorker.filePersistence.saveStaticSiteData(analysisTask, "request.json", buffer);
+            PersistenceBuffer buffer = PersistenceBuffer.serializeAsJson(analysisWorkerTask);
+            AnalysisWorker.filePersistence.saveStaticSiteData(analysisWorkerTask, "request.json", buffer);
 
             // Save non-fatal warnings encountered applying the scenario to the network for this regional analysis.
             buffer = PersistenceBuffer.serializeAsJson(network.scenarioApplicationWarnings);
-            AnalystWorker.filePersistence.saveStaticSiteData(analysisTask, "warnings.json", buffer);
+            AnalysisWorker.filePersistence.saveStaticSiteData(analysisWorkerTask, "warnings.json", buffer);
 
             // Save transit route data that allows rendering paths with the Transitive library in a separate file.
             TransitiveNetwork transitiveNetwork = new TransitiveNetwork(network.transitLayer);
             buffer = PersistenceBuffer.serializeAsJson(transitiveNetwork);
-            AnalystWorker.filePersistence.saveStaticSiteData(analysisTask, "transitive.json", buffer);
+            AnalysisWorker.filePersistence.saveStaticSiteData(analysisWorkerTask, "transitive.json", buffer);
         } catch (Exception e) {
             LOG.error("Exception saving static metadata: {}", ExceptionUtils.asString(e));
             throw new RuntimeException(e);
@@ -728,7 +740,7 @@ public class AnalystWorker implements Runnable {
             return;
         }
         try {
-            AnalystWorker.forConfig(config).run();
+            AnalysisWorker.forConfig(config).run();
         } catch (Exception e) {
             LOG.error("Unhandled error in analyst worker, shutting down. " + ExceptionUtils.asString(e));
         }

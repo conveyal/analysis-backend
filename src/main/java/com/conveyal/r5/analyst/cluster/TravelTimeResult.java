@@ -20,7 +20,7 @@ public class TravelTimeResult {
     // Travel time values, indexed by percentile (sample) and target (grid cell/point)
     int[][] values;
 
-    public TravelTimeResult(AnalysisTask task) {
+    public TravelTimeResult(AnalysisWorkerTask task) {
         nPoints = task.nTargetsPerOrigin();
         nSamplesPerPoint = task.percentiles.length;
         // Initialization: Fill the values array the default unreachable value.

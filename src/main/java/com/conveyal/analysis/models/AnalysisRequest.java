@@ -3,7 +3,9 @@ package com.conveyal.analysis.models;
 import com.conveyal.analysis.AnalysisServerException;
 import com.conveyal.analysis.persistence.Persistence;
 import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.cluster.AnalysisWorkerTask;
+import com.conveyal.r5.analyst.decay.DecayFunction;
+import com.conveyal.r5.analyst.decay.StepDecayFunction;
 import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
 import com.conveyal.r5.analyst.scenario.Modification;
 import com.conveyal.r5.analyst.scenario.Scenario;
@@ -22,15 +24,17 @@ import java.util.zip.CRC32;
 
 /**
  * Request sent from the UI to the backend. It is actually distinct from the task that the broker
- * sends/forwards to R5 workers (see {@link AnalysisTask}), though it has many of the same fields.
+ * sends/forwards to R5 workers (see {@link AnalysisWorkerTask}), though it has many of the same fields.
  */
 public class AnalysisRequest {
+
+    private static int MIN_ZOOM = 9;
+    private static int MAX_ZOOM = 12;
+    private static int MAX_GRID_CELLS = 5_000_000;
 
     public String projectId;
     public int variantIndex;
     public String workerVersion;
-
-    // All analyses parameters =====================================================================
 
     public String accessModes;
     public float bikeSpeed;
@@ -45,6 +49,7 @@ public class AnalysisRequest {
     public int toTime;
     public String transitModes;
     public float walkSpeed;
+    public int maxTripDurationMinutes = 120;
     public int maxRides = 4;
     public int[] percentiles;
     public int[] cutoffsMinutes;
@@ -53,10 +58,6 @@ public class AnalysisRequest {
 
     /** Web Mercator zoom level; 9 (~250 m by ~250 m) is standard. */
     public int zoom = 9;
-
-    private static int MIN_ZOOM = 9;
-    private static int MAX_ZOOM = 12;
-    private static int MAX_GRID_CELLS = 5_000_000;
 
     // Parameters that aren't currently configurable in the UI =====================================
 
@@ -78,9 +79,7 @@ public class AnalysisRequest {
 
     // Multi-origin only ===========================================================================
 
-    @Deprecated
-    public Integer maxTripDurationMinutes;
-
+    /** The human-readable name for a regional analysis. */
     public String name;
 
     /**
@@ -94,22 +93,18 @@ public class AnalysisRequest {
     public String originPointSetId;
 
     /**
-     * Set of points to be used as destinations in accessibility or travel time calculations. This
-     * can be a grid or freeform pointset of destinations. TODO rename to destinationPointSetId
+     * The IDs of pointsets to be used as destinations in accessibility or travel time calculations. This can be
+     * one or more grids with identical extents, or a single freeform pointset.
+     * This replaces the deprecated singular opportunityDatasetId.
      */
-    public String opportunityDatasetId;
+    public String[] destinationPointSetIds;
 
-    @Deprecated
-    public Integer travelTimePercentile;
-
-    /**
-     * Whether to save all results in a regional analysis to S3 for display in a "static site".
-     */
+    /** Whether to save all results in a regional analysis to S3 for display in a "static site". */
     public boolean makeTauiSite = false;
 
     /**
-     * Whether to record travel times between origins and destinations. If true, requires an
-     * originPointSetId to be specified.
+     * Whether to record travel times between origins and destinations.
+     * If true, requires an originPointSetId to be specified.
      */
     public boolean recordTimes;
 
@@ -121,9 +116,7 @@ public class AnalysisRequest {
      */
     public boolean oneToOne;
 
-    /**
-     * Whether to record cumulative opportunity accessibility indicators for each origin
-     */
+    /** Whether to record cumulative opportunity accessibility indicators for each origin. */
     public boolean recordAccessibility = true;
 
     // For multi-criteria optimization (Pareto search on time and fare cost) =======================
@@ -135,11 +128,15 @@ public class AnalysisRequest {
      */
     public InRoutingFareCalculator inRoutingFareCalculator;
 
-    /**
-     * Limit on monetary expenditure on fares when an inRoutingFareCalculator is used.
-     */
+    /** Limit on monetary expenditure on fares when an inRoutingFareCalculator is used. */
     public int maxFare;
 
+    /**
+     * A function mapping travel times to weighting factors for opportunities at that travel time from the origin.
+     * Classic cumulative opportunities accessibility uses a step function with all opportunities below the cutoff
+     * weighted 1.0 and all opportunities at or above the cutoff weighted 0.
+     */
+    public DecayFunction decayFunction;
 
     /**
      * Get all of the modifications for a project id that are in the Variant and map them to their
@@ -165,15 +162,24 @@ public class AnalysisRequest {
      * <p>
      * This method takes a task as a parameter, modifies that task, and also returns that same task.
      * This is because we have two subtypes of AnalysisTask and need to be able to create both.
+     *
+     * This populates for a single-point task, and several things get overwritten for regional tasks.
+     *
+     * TODO arguably this should be done by a method on the task classes themselves, with common parts factored out
+     *      to the same method on the superclass.
      */
-    public AnalysisTask populateTask (AnalysisTask task, Project project) {
+    public AnalysisWorkerTask populateTask (AnalysisWorkerTask task, Project project) {
 
         // Fetch the modifications associated with this project, filtering for the selected scenario
         // (denoted here as "variant"). There are no modifications in the baseline scenario
         // (which is denoted by special index -1).
         List<Modification> modifications = new ArrayList<>();
+        String scenarioName;
         if (variantIndex > -1) {
             modifications = modificationsForProject(project.accessGroup, projectId, variantIndex);
+            scenarioName = project.variants[variantIndex];
+        } else {
+            scenarioName = "Baseline";
         }
 
         // The CRC of the modifications in this scenario is appended to the scenario ID to
@@ -187,9 +193,12 @@ public class AnalysisRequest {
         task.scenario = new Scenario();
         // FIXME Job IDs need to be unique. Why are we setting this to the project and variant?
         //       This only works because the job ID is overwritten when the job is enqueued.
+        //       Its main effect is to cause the scenario ID to have this same pattern!
+        //       We should probably leave the JobID null on single point tasks. Needed: polymorphic task initialization.
         task.jobId = String.format("%s-%s-%s", projectId, variantIndex, crcValue);
         task.scenario.id = task.scenarioId = task.jobId;
         task.scenario.modifications = modifications;
+        task.scenario.description = scenarioName;
         task.graphId = project.bundleId;
         task.workerVersion = workerVersion;
         task.maxFare = this.maxFare;
@@ -228,6 +237,13 @@ public class AnalysisRequest {
         task.maxBikeTime = maxBikeTime;
         task.maxCarTime = maxCarTime;
         task.maxRides = maxRides;
+        if (task.inRoutingFareCalculator != null) {
+            // Only overwrite the default cutoff when doing multi-criteria routing with fare constraints, which can be
+            // slow and reliant on lower temporal cutoffs to avoid timeouts.
+            // In previous versions, the default cutoff was also overwritten for non-Taui regional analyses. But
+            // with changes introduced for decay functions/multiple cutoffs, that step is no longer needed here.
+            task.maxTripDurationMinutes = maxTripDurationMinutes;
+        }
         task.minBikeTime = minBikeTime;
         task.minCarTime = minCarTime;
         task.streetTime = streetTime;
@@ -236,20 +252,8 @@ public class AnalysisRequest {
         task.monteCarloDraws = monteCarloDraws;
         task.percentiles = percentiles;
         task.cutoffsMinutes = cutoffsMinutes;
-
+        
         task.logRequest = logRequest;
-
-        // maxTripDurationMinutes is used to prune the search in R5, discarding results exceeding the cutoff. 
-        // If a target exceeds the cutoff, travel time to it may as well be infinite for the purposes of a strict cumulative
-        // opportunity measure. In standard single-point and static-site results, we don't apply this pruning (at less than
-        // the default maximum of 120 minutes) because users can vary the travel time cutoff after analysis. 
-        // An exception is for Pareto searches on fares (i.e. when inRoutingFareCalulator specified), for which we use this
-        // cutoff to achieve reasonable computation time. This does mean that isochrone results will be invalid if the user moves 
-        // the slider up beyond the travel time set when making a fare-based request. FIXME Hack for fare requests.
-        if ((task.getType() == AnalysisTask.Type.REGIONAL_ANALYSIS && !task.makeTauiSite) ||
-                task.inRoutingFareCalculator != null) {
-            task.maxTripDurationMinutes = maxTripDurationMinutes;
-        }
 
         task.accessModes = getEnumSetFromString(accessModes);
         task.directModes = getEnumSetFromString(directModes);
@@ -257,6 +261,12 @@ public class AnalysisRequest {
         task.transitModes = transitModes != null && !"".equals(transitModes)
                 ? EnumSet.copyOf(Arrays.stream(transitModes.split(",")).map(TransitModes::valueOf).collect(Collectors.toList()))
                 : EnumSet.noneOf(TransitModes.class);
+
+        // Use the decay function supplied by the UI, defaulting to a zero-width step function if none is supplied.
+        task.decayFunction = decayFunction;
+        if (task.decayFunction == null) {
+            task.decayFunction = new StepDecayFunction();
+        }
 
         return task;
     }

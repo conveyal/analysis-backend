@@ -3,6 +3,7 @@ package com.conveyal.analysis.controllers;
 import com.conveyal.analysis.AnalysisServerException;
 import com.conveyal.analysis.models.AggregationArea;
 import com.conveyal.analysis.persistence.Persistence;
+import com.conveyal.analysis.util.HttpUtils;
 import com.conveyal.file.FileStorage;
 import com.conveyal.file.FileStorageKey;
 import com.conveyal.file.FileUtils;
@@ -11,9 +12,6 @@ import com.conveyal.r5.util.ShapefileReader;
 import com.google.common.io.Files;
 import com.mongodb.QueryBuilder;
 import org.apache.commons.fileupload.FileItem;
-import org.apache.commons.fileupload.FileItemFactory;
-import org.apache.commons.fileupload.disk.DiskFileItemFactory;
-import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.json.simple.JSONObject;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -30,6 +28,7 @@ import java.io.OutputStream;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,6 @@ import static com.conveyal.analysis.util.JsonUtil.toJson;
 public class AggregationAreaController implements HttpController {
 
     private static final Logger LOG = LoggerFactory.getLogger(AggregationAreaController.class);
-    private static final FileItemFactory fileItemFactory = new DiskFileItemFactory();
 
     /**
      * Arbitrary limit to prevent UI clutter from many aggregation  areas (e.g. if someone uploads thousands of blocks).
@@ -67,6 +65,8 @@ public class AggregationAreaController implements HttpController {
         this.config = config;
     }
 
+
+
     private FileStorageKey getStoragePath (AggregationArea area) {
         return new FileStorageKey(config.gridBucket(), area.getS3Key());
     }
@@ -81,8 +81,7 @@ public class AggregationAreaController implements HttpController {
      */
     private List<AggregationArea> createAggregationAreas (Request req, Response res) throws Exception {
         ArrayList<AggregationArea> aggregationAreas = new ArrayList<>();
-        ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
-        Map<String, List<FileItem>> query = sfu.parseParameterMap(req.raw());
+        Map<String, List<FileItem>> query = HttpUtils.getRequestFiles(req.raw());
 
         // 1. Extract relevant files: .shp, .prj, .dbf, and .shx. ======================================================
         Map<String, FileItem> filesByName = query.get("files").stream()
@@ -119,10 +118,17 @@ public class AggregationAreaController implements HttpController {
             filesByName.get(baseName + ".shx").write(shxFile);
         }
 
-        ShapefileReader reader = new ShapefileReader(shpFile);
-
         // 2. Read features ============================================================================================
-        List<SimpleFeature> features = reader.wgs84Stream().collect(Collectors.toList());
+        ShapefileReader reader = null;
+        List<SimpleFeature> features;
+        try {
+            reader = new ShapefileReader(shpFile);
+            features = reader.wgs84Stream().collect(Collectors.toList());
+        } finally {
+            if (reader != null) reader.close();
+        }
+
+
         Map<String, Geometry> areas = new HashMap<>();
 
         if (features.size() > MAX_FEATURES) {
@@ -140,7 +146,7 @@ public class AggregationAreaController implements HttpController {
         } else {
             // Don't union. Name each area by looking up its value for the name property in the request.
             String nameProperty = query.get("nameProperty").get(0).getString("UTF-8");
-            features.stream().forEach(f -> areas.put(readProperty(f, nameProperty), (Geometry) f.getDefaultGeometry()));
+            features.forEach(f -> areas.put(readProperty(f, nameProperty), (Geometry) f.getDefaultGeometry()));
         }
         // 3. Convert to raster grids, then store them. ================================================================
         areas.forEach((String name, Geometry geometry) -> {

@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.conveyal.r5.analyst.cluster.AnalystWorker.addWarningAndInfoJson;
+import static com.conveyal.r5.analyst.cluster.AnalysisWorker.addWarningAndInfoJson;
 
 /**
  * This class contains Spark HTTP request handler methods that are served up by Analysis workers.
@@ -28,10 +28,10 @@ public class AnalysisWorkerController {
 
     private static final Logger LOG = LoggerFactory.getLogger(AnalysisWorkerController.class);
 
-    private final AnalystWorker analystWorker;
+    private final AnalysisWorker analysisWorker;
 
-    public AnalysisWorkerController (AnalystWorker analystWorker) {
-        this.analystWorker = analystWorker;
+    public AnalysisWorkerController (AnalysisWorker analysisWorker) {
+        this.analysisWorker = analysisWorker;
     }
 
     public Object handleSinglePoint (Request request, Response response) throws IOException {
@@ -48,7 +48,7 @@ public class AnalysisWorkerController {
 
         try {
             try {
-                byte[] binaryResult = analystWorker.handleOneSinglePointTask(task);
+                byte[] binaryResult = analysisWorker.handleOneSinglePointTask(task);
                 response.status(HttpStatus.OK_200);
                 if (task.getFormat().equals(TravelTimeSurfaceTask.Format.GEOTIFF)) {
                     response.header("Content-Type", "application/x-geotiff");

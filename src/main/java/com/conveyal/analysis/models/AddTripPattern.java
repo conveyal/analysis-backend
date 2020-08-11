@@ -30,6 +30,8 @@ public class AddTripPattern extends Modification {
     /** The Route color, for display purposes. */
     public String color;
 
+    public Integer directionId;
+
     public List<Segment> segments;
 
     public boolean bidirectional;
@@ -63,6 +65,8 @@ public class AddTripPattern extends Modification {
         at.comment = name;
         // Uncomment when implemented in r5
         at.color = color;
+
+        if (directionId != null) at.directionId = directionId;
 
         if (transitMode != null) {
             at.mode = transitMode;

@@ -1,5 +1,6 @@
 package com.conveyal.r5.point_to_point;
 
+import com.conveyal.r5.analyst.fare.ParetoServer;
 import com.conveyal.r5.api.GraphQlRequest;
 import com.conveyal.r5.api.util.BikeRentalStation;
 import com.conveyal.r5.api.util.LegMode;
@@ -50,6 +51,7 @@ import static com.conveyal.r5.streets.VertexStore.fixedDegreesToFloating;
 import static com.conveyal.r5.streets.VertexStore.floatingDegreesToFixed;
 import static spark.Spark.before;
 import static spark.Spark.get;
+import static spark.Spark.post;
 import static spark.Spark.options;
 import static spark.Spark.port;
 import static spark.Spark.staticFileLocation;
@@ -150,6 +152,7 @@ public class PointToPointRouterServer {
         ObjectReader mapReader = mapper.reader(HashMap.class);
         staticFileLocation("debug-plan");
         PointToPointQuery pointToPointQuery = new PointToPointQuery(transportNetwork);
+        ParetoServer paretoServer = new ParetoServer(transportNetwork);
 
         // add cors header
         before((req, res) -> res.header("Access-Control-Allow-Origin", "*"));
@@ -946,6 +949,7 @@ public class PointToPointRouterServer {
 
         }, JsonUtilities.objectMapper::writeValueAsString);
 
+        post("/pareto", paretoServer::handle);
     }
 
     /**

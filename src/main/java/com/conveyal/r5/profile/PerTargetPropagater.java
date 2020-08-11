@@ -4,7 +4,7 @@ import com.conveyal.r5.OneOriginResult;
 import com.conveyal.r5.analyst.PathScorer;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.TravelTimeReducer;
-import com.conveyal.r5.analyst.cluster.AnalysisTask;
+import com.conveyal.r5.analyst.cluster.AnalysisWorkerTask;
 import com.conveyal.r5.analyst.cluster.PathWriter;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
 import com.conveyal.r5.streets.EgressCostTable;
@@ -39,11 +39,14 @@ public class PerTargetPropagater {
 
     private static final Logger LOG = LoggerFactory.getLogger(PerTargetPropagater.class);
 
+    public static final int SECONDS_PER_MINUTE = 60;
+    public static final int MM_PER_METER = 1000;
+
     /**
-     * The maximum travel time we will record and report. To limit calculation time and avoid overflow places this
-     * many seconds from the origin are just considered unreachable.
+     * We will not record or report travel times for paths this long or longer. To limit calculation time and avoid
+     * overflow, places at least this many seconds from the origin are simply considered unreachable.
      */
-    public int cutoffSeconds = 120 * SECONDS_PER_MINUTE;
+    public final int maxTravelTimeSeconds;
 
     /** The targets, not yet linked to the street network. */
     private PointSet targets;
@@ -90,9 +93,6 @@ public class PerTargetPropagater {
      */
     private final boolean oneToOne;
 
-    public static final int SECONDS_PER_MINUTE = 60;
-    public static final int MM_PER_METER = 1000;
-
     // STATE FIELDS WHICH ARE RESET WHEN PROCESSING EACH DESTINATION.
     // These track the characteristics of the best paths known to the target currently being processed.
 
@@ -115,10 +115,11 @@ public class PerTargetPropagater {
             PointSet targets,
             StreetLayer streetLayer,
             EnumSet<StreetMode> modes,
-            AnalysisTask task,
+            AnalysisWorkerTask task,
             int[][] travelTimesToStopsForIteration,
             int[] nonTransitTravelTimesToTargets
     ) {
+        this.maxTravelTimeSeconds = task.maxTripDurationMinutes * SECONDS_PER_MINUTE;
         this.targets = targets;
         this.modes = modes;
         this.request = task;
@@ -205,9 +206,10 @@ public class PerTargetPropagater {
 
             if (calculateComponents) {
                 // TODO Somehow report these in-vehicle, wait and walk breakdown values alongside the total travel time.
-                // TODO WalkTime should be calculated per-iteration, as it may not hold for some summary statistics that stat(total) = stat(in-vehicle) + stat(wait) + stat(walk).
-                // NOTE this is currently using only the fastest travel time.
+                // TODO WalkTime should be calculated per-iteration, as it may not hold for some summary statistics
+                //      that stat(total) = stat(in-vehicle) + stat(wait) + stat(walk).
                 // The perIterationTravelTimes are sorted as a side effect of the above travelTimeReducer call.
+                // NOTE this is currently using only the first (lowest) travel time.
                 Set<Path> selectedPaths = pathScorer.getTopPaths(pathWriter.nPathsPerTarget, perIterationTravelTimes[0]);
                 pathWriter.recordPathsForTarget(selectedPaths);
             }
@@ -314,7 +316,7 @@ public class PerTargetPropagater {
                 if (secondsFromStopToTarget < egressLegTimeLimitSeconds){
                     for (int iteration = 0; iteration < nIterations; iteration++) {
                         int timeAtStop = travelTimesToStop[stop][iteration];
-                        if (timeAtStop > cutoffSeconds || timeAtStop > perIterationTravelTimes[iteration]) {
+                        if (timeAtStop >= maxTravelTimeSeconds || timeAtStop >= perIterationTravelTimes[iteration]) {
                             // Skip propagation if all resulting times will be greater than the cutoff and
                             // cannot improve on the best known time at this iteration. Also avoids overflow.
                             continue;
@@ -344,7 +346,7 @@ public class PerTargetPropagater {
                         }
 
                         int timeAtTarget = timeAtStop + secondsFromStopToTarget;
-                        if (timeAtTarget < cutoffSeconds && timeAtTarget < perIterationTravelTimes[iteration]) {
+                        if (timeAtTarget < maxTravelTimeSeconds && timeAtTarget < perIterationTravelTimes[iteration]) {
                             // To reach this target, alighting at this stop is faster than any previously checked stop.
                             perIterationTravelTimes[iteration] = timeAtTarget;
                             if (calculateComponents) {

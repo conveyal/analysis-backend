@@ -75,9 +75,6 @@
                         </filter>
                     </filters>
                 </configuration>
-                <!-- Define two executions, excluding different dependencies from the output JARs for backend and worker.
-                     Ideally this should be done with a multi-module build, but multiple executions works for now.
-                     Verified that execution-specific configuration is merged with common configuration section above. -->
                 <executions>
                     <execution>
                         <id>local-or-worker</id>
@@ -85,6 +82,7 @@
                         <goals><goal>shade</goal></goals>
                         <configuration>
                             <finalName>${git.commit.id.describe}</finalName>
+                            <!-- Start R5Main rather than AnalystWorker or BackendMain to behave like legacy R5 JARs -->
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
@@ -191,13 +189,7 @@
         <repository>
             <id>axiom-public-releases</id>
             <name>Axiom Releases</name>
-            <url>http://nexus.axiomalaska.com/nexus/content/repositories/public-releases</url>
-        </repository>
-        <!-- axiomalaska polyline-encoder 0.1 available here -->
-        <repository>
-            <id>oba-public</id>
-            <name>One Bus Away Public</name>
-            <url>http://nexus.onebusaway.org/nexus/content/repositories/public/</url>
+            <url>https://nexus.axiomalaska.com/nexus/content/repositories/public-releases</url>
         </repository>
     </repositories>
 

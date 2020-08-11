@@ -288,7 +288,7 @@ public class StreetLayer implements Serializable, Cloneable {
 
         for (Map.Entry<Long, Way> entry : osm.ways.entrySet()) {
             Way way = entry.getValue();
-            if (way.hasTag("park_ride", "yes")) {
+            if (isParkAndRide(way)) {
                 parkAndRideWays.add(way);
             }
             if (!isWayRoutable(way)) {
@@ -333,9 +333,10 @@ public class StreetLayer implements Serializable, Cloneable {
                 lts1, lts2, lts3, lts4, ltsUnknown);
 
         List<Node> parkAndRideNodes = new ArrayList<>();
-
         for (Node node : osm.nodes.values()) {
-            if (node.hasTag("park_ride", "yes")) parkAndRideNodes.add(node);
+            if (isParkAndRide(node)) {
+                parkAndRideNodes.add(node);
+            }
         }
 
         LOG.info("Done making street edges.");
@@ -367,8 +368,9 @@ public class StreetLayer implements Serializable, Cloneable {
         }
         LOG.info("Made {} P+R vertices", numOfParkAndRides);
 
-        // create turn restrictions.
+        // Create turn restrictions from relations.
         // TODO transit splitting is going to mess this up
+        // TODO handle multipolygon relations that are park and rides (e.g. parking structures with holes)
         osm.relations.entrySet().stream().filter(e -> e.getValue().hasTag("type", "restriction")).forEach(e -> this.applyTurnRestriction(e.getKey(), e.getValue()));
         LOG.info("Created {} turn restrictions", turnRestrictions.size());
 
@@ -379,6 +381,11 @@ public class StreetLayer implements Serializable, Cloneable {
             vertexIndexForOsmNode = null;
 
         osm = null;
+    }
+
+    private boolean isParkAndRide (OSMEntity entity) {
+        String prValue = entity.getTag("park_ride");
+        return prValue != null && ! prValue.equalsIgnoreCase("NO");
     }
 
     /**
