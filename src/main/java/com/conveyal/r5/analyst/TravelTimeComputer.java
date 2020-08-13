@@ -84,7 +84,9 @@ public class TravelTimeComputer {
         // We could change the preloader to retain these values in a compound return type, to avoid repetition here.
         PointSet destinations;
 
-        if (request instanceof  RegionalTask && ((RegionalTask) request).destinationPointSets[0] instanceof FreeFormPointSet) {
+        if (request instanceof  RegionalTask
+                && !request.makeTauiSite
+                && ((RegionalTask) request).destinationPointSets[0] instanceof FreeFormPointSet) {
             // Freeform; destination pointset was set by handleOneRequest in the main AnalystWorker
             destinations = ((RegionalTask) request).destinationPointSets[0];
         } else {
