@@ -4,6 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- NOTE THIS IS SUPERSEDED BY THE GRADLE BUILD. THIS FILE EXISTS ONLY AS A REFERENCE DURING THE TRANSITION. -->
+
     <groupId>com.conveyal</groupId>
     <artifactId>analysis</artifactId>
     <version>5.11.0-SNAPSHOT</version>
