@@ -29,8 +29,8 @@ publishing {
             name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/conveyal/analysis-backend")
             credentials {
-                username = project.findProperty("gpr.user") ?: System.getenv("GHP_USERNAME")
-                password = project.findProperty("gpr.key") ?: System.getenv("GHP_TOKEN")
+                username = System.getenv("GPR_USERNAME")
+                password = System.getenv("GPR_TOKEN")
             }
         }
     }

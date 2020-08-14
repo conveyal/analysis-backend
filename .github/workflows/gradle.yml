@@ -19,6 +19,8 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      GPR_USERNAME: ${{ secrets.GPR_USERNAME }}
+      GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
     steps:
     - uses: actions/checkout@v2
     # Java setup step completes very fast, no need to run in a preconfigured docker container
