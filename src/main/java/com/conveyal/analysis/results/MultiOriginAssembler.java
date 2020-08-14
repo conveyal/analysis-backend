@@ -152,7 +152,7 @@ public class MultiOriginAssembler {
                 }
             }
 
-            if (nDestinationPointSets > 0 && job.templateTask.destinationPointSetKeys[0].endsWith(FileStorageFormat.FREEFORM.extension)) {
+            if (!job.templateTask.makeTauiSite && job.templateTask.destinationPointSetKeys[0].endsWith(FileStorageFormat.FREEFORM.extension)) {
                 // It's kind of fragile to read from an external network service here. But this is
                 // only triggered when destinations are freeform, which is an experimental feature.
                 destinationPointSet = PointSetCache.readFreeFormFromFileStore(job.templateTask.grid);
