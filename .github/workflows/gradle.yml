@@ -1,5 +1,15 @@
 name: Java CI
-on: [push, pull_request] # We should find a way to avoid double-builds when creating PRs
+# On [push, pull_request] causes double-builds when creating PRs.
+# But triggering on push only will miss pull requests from outside authors.
+on:
+  # Should catch merged pull requests, pushes to Conveyal PR branches, and tags.
+  # The push event's ref reveals the branch name for S3 upload, unlike pull_request which sees the merge target.
+  push
+  # Try to catch PRs from outside authors, which don't need to be uploaded to S3.
+  # pull_request:
+  #   branches:
+  #     - dev
+  #     - master
 jobs:
   build:
     runs-on: ubuntu-latest
