@@ -2,19 +2,25 @@ plugins {
     id 'java'
     id 'com.github.johnrengelman.shadow' version '6.0.0'
     id 'maven-publish'
+    id 'com.palantir.git-version' version '0.12.3'
 }
 
 group = 'com.conveyal'
-version = '5.11.0-SNAPSHOT'
+// set version to `git describe --tags --always --first-parent`, plus '.dirty' if local changes are present.
+version gitVersion()
 sourceCompatibility = '11'
 
 jar {
+    // For Java 11 Modules, specify a module name.
+    // Do not create module-info.java until all our dependencies specify a module name.
+    // Main-Class R5Main will start a worker, BackendMain must be specified on JVM command line to start backend.
+    // Store the build version in the JAR manifest
+    // to allow using it in Java code with X.class.getPackage().getImplementationVersion()
     manifest {
-        // For Java 11 Modules, specify a module name.
-        // Do not create module-info.java until all our dependencies specify a module name.
-        // Main-Class R5Main will start a worker, BackendMain must be specified on JVM command line to start backend.
         attributes 'Automatic-Module-Name': 'com.conveyal.analysis',
-                   'Main-Class': 'com.conveyal.r5.R5Main'
+                   'Main-Class': 'com.conveyal.r5.R5Main',
+                   'Implementation-Title': 'Conveyal Analysis Backend',
+                   'Implementation-Version': project.version
     }
 }
 
