@@ -1,5 +1,5 @@
 name: Java CI
-on: [push]
+on: [push, pull_request] # We should find a way to avoid double-builds when creating PRs
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,19 +33,22 @@ jobs:
       with:
         path: ~/.gradle/caches
         key: gradle-caches
-    - name: Build and Publish with Gradle
-      run: gradle publish
-    # Use always switch on git describe to mimic behavior of Maven git ID plugin, to get same file name.
-#    - name: Upload to S3
-#      run: |
-#        GIT_DESCRIBE=$(git describe --always)
-#        aws s3 cp --no-progress --region eu-west-1 ./target/shaded/$GIT_DESCRIBE-cluster.jar s3://analysis-backend-builds
-#        aws s3 cp --no-progress --region eu-west-1 ./target/shaded/$GIT_DESCRIBE.jar s3://r5-builds
-#    # If this run is for the head of a branch, upload under the name branch-latest.jar
-#    - name: Upload as branch-latest.jar
-#      if: startsWith(github.ref, 'refs/heads/')
-#      run: |
-#        GIT_DESCRIBE=$(git describe --always)
-#        BRANCH=${GITHUB_REF#refs/heads/}
-#        echo GIT_DESCRIBE is $GIT_DESCRIBE, BRANCH is $BRANCH
-#        aws s3 cp --no-progress --region eu-west-1 ./target/shaded/$GIT_DESCRIBE.jar s3://r5-builds/$BRANCH-latest.jar
+    - name: Build and Test
+      run: gradle build --console=plain
+    - name: Publish to GH Packages
+      run: gradle publish --console=plain
+    # Use 'always' switch on git describe to mimic behavior of Maven git ID plugin, to get same file name.
+    # This apparently doesn't work for tags, which GH Actions doesn't see but build plugins somehow do.
+    - name: Upload to S3
+      run: |
+        GIT_DESCRIBE=$(git describe --always)
+        LOCAL_FILE=$(ls build/libs/*-all.jar | head -n1)
+        aws s3 cp --no-progress --region eu-west-1 $LOCAL_FILE s3://r5-builds/${GIT_DESCRIBE}.jar
+    # If this run is for the head of a branch, also copy to branch-latest.jar. 'aws s3 cp' will overwrite by default.
+    - name: Copy to branch-latest.jar on S3
+      if: startsWith(github.ref, 'refs/heads/')
+      run: |
+        GIT_DESCRIBE=$(git describe --always)
+        BRANCH=${GITHUB_REF#refs/heads/}
+        echo GIT_DESCRIBE is $GIT_DESCRIBE, BRANCH is $BRANCH
+        aws s3 cp --no-progress --region eu-west-1 s3://r5-builds/${GIT_DESCRIBE}.jar s3://r5-builds/${BRANCH}-latest.jar
