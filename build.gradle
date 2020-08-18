@@ -51,6 +51,25 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+// Create a properties file so Java code can be aware of its own version. Properties allow exposing multiple values
+// such as the full commit ID and branch name, rather than just the version available in the JAR manifest.
+task createVersionProperties(dependsOn: processResources) {
+    doLast {
+        def details = versionDetails()
+        new File("$buildDir/resources/main/version.properties").withWriter { w ->
+            Properties p = new Properties()
+            p['version'] = project.version.toString()
+            p['commit'] = details.gitHashFull
+            p['branch'] = details.branchName
+            p.store w, null
+        }
+    }
+}
+
+classes {
+    dependsOn createVersionProperties
+}
+
 repositories {
     // Do not use mavenLocal() which is only for interoperability with Maven, let Gradle manage its own cache.
     // Put Open Source Geospatial before Maven Central to get JAI core, see https://stackoverflow.com/a/26993223

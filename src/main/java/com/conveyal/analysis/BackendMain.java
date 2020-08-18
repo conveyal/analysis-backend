@@ -45,7 +45,7 @@ public abstract class BackendMain {
 
     protected static void startServer (Components components, Thread... postStartupThreads) {
         LOG.info("Starting Conveyal analysis backend, the time is now {}", DateTime.now());
-        LOG.info("Backend version is: {}", BackendVersion.instance.describe);
+        LOG.info("Backend version is: {}", BackendVersion.instance.version);
         LOG.info("Connecting to database...");
 
         // Initialize ImageIO. See http://stackoverflow.com/questions/20789546

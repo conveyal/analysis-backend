@@ -22,12 +22,10 @@ public class BackendVersion {
 
     private final Properties properties = new Properties();
 
+    // Version number should be very similar to a git describe, with possible addition of .dirty
     public final String version;
     public final String commit;
-    public final String describe;
     public final String branch;
-    public final String buildHost;
-    public final String buildTime;
 
     private BackendVersion () {
         try {
@@ -37,12 +35,9 @@ public class BackendVersion {
         } catch (IOException | NullPointerException e) {
             LOG.error("Error loading version and commit information for Analysis Backend: {}", e.toString());
         }
-        version = getPropertyOrUnknown("git.build.version");
-        commit = getPropertyOrUnknown("git.commit.id");
-        describe = getPropertyOrUnknown("git.commit.id.describe");
-        branch = getPropertyOrUnknown("git.branch");
-        buildHost = getPropertyOrUnknown("git.build.host");
-        buildTime = getPropertyOrUnknown("git.build.time");
+        version = getPropertyOrUnknown("version");
+        commit = getPropertyOrUnknown("commit");
+        branch = getPropertyOrUnknown("branch");
     }
 
     /**
