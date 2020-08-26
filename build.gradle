@@ -41,6 +41,10 @@ publishing {
         }
     }
     publications {
+        // The presence of the shadow plugin somehow causes the shadow-jar to also be automatically included in this
+        // publication. Ideally we want to produce the shadow jar and upload it to S3 as a worker, but only publish the
+        // much smaller plain JAR without dependencies to Github Packages. On the other hand, we may want to publish
+        // shadow jars for tagged releases.
         gpr(MavenPublication) {
             from(components.java)
         }
