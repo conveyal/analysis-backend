@@ -450,7 +450,7 @@ public class OpportunityDatasetController implements HttpController {
             regionId = getFormField(formFields, "regionId", true);
         } catch (Exception e) {
             // We can't even get enough information to create a status tracking object. Re-throw an exception.
-            throw AnalysisServerException.badRequest("Unable to parse opportunity dataset. " + ExceptionUtils.asString(e));
+            throw AnalysisServerException.fileUpload("Unable to parse opportunity dataset. " + ExceptionUtils.asString(e));
         }
 
         // Create a region-wide status object tracking the processing of opportunity data.
