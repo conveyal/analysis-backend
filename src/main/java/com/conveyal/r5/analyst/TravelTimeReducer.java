@@ -121,10 +121,20 @@ public class TravelTimeReducer {
         calculateAccessibility = calculateTravelTimes = false;
         if (task instanceof TravelTimeSurfaceTask) {
             calculateTravelTimes = true;
+            {
+                // WORK IN PROGRESS: worker side accessibility
+                calculateAccessibility = true;
+                this.destinationPointSets = task.destinationPointSets;
+                task.cutoffsMinutes = new int[115];
+                for (int c = 0; c < task.cutoffsMinutes.length; c++) {
+                    task.cutoffsMinutes[c] = c + 5;
+                }
+            }
         } else {
             RegionalTask regionalTask = (RegionalTask) task;
             if (regionalTask.recordAccessibility) {
                 calculateAccessibility = true;
+                // TODO Cast is no longer necessary for this, we could do it for every incoming task.
                 this.destinationPointSets = regionalTask.destinationPointSets;
             }
             if (regionalTask.recordTimes || regionalTask.makeTauiSite) {
@@ -296,9 +306,11 @@ public class TravelTimeReducer {
     }
 
     /**
-     * If no travel times to destinations have been streamed in by calling recordTravelTimesForTarget, the
-     * TimeGrid will have a buffer full of UNREACHED. This allows shortcutting around
-     * routing and propagation when the origin point is not connected to the street network.
+     * This is the primary way to create a OneOriginResult and end the processing.
+     * Some alternate code paths exist for TAUI site generation and testing, but this handles all other cases.
+     * For example, if no travel times to destinations have been streamed in by calling recordTravelTimesForTarget, the
+     * TimeGrid will have a buffer full of UNREACHED. This allows shortcutting around routing and propagation when the
+     * origin point is not connected to the street network.
      */
     public OneOriginResult finish () {
         return new OneOriginResult(travelTimeResult, accessibilityResult);

@@ -33,7 +33,7 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * Note that when we begin calculating single-point accessibility on the worker instead of in the UI, there will
      * frequently be 120 cutoffs. Then this limit will only apply to regional analyses, not single-point.
      */
-    public static final int MAX_CUTOFFS = 12;
+    public static final int MAX_CUTOFFS = 120; // WORK IN PROGRESS: worker side accessibility (should be lower)
 
     /** The largest number of percentiles we'll accept in a task. */
     public static final int MAX_PERCENTILES = 5;

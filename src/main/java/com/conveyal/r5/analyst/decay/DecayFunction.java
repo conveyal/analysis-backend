@@ -69,6 +69,13 @@ public abstract class DecayFunction {
     public abstract void prepare ();
 
     /**
+     * Return a string that can be evaluated as a javascript function to preview the shape of this function in a UI.
+     * We can't simply render the function at one cutoff and transpose that preview, because many common decay functions
+     * (including logistic CDF and exponential) change shape significantly at different cutoffs, especially low ones.
+     */
+    public String javascriptFunction () { return "{return 0}"; }
+
+    /**
      * For functions without a simple analytic solution, find the effective zero point by bisection.
      * We require functions to reach zero at or above the cutoff point, but before four hours.
      * Adapted from Python's bisect_right function. Quick benchmarks show effective search time is under one msec.
@@ -87,4 +94,5 @@ public abstract class DecayFunction {
         }
         return low;
     }
+
 }

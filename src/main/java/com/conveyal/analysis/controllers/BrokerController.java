@@ -12,10 +12,12 @@ import com.conveyal.analysis.components.eventbus.EventBus;
 import com.conveyal.analysis.components.eventbus.SinglePointEvent;
 import com.conveyal.analysis.models.AnalysisRequest;
 import com.conveyal.analysis.models.Bundle;
+import com.conveyal.analysis.models.OpportunityDataset;
 import com.conveyal.analysis.models.Project;
 import com.conveyal.analysis.persistence.Persistence;
 import com.conveyal.analysis.util.HttpStatus;
 import com.conveyal.analysis.util.JsonUtil;
+import com.conveyal.file.FileStorageFormat;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.cluster.AnalysisWorker;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -49,6 +51,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * This is a Spark HTTP controller to handle connections from workers reporting their status and requesting work.
@@ -133,6 +139,27 @@ public class BrokerController implements HttpController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         // Transform the analysis UI/backend task format into a slightly different type for R5 workers.
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
+        {
+            // WORK IN PROGRESS: worker side accessibility
+            // Look up destination pointset (there should always be zero or one of them). This is mostly copypasted
+            // from the create regional analysis -ideally we'd reuse code but they're in different places.
+            // We should refactor the populateTask method (and move it off the request) to take care of all this.
+            checkNotNull(analysisRequest.destinationPointSetIds);
+            checkState(analysisRequest.destinationPointSetIds.length == 1, "Exactly one destination pointset ID must be supplied.");
+            List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
+            String destinationPointSetId = analysisRequest.destinationPointSetIds[0];
+            OpportunityDataset opportunityDataset = Persistence.opportunityDatasets.findByIdIfPermitted(
+                    destinationPointSetId,
+                    accessGroup
+            );
+            checkNotNull(opportunityDataset, "Opportunity dataset could not be found in database.");
+            opportunityDatasets.add(opportunityDataset);
+            task.destinationPointSetKeys = new String[] { opportunityDataset.storageLocation() };
+            // Also do a preflight validation of the cutoffs and percentiles arrays for all non-TAUI regional tasks.
+            // Don't validate cutoffs because we have way too many of them.
+            // task.validateCutoffsMinutes();
+            task.validatePercentiles();
+        }
         if (request.headers("Accept").equals("image/tiff")) {
             // If the client requested a Geotiff using HTTP headers (for exporting results to GIS),
             // signal this using a field on the request sent to the worker.
