@@ -7,6 +7,7 @@ import com.conveyal.r5.util.ShapefileReader;
 import com.csvreader.CsvReader;
 import com.google.common.io.LittleEndianDataInputStream;
 import com.google.common.io.LittleEndianDataOutputStream;
+import com.google.common.primitives.Doubles;
 import org.apache.commons.math3.util.FastMath;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridCoverageFactory;
@@ -82,6 +83,8 @@ import static org.apache.commons.math3.util.FastMath.tan;
 public class Grid extends PointSet {
 
     public static final Logger LOG = LoggerFactory.getLogger(Grid.class);
+
+    public static final String COUNT_COLUMN_NAME = "[COUNT]";
 
     /** The web mercator zoom level for this grid. */
     public final int zoom;
@@ -571,6 +574,12 @@ public class Grid extends PointSet {
 
         // A set to track fields that contain only numeric values, which are candidate opportunity density fields.
         Set<String> numericColumns = new HashSet<>(headers);
+        if (numericColumns.size() != headers.size()) {
+            throw new IllegalArgumentException("CSV file contains duplicate column headers.");
+        }
+        if (numericColumns.contains(COUNT_COLUMN_NAME)) {
+            throw new IllegalArgumentException("CSV file contains reserved column name: " + COUNT_COLUMN_NAME);
+        }
         numericColumns.remove(latField);
         numericColumns.remove(lonField);
         if (ignoreFields != null) {
@@ -588,14 +597,16 @@ public class Grid extends PointSet {
 
             envelope.expandToInclude(parseDouble(reader.get(lonField)), parseDouble(reader.get(latField)));
 
-            // Remove columns that cannot be parsed as doubles
+            // Remove columns that cannot be parsed as non-negative finite doubles
             for (Iterator<String> it = numericColumns.iterator(); it.hasNext();) {
                 String field = it.next();
                 String value = reader.get(field);
                 if (value == null || "".equals(value)) continue; // allow missing data
                 try {
-                    // TODO also exclude columns containing negatives?
-                    parseDouble(value);
+                    double dv = parseDouble(value);
+                    if (!(Double.isFinite(dv) || dv < 0)) {
+                        it.remove();
+                    }
                 } catch (NumberFormatException e) {
                     it.remove();
                 }
@@ -605,6 +616,9 @@ public class Grid extends PointSet {
         // This will also close the InputStreams.
         reader.close();
 
+        if (numericColumns.isEmpty()) {
+            throw new IllegalArgumentException("CSV file contained no entirely finite, non-negative numeric columns.");
+        }
         checkWgsEnvelopeSize(envelope);
 
         if (progressListener != null) {
@@ -620,9 +634,9 @@ public class Grid extends PointSet {
         }
 
         // Make one more Grid where every point will have a weight of 1, for counting points rather than opportunities.
-        // FIXME this will overwrite any column called "[COUNT]" in the source file, which is hopefully rare.
+        // This assumes there is no column called "[COUNT]" in the source file, which is validated above.
         Grid countGrid = new Grid(zoom, envelope);
-        countGrid.name = "[COUNT]";
+        countGrid.name = COUNT_COLUMN_NAME;
         grids.put(countGrid.name, countGrid);
 
         // The first read through the CSV just established its structure (e.g. which fields were numeric).
@@ -630,7 +644,6 @@ public class Grid extends PointSet {
         reader = new CsvReader(csvInputStreamProvider.getInputStream(), StandardCharsets.UTF_8);
         reader.readHeaders();
 
-        // FIXME this whole thing does not tolerate files with multiple columns having the same name. Detect or handle that case.
         int i = 0;
         while (reader.readRecord()) {
             if (++i % 1000 == 0) {
@@ -644,6 +657,7 @@ public class Grid extends PointSet {
             double lat = parseDouble(reader.get(latField));
             double lon = parseDouble(reader.get(lonField));
 
+            // This assumes all columns in the CSV have unique names, which is validated above.
             for (String field : numericColumns) {
                 String value = reader.get(field);
 
