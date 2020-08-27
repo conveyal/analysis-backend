@@ -243,7 +243,7 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
         checkArgument(nCutoffs >= 1, "At least one cutoff must be supplied.");
         checkArgument(nCutoffs <= MAX_CUTOFFS, "Maximum number of cutoffs allowed is " + MAX_CUTOFFS);
         for (int c = 0; c < nCutoffs; c++) {
-            checkArgument(cutoffsMinutes[c] > 0, "Cutoffs must be positive integers.");
+            checkArgument(cutoffsMinutes[c] >= 0, "Cutoffs must be non-negative integers.");
             checkArgument(cutoffsMinutes[c] <= 120, "Cutoffs must be at most 120 minutes.");
             if (c > 0) {
                 checkArgument(cutoffsMinutes[c] >= cutoffsMinutes[c - 1], "Cutoffs must be in ascending order.");

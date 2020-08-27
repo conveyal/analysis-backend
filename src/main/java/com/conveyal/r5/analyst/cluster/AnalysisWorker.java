@@ -17,8 +17,6 @@ import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.S3FilePersistence;
 import com.conveyal.r5.analyst.TravelTimeComputer;
-import com.conveyal.r5.analyst.WebMercatorExtents;
-import com.conveyal.r5.analyst.WebMercatorGridPointSet;
 import com.conveyal.r5.analyst.decay.DecayFunction;
 import com.conveyal.r5.analyst.error.ScenarioApplicationException;
 import com.conveyal.r5.analyst.error.TaskError;
@@ -676,6 +674,9 @@ public class AnalysisWorker implements Runnable {
         jsonBlock.scenarioApplicationInfo = scenarioApplicationInfo;
         jsonBlock.scenarioApplicationWarnings = scenarioApplicationWarnings;
         if (accessibilityResult != null) {
+            // Due to the application of distance decay functions, we may want to make the shift to non-integer
+            // accessibility values (especially for cases where there are relatively few opportunities across the whole
+            // study area). But we'd need to control the number of decimal places serialized into the JSON.
             jsonBlock.accessibility = accessibilityResult.getIntValues();
         }
         if (decayFunction != null) {

@@ -125,9 +125,9 @@ public class TravelTimeReducer {
                 // WORK IN PROGRESS: worker side accessibility
                 calculateAccessibility = true;
                 this.destinationPointSets = task.destinationPointSets;
-                task.cutoffsMinutes = new int[115];
+                task.cutoffsMinutes = new int[120];
                 for (int c = 0; c < task.cutoffsMinutes.length; c++) {
-                    task.cutoffsMinutes[c] = c + 5;
+                    task.cutoffsMinutes[c] = c;
                 }
             }
         } else {
