@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
+import static com.conveyal.r5.common.Util.notNullOrEmpty;
 import static com.conveyal.r5.profile.FastRaptorWorker.UNREACHED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -121,7 +122,7 @@ public class TravelTimeReducer {
         calculateAccessibility = calculateTravelTimes = false;
         if (task instanceof TravelTimeSurfaceTask) {
             calculateTravelTimes = true;
-            {
+            if (notNullOrEmpty(destinationPointSets)) {
                 // WORK IN PROGRESS: worker side accessibility
                 calculateAccessibility = true;
                 this.destinationPointSets = task.destinationPointSets;
