@@ -119,28 +119,17 @@ public class TravelTimeReducer {
         // back to the broker in JSON.
 
         // Decide which elements we'll be calculating, retaining, and returning.
-        calculateAccessibility = calculateTravelTimes = false;
+        // Always copy this field, the array in the task may be null or empty but we detect that case.
+        this.destinationPointSets = task.destinationPointSets;
         if (task instanceof TravelTimeSurfaceTask) {
             calculateTravelTimes = true;
-            if (notNullOrEmpty(destinationPointSets)) {
-                // WORK IN PROGRESS: worker side accessibility
-                calculateAccessibility = true;
-                this.destinationPointSets = task.destinationPointSets;
-                task.cutoffsMinutes = new int[120];
-                for (int c = 0; c < task.cutoffsMinutes.length; c++) {
-                    task.cutoffsMinutes[c] = c;
-                }
-            }
+            // WORK IN PROGRESS: worker side accessibility
+            calculateAccessibility = notNullOrEmpty(task.destinationPointSets);
         } else {
+            // Maybe we should define recordAccessibility and recordTimes on the common superclass AnalysisWorkerTask.
             RegionalTask regionalTask = (RegionalTask) task;
-            if (regionalTask.recordAccessibility) {
-                calculateAccessibility = true;
-                // TODO Cast is no longer necessary for this, we could do it for every incoming task.
-                this.destinationPointSets = regionalTask.destinationPointSets;
-            }
-            if (regionalTask.recordTimes || regionalTask.makeTauiSite) {
-                calculateTravelTimes = true;
-            }
+            calculateAccessibility = regionalTask.recordAccessibility;
+            calculateTravelTimes = regionalTask.recordTimes || regionalTask.makeTauiSite;
         }
 
         // Instantiate and initialize objects to accumulate the kinds of results we expect to produce.

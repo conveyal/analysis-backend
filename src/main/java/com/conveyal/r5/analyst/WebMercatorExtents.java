@@ -10,6 +10,7 @@ import static com.conveyal.r5.analyst.Grid.lonToPixel;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Really we should be embedding one of these in the tasks, grids, etc. to factor out all the common fields.
@@ -39,15 +40,14 @@ public class WebMercatorExtents {
         return new WebMercatorExtents(task.west, task.north, task.width, task.height, task.zoom);
     }
 
+    /** If pointSets are all gridded, return the minimum-sized WebMercatorExtents containing them all. */
     public static WebMercatorExtents forPointsets (PointSet[] pointSets) {
         checkNotNull(pointSets);
         checkElementIndex(0, pointSets.length, "You must supply at least one destination PointSet.");
         if (pointSets[0] instanceof Grid) {
             WebMercatorExtents extents = pointSets[0].getWebMercatorExtents();
-            // TODO handle case of pointsets with different extents; for now just validate that they are identical.
             for (PointSet pointSet : pointSets) {
-                checkArgument(pointSet instanceof Grid, "All destination PointSets must be of the same type.");
-                checkArgument(extents.equals(pointSet.getWebMercatorExtents()));
+                extents = extents.expandToInclude(pointSet.getWebMercatorExtents());
             }
             return extents;
         } else {
@@ -58,6 +58,22 @@ public class WebMercatorExtents {
             checkArgument(pointSets.length == 1, "You may only specify one non-gridded PointSet.");
             return null;
         }
+    }
+
+    /** Create the minimum-size immutable WebMercatorExtents containing both this one and the other one. */
+    public WebMercatorExtents expandToInclude (WebMercatorExtents other) {
+        checkState(this.zoom == other.zoom, "All grids supplied must be at the same zoom level.");
+        int thisEast = this.west + this.width;
+        int otherEast = other.west + other.width;
+        int thisSouth = this.north + other.height;
+        int otherSouth = other.north + other.height;
+        int outWest = Math.min(other.west, this.west);
+        int outEast = Math.max(otherEast, thisEast);
+        int outNorth = Math.min(other.north, this.north);
+        int outSouth = Math.max(otherSouth, thisSouth);
+        int outWidth = outEast - outWest;
+        int outHeight = outSouth - outNorth;
+        return new WebMercatorExtents(outWest, outNorth, outWidth, outHeight, this.zoom);
     }
 
     public static WebMercatorExtents forWgsEnvelope (Envelope wgsEnvelope, int zoom) {

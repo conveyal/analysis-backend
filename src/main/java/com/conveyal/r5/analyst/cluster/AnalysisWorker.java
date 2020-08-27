@@ -9,11 +9,8 @@ import com.conveyal.gtfs.GTFSCache;
 import com.conveyal.r5.OneOriginResult;
 import com.conveyal.r5.analyst.AccessibilityResult;
 import com.conveyal.r5.analyst.FilePersistence;
-import com.conveyal.r5.analyst.Grid;
-import com.conveyal.r5.analyst.GridTransformWrapper;
 import com.conveyal.r5.analyst.NetworkPreloader;
 import com.conveyal.r5.analyst.PersistenceBuffer;
-import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.S3FilePersistence;
 import com.conveyal.r5.analyst.TravelTimeComputer;
@@ -59,6 +56,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static com.conveyal.r5.profile.PerTargetPropagater.SECONDS_PER_MINUTE;
 import static com.google.common.base.Preconditions.checkElementIndex;
@@ -438,12 +436,8 @@ public class AnalysisWorker implements Runnable {
         {
             task.decayFunction.prepare();
             task.maxTripDurationMinutes = 120;
-            // task.loadAndValidateDestinationPointSets(pointSetCache);
-            final var destinationPointSet = (Grid)(pointSetCache.get(task.destinationPointSetKeys[0]));
-            final var fullNetworkPointSet = AnalysisWorkerTask.gridPointSetCache
-                    .get(task.getWebMercatorExtents(), transportNetwork.fullExtentGridPointSet);
-            final var transformed = new GridTransformWrapper(fullNetworkPointSet, destinationPointSet);
-            task.destinationPointSets = new PointSet[] {transformed};
+            task.cutoffsMinutes = IntStream.range(0, 120).toArray();
+            task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
         }
 
         // After the AsyncLoader has reported all required data are ready for analysis, advance the shutdown clock to
@@ -547,7 +541,7 @@ public class AnalysisWorker implements Runnable {
             // Load the PointSets based on the IDs (actually, full storage keys including IDs) in the task.
             // The presence of these grids in the task will then trigger the computation of accessibility values.
             if (!task.makeTauiSite) {
-                task.loadAndValidateDestinationPointSets(pointSetCache);
+                task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
             }
 
             // If we are generating a static site, there must be a single metadata file for an entire batch of results.

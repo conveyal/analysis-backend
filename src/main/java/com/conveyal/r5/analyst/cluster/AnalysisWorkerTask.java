@@ -1,9 +1,12 @@
 package com.conveyal.r5.analyst.cluster;
 
 import com.conveyal.r5.analyst.FreeFormPointSet;
+import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.analyst.GridTransformWrapper;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.WebMercatorExtents;
+import com.conveyal.r5.analyst.WebMercatorGridPointSet;
 import com.conveyal.r5.analyst.WebMercatorGridPointSetCache;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.decay.DecayFunction;
@@ -200,12 +203,14 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * supplied cache. The PointSets themselves are not serialized and sent over to the worker in the task, so this
      * method is called by the worker to materialize them.
      *
-     * For now, this requires grids with the same extents. Future enhancements could first create a stack of aligned
-     * targets, with appropriate indexing.
-     *
-     * TODO merge multiple destination pointsets from a regional request into a single supergrid?
+     * If multiple grids are specified, they must be at the same zoom level, but they will all be wrapped to transform
+     * their indexes to match a single task-wide grid.
      */
-    public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache) {
+    public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache, WebMercatorGridPointSet fullExtentGridPointSet) {
+
+        // Get a grid for this particular task (determined by dimensions in the request, or by specified grids)
+        final var taskGridPointSet = gridPointSetCache.get(this.getWebMercatorExtents(), fullExtentGridPointSet);
+
         checkNotNull(destinationPointSetKeys);
         int nPointSets = destinationPointSetKeys.length;
         checkState(nPointSets > 0 && nPointSets <= 10,
@@ -214,14 +219,16 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
         for (int i = 0; i < nPointSets; i++) {
             PointSet pointSet = pointSetCache.get(destinationPointSetKeys[i]);
             checkNotNull(pointSet, "Could not load PointSet specified in regional task.");
-            destinationPointSets[i] = pointSet;
             if (pointSet instanceof FreeFormPointSet) {
-                checkArgument(nPointSets == 1,
-                        "If a freeform destination PointSet is specified, it must be the only one.");
+                checkArgument(nPointSets == 1, "Only one freeform destination PointSet may be specified.");
             } else {
-                checkArgument(pointSet.getWebMercatorExtents().equals(destinationPointSets[0].getWebMercatorExtents()),
-                        "If multiple grids are specified as destinations, they must have identical extents.");
+                Grid grid = (Grid) pointSet;
+                // Wrap the grid if we need to transform cell numbers between task-wide grid and this individual grid.
+                if (! grid.getWebMercatorExtents().equals(taskGridPointSet.getWebMercatorExtents())) {
+                    pointSet = new GridTransformWrapper(taskGridPointSet, grid);
+                }
             }
+            destinationPointSets[i] = pointSet;
         }
     }
 
