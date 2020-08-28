@@ -439,7 +439,7 @@ public class AnalysisWorker implements Runnable {
             task.maxTripDurationMinutes = 120;
             if (notNullOrEmpty(task.destinationPointSetKeys)) {
                 task.cutoffsMinutes = IntStream.range(0, 120).toArray();
-                task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
+                task.loadAndValidateDestinationPointSets(pointSetCache);
             }
         }
 
@@ -544,7 +544,7 @@ public class AnalysisWorker implements Runnable {
             // Load the PointSets based on the IDs (actually, full storage keys including IDs) in the task.
             // The presence of these grids in the task will then trigger the computation of accessibility values.
             if (!task.makeTauiSite) {
-                task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
+                task.loadAndValidateDestinationPointSets(pointSetCache);
             }
 
             // If we are generating a static site, there must be a single metadata file for an entire batch of results.

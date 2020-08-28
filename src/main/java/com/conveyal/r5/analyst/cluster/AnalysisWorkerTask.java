@@ -6,7 +6,6 @@ import com.conveyal.r5.analyst.GridTransformWrapper;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.WebMercatorExtents;
-import com.conveyal.r5.analyst.WebMercatorGridPointSet;
 import com.conveyal.r5.analyst.WebMercatorGridPointSetCache;
 import com.conveyal.r5.analyst.WorkerCategory;
 import com.conveyal.r5.analyst.decay.DecayFunction;
@@ -208,7 +207,7 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * If multiple grids are specified, they must be at the same zoom level, but they will all be wrapped to transform
      * their indexes to match a single task-wide grid.
      */
-    public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache, WebMercatorGridPointSet fullExtentGridPointSet) {
+    public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache) {
         // First, validate and load the pointsets.
         // They need to be loaded so we can see their types and dimensions for the next step.
         checkNotNull(destinationPointSetKeys);
@@ -231,11 +230,11 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
         } else {
             // Get a grid for this particular task (determined by dimensions in the request, or by unifying the grids).
             // This requires the grids to already be loaded into the array, hence the two-stage loading then wrapping.
-            final var taskGridPointSet = gridPointSetCache.get(this.getWebMercatorExtents(), fullExtentGridPointSet);
+            final var taskGridExtents = this.getWebMercatorExtents();
             for (int i = 0; i < nPointSets; i++) {
                 Grid grid = (Grid) destinationPointSets[i];
-                if (! grid.getWebMercatorExtents().equals(taskGridPointSet.getWebMercatorExtents())) {
-                    destinationPointSets[i] = new GridTransformWrapper(taskGridPointSet, grid);
+                if (! grid.getWebMercatorExtents().equals(taskGridExtents)) {
+                    destinationPointSets[i] = new GridTransformWrapper(taskGridExtents, grid);
                 }
             }
         }

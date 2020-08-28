@@ -81,6 +81,11 @@ public class WebMercatorGridPointSet extends PointSet implements Serializable {
         this.basePointSet = null;
     }
 
+    /** The resulting PointSet will not have a null basePointSet, so should generally not be used for linking. */
+    public WebMercatorGridPointSet (WebMercatorExtents extents) {
+        this(extents.zoom, extents.west, extents.north, extents.width, extents.height, null);
+    }
+
     @Override
     public int featureCount() {
         return height * width;
