@@ -58,6 +58,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static com.conveyal.r5.common.Util.notNullOrEmpty;
 import static com.conveyal.r5.profile.PerTargetPropagater.SECONDS_PER_MINUTE;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -436,8 +437,10 @@ public class AnalysisWorker implements Runnable {
         {
             task.decayFunction.prepare();
             task.maxTripDurationMinutes = 120;
-            task.cutoffsMinutes = IntStream.range(0, 120).toArray();
-            task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
+            if (notNullOrEmpty(task.destinationPointSetKeys)) {
+                task.cutoffsMinutes = IntStream.range(0, 120).toArray();
+                task.loadAndValidateDestinationPointSets(pointSetCache, transportNetwork.fullExtentGridPointSet);
+            }
         }
 
         // After the AsyncLoader has reported all required data are ready for analysis, advance the shutdown clock to

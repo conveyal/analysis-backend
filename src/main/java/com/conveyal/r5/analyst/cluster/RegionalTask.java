@@ -59,7 +59,8 @@ public class RegionalTask extends AnalysisWorkerTask implements Cloneable {
      * For standard, non-Taui regional analyses, we expect at least one valid grid of opportunities to be specified as
      * the destinations, as this is necessary to compute accessibility. Travel times to any location outside those grids
      * cannot change accessibility results, and we are not displaying travel time isochrones, so we extract the
-     * minimal bounds containing all destination opportunity grids.
+     * minimal bounds containing all destination opportunity grids. This is not optimal where the full extent of the
+     * road network is smaller than the opportunity data, but that should be rare.
      */
     @Override
     public WebMercatorExtents getWebMercatorExtents() {

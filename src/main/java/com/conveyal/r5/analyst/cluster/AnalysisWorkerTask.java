@@ -15,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
+import java.util.Arrays;
+
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -207,28 +209,35 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * their indexes to match a single task-wide grid.
      */
     public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache, WebMercatorGridPointSet fullExtentGridPointSet) {
-
-        // Get a grid for this particular task (determined by dimensions in the request, or by specified grids)
-        final var taskGridPointSet = gridPointSetCache.get(this.getWebMercatorExtents(), fullExtentGridPointSet);
-
+        // First, validate and load the pointsets.
+        // They need to be loaded so we can see their types and dimensions for the next step.
         checkNotNull(destinationPointSetKeys);
         int nPointSets = destinationPointSetKeys.length;
-        checkState(nPointSets > 0 && nPointSets <= 10,
-                "You must specify at least 1 destination PointSet, but no more than 10.");
+        checkState(
+            nPointSets > 0 && nPointSets <= 10,
+            "You must specify at least 1 destination PointSet, but no more than 10."
+        );
         destinationPointSets = new PointSet[nPointSets];
         for (int i = 0; i < nPointSets; i++) {
             PointSet pointSet = pointSetCache.get(destinationPointSetKeys[i]);
             checkNotNull(pointSet, "Could not load PointSet specified in regional task.");
-            if (pointSet instanceof FreeFormPointSet) {
-                checkArgument(nPointSets == 1, "Only one freeform destination PointSet may be specified.");
-            } else {
-                Grid grid = (Grid) pointSet;
-                // Wrap the grid if we need to transform cell numbers between task-wide grid and this individual grid.
+            destinationPointSets[i] = pointSet;
+        }
+        // Next, if the destinations are gridded PointSets (as opposed to FreeFormPointSets),
+        // transform cell numbers where necessary between task-wide grid and each individual grid.
+        boolean freeForm = Arrays.stream(destinationPointSets).anyMatch(FreeFormPointSet.class::isInstance);
+        if (freeForm){
+            checkArgument(nPointSets == 1, "Only one freeform destination PointSet may be specified.");
+        } else {
+            // Get a grid for this particular task (determined by dimensions in the request, or by unifying the grids).
+            // This requires the grids to already be loaded into the array, hence the two-stage loading then wrapping.
+            final var taskGridPointSet = gridPointSetCache.get(this.getWebMercatorExtents(), fullExtentGridPointSet);
+            for (int i = 0; i < nPointSets; i++) {
+                Grid grid = (Grid) destinationPointSets[i];
                 if (! grid.getWebMercatorExtents().equals(taskGridPointSet.getWebMercatorExtents())) {
-                    pointSet = new GridTransformWrapper(taskGridPointSet, grid);
+                    destinationPointSets[i] = new GridTransformWrapper(taskGridPointSet, grid);
                 }
             }
-            destinationPointSets[i] = pointSet;
         }
     }
 
