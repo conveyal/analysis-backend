@@ -57,7 +57,7 @@ public class WorkerStatus {
     public WorkerStatus (AnalysisWorker worker) {
 
         workerName = "R5";
-        workerVersion = BackendVersion.instance.describe;
+        workerVersion = BackendVersion.instance.version;
         workerId = worker.machineId; // TODO overwrite with cloud provider (EC2) machine ID in a generic way
 
         // Eventually we'll want to report all networks the worker has loaded, to give the backend hints about what kind
