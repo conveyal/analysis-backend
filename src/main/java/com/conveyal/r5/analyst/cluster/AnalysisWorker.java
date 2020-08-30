@@ -725,8 +725,8 @@ public class AnalysisWorker implements Runnable {
      */
     public static void main (String[] args) {
         LOG.info("Starting R5 Analyst Worker version {}", BackendVersion.instance.version);
-        LOG.info("R5 commit is {}", BackendVersion.instance.commit);
-        LOG.info("R5 describe is {}", BackendVersion.instance.describe);
+        LOG.info("R5 git commit is {}", BackendVersion.instance.commit);
+        LOG.info("R5 git branch is {}", BackendVersion.instance.branch);
 
         String configFileName = "worker.conf";
         if (args.length > 0) {
