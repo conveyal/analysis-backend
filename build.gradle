@@ -20,7 +20,13 @@ jar {
         attributes 'Automatic-Module-Name': 'com.conveyal.analysis',
                    'Main-Class': 'com.conveyal.r5.R5Main',
                    'Implementation-Title': 'Conveyal Analysis Backend',
-                   'Implementation-Version': project.version
+                   'Implementation-Version': project.version,
+                   'Implementation-Vendor': 'Conveyal LLC',
+                   // Metadata to satisfy Java Advanced Imaging (why is this not merged from its JAR?)
+                   'Specification-Title': 'Java Advanced Imaging Image I/O Tools',
+                   'Specification-Version': '1.1',
+                   'Specification-Vendor': 'Sun Microsystems, Inc.',
+                   'Extension-Name': 'com.sun.media.imageio'
     }
 }
 
