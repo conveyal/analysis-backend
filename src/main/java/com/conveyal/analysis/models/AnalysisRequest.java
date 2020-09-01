@@ -232,6 +232,8 @@ public class AnalysisRequest {
         task.fromTime = fromTime;
         task.toTime = toTime;
 
+        task.computePaths = toLat != 0 && toLon != 0;
+
         task.bikeSpeed = bikeSpeed;
         task.carSpeed = carSpeed;
         task.walkSpeed = walkSpeed;

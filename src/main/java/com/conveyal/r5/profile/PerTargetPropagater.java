@@ -4,6 +4,7 @@ import com.conveyal.r5.OneOriginResult;
 import com.conveyal.r5.analyst.PathScorer;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.TravelTimeReducer;
+import com.conveyal.r5.analyst.WebMercatorGridPointSet;
 import com.conveyal.r5.analyst.cluster.AnalysisWorkerTask;
 import com.conveyal.r5.analyst.cluster.PathWriter;
 import com.conveyal.r5.analyst.cluster.RegionalTask;
@@ -93,6 +94,8 @@ public class PerTargetPropagater {
      */
     private final boolean oneToOne;
 
+    int destinationIndex;
+
     // STATE FIELDS WHICH ARE RESET WHEN PROCESSING EACH DESTINATION.
     // These track the characteristics of the best paths known to the target currently being processed.
 
@@ -129,6 +132,9 @@ public class PerTargetPropagater {
         // This expects the pathsToStopsForIteration and pathWriter fields to be set separately by the caller.
         this.calculateComponents = task.makeTauiSite;
 
+        destinationIndex = ((WebMercatorGridPointSet) targets).indexFromWgsCoordinates(request.toLon, request.toLat,
+                ((AnalysisWorkerTask)request).zoom);
+
         oneToOne = request instanceof RegionalTask && ((RegionalTask) request).oneToOne;
 
         nIterations = travelTimesToStopsForIteration.length;
@@ -162,7 +168,7 @@ public class PerTargetPropagater {
         perIterationTravelTimes = new int[nIterations];
 
         // Retain additional information about how the target was reached to report travel time breakdown and paths to targets.
-        perIterationPaths = calculateComponents ? new Path[nIterations] : null;
+        perIterationPaths = new Path[nIterations];
 
         // In most tasks, we want to propagate travel times for each origin out to all the destinations.
         int startTarget = 0;
@@ -183,7 +189,7 @@ public class PerTargetPropagater {
 
             // Clear out the Path array if we're building one. These are transit solution details, so they remain
             // null until we find a good transit solution.
-            if (perIterationPaths != null) {
+            if (calculateComponents || targetIdx == destinationIndex) {
                 Arrays.fill(perIterationPaths, null);
             }
 
@@ -204,6 +210,10 @@ public class PerTargetPropagater {
             int targetToWrite = oneToOne ? 0 : targetIdx;
             travelTimeReducer.extractTravelTimePercentilesAndRecord(targetToWrite, perIterationTravelTimes);
 
+            if (targetIdx == destinationIndex) {
+                travelTimeReducer.recordPathsForTarget(0, perIterationPaths);
+            }
+
             if (calculateComponents) {
                 // TODO Somehow report these in-vehicle, wait and walk breakdown values alongside the total travel time.
                 // TODO WalkTime should be calculated per-iteration, as it may not hold for some summary statistics
@@ -217,7 +227,7 @@ public class PerTargetPropagater {
         LOG.info("Propagating {} iterations from {} stops to {} target points took {}s",
                 nIterations, nStops, endTarget - startTarget, (System.currentTimeMillis() - startTimeMillis) / 1000d
         );
-        if (pathWriter != null) {
+        if (calculateComponents && pathWriter != null) {
             pathWriter.finishAndStorePaths();
         }
         targets = null; // Prevent later reuse of this propagator instance.
@@ -349,7 +359,7 @@ public class PerTargetPropagater {
                         if (timeAtTarget < maxTravelTimeSeconds && timeAtTarget < perIterationTravelTimes[iteration]) {
                             // To reach this target, alighting at this stop is faster than any previously checked stop.
                             perIterationTravelTimes[iteration] = timeAtTarget;
-                            if (calculateComponents) {
+                            if (calculateComponents || targetIndex == destinationIndex) {
                                 Path[] pathsToStops = pathsToStopsForIteration.get(iteration);
                                 perIterationPaths[iteration] = pathsToStops[stop];
                             }
