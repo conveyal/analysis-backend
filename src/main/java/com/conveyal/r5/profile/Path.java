@@ -29,6 +29,8 @@ public class Path {
     public int[] trips;
     public int[] boardStopPositions;
     public int[] alightStopPositions;
+    public StreetMode accessMode = StreetMode.WALK;
+    public StreetMode egressMode = StreetMode.WALK;
     public final int length;
 
     /**
@@ -149,7 +151,9 @@ public class Path {
                 Arrays.equals(alightTimes, path.alightTimes) &&
                 Arrays.equals(trips, path.trips) &&
                 Arrays.equals(boardStopPositions, path.boardStopPositions) &&
-                Arrays.equals(alightStopPositions, path.alightStopPositions);
+                Arrays.equals(alightStopPositions, path.alightStopPositions) &&
+                accessMode == path.accessMode &&
+                egressMode == path.egressMode;
     }
 
     @Override
@@ -162,6 +166,8 @@ public class Path {
         result = 31 * result + Arrays.hashCode(trips);
         result = 31 * result + Arrays.hashCode(boardStopPositions);
         result = 31 * result + Arrays.hashCode(alightStopPositions);
+        result = 31 * result + accessMode.value;
+        result = 31 * result + egressMode.value;
         return result;
     }
 
@@ -176,6 +182,10 @@ public class Path {
     public String toString () {
         var builder = new StringBuilder();
         builder.append("Path:\n");
+        if (alightTimes.length > 1) {  // Show second leg wait + in-vehicle time for debugging
+            builder.append((alightTimes[1] - alightTimes[0]) / 60 + "\n");
+        }
+        builder.append(" " + accessMode + " access \n");
         for (int i = 0; i < length; i++) {
             builder.append("  from ");
             builder.append(boardStops[i]);
@@ -187,6 +197,7 @@ public class Path {
             builder.append(alightTimes[i]);
             builder.append("\n");
         }
+        builder.append(" " + egressMode + " egress");
         return builder.toString();
     }
 }
