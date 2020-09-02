@@ -8,19 +8,21 @@ plugins {
 group = 'com.conveyal'
 // set version to `git describe --tags --always --first-parent`, plus '.dirty' if local changes are present.
 version gitVersion()
-sourceCompatibility = '11'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
 
 jar {
     // For Java 11 Modules, specify a module name.
     // Do not create module-info.java until all our dependencies specify a module name.
     // Main-Class R5Main will start a worker, BackendMain must be specified on JVM command line to start backend.
-    // Store the build version in the JAR manifest
-    // to allow using it in Java code with X.class.getPackage().getImplementationVersion()
     manifest {
         attributes 'Automatic-Module-Name': 'com.conveyal.analysis',
                    'Main-Class': 'com.conveyal.r5.R5Main',
-                   'Implementation-Title': 'Conveyal Analysis Backend',
-                   'Implementation-Version': project.version
+                   // Mimic Maven manifest entry that helps automatically install the right JVM
+                   'Build-Jdk-Spec': targetCompatibility.getMajorVersion()
     }
 }
 
