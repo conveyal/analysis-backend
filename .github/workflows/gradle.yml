@@ -47,9 +47,11 @@ jobs:
         path: ~/.gradle/caches
         key: gradle-caches
     - name: Build and Test
-      run: gradle build --console=plain
+      run: gradle build
+    - name: Ensure shadow JAR is runnable as backend
+      run: gradle testShadowJarRunnable
     - name: Publish to GH Packages
-      run: gradle publish --console=plain
+      run: gradle publish
     - name: Upload to S3
       # Use git describe to get a similar string to the Gradle project version (possibly missing .dirty).
       run: |

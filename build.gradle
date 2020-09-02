@@ -55,6 +55,13 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+task testShadowJarRunnable(type: JavaExec) {
+    dependsOn(shadowJar)
+    classpath(shadowJar.archiveFile.get())
+    main("com.conveyal.analysis.BackendMain")
+    jvmArgs("-Dconveyal.immediate.shutdown=true")
+}
+
 // Create a properties file so Java code can be aware of its own version. Properties allow exposing multiple values
 // such as the full commit ID and branch name, rather than just the version available in the JAR manifest.
 task createVersionProperties(dependsOn: processResources) {
