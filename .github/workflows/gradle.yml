@@ -50,7 +50,7 @@ jobs:
       run: gradle build
     - name: Ensure shadow JAR is runnable as backend
       run: |
-        cp analysis.properties.tmp analysis.properties
+        cp analysis.properties.template analysis.properties
         gradle testShadowJarRunnable
     - name: Publish to GH Packages
       run: gradle publish
