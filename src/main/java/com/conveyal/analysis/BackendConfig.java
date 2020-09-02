@@ -64,6 +64,10 @@ public class BackendConfig implements
     private final int heavyThreads;
     private final int maxWorkers;
 
+    // If set to true, the backend will start up and immediately exit with a success code.
+    // This is used for testing that automated builds and JAR packaging are producing a usable artifact.
+    public final boolean immediateShutdown;
+
     // For use in testing - setting this field will activate alternate code paths that cause intentional failures.
     private boolean testTaskRedelivery = false;
 
@@ -98,6 +102,7 @@ public class BackendConfig implements
 
         // We intentionally don't supply any defaults here - any 'defaults' should be shipped in an example config file.
         autoShutdown = Boolean.parseBoolean(getProperty("auto-shutdown", false));
+        immediateShutdown = Boolean.parseBoolean(getProperty("immediate-shutdown", false));
         bundleBucket = getProperty("bundle-bucket", true);
         databaseName = getProperty("database-name", true);
         databaseUri = getProperty("database-uri", false);

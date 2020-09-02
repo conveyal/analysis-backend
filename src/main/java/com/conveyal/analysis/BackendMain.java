@@ -71,6 +71,11 @@ public abstract class BackendMain {
             thread.start();
         }
 
+        if (components.config.immediateShutdown) {
+            LOG.info("Startup has completed successfully. Exiting immediately as requested.");
+            System.exit(0);
+        }
+
         // TODO transform this into a task managed by a scheduled task executor component.
         if (components.config.autoShutdown) {
             LOG.info("Server will shut down automatically after {} minutes without user interaction.", IDLE_SHUTDOWN_MINUTES);
