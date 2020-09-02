@@ -8,7 +8,11 @@ plugins {
 group = 'com.conveyal'
 // set version to `git describe --tags --always --first-parent`, plus '.dirty' if local changes are present.
 version gitVersion()
-sourceCompatibility = '11'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
 
 jar {
     // For Java 11 Modules, specify a module name.
@@ -22,6 +26,8 @@ jar {
                    'Implementation-Title': 'Conveyal Analysis Backend',
                    'Implementation-Version': project.version,
                    'Implementation-Vendor': 'Conveyal LLC',
+                   // Mimic Maven manifest entry that helps with automated installation of the right JVM
+                   'Build-Jdk-Spec': targetCompatibility.getMajorVersion(),
                    // Metadata to satisfy Java Advanced Imaging (why is this not merged from its JAR?)
                    'Specification-Title': 'Java Advanced Imaging Image I/O Tools',
                    'Specification-Version': '1.1',
