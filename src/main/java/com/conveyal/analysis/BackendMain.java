@@ -44,6 +44,17 @@ public abstract class BackendMain {
     }
 
     protected static void startServer (Components components, Thread... postStartupThreads) {
+        // We have several non-daemon background thread pools which will keep the JVM alive if the main thread crashes.
+        // If initialization fails, we need to catch the exception or error and force JVM shutdown.
+        try {
+            startServerInternal(components, postStartupThreads);
+        } catch (Throwable throwable) {
+            LOG.error("Exception while starting up backend, shutting down JVM.\n{}", ExceptionUtils.asString(throwable));
+            System.exit(1);
+        }
+    }
+
+    private static void startServerInternal (Components components, Thread... postStartupThreads) {
         LOG.info("Starting Conveyal analysis backend, the time is now {}", DateTime.now());
         LOG.info("Backend version is: {}", BackendVersion.instance.version);
         LOG.info("Connecting to database...");
