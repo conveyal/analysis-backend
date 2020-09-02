@@ -47,18 +47,22 @@ jobs:
         path: ~/.gradle/caches
         key: gradle-caches
     - name: Build and Test
-      run: gradle build --console=plain
+      run: gradle build
+    - name: Ensure shadow JAR is runnable as backend
+      run: |
+        cp analysis.properties.template analysis.properties
+        gradle testShadowJarRunnable
     - name: Publish to GH Packages
-      run: gradle publish --console=plain
+      run: gradle publish
     - name: Upload to S3
       # Use git describe to get a similar string to the Gradle project version (possibly missing .dirty).
       run: |
         VERSION=$(gradle -q printVersion | head -n1)
         LOCAL_FILE=$(ls build/libs/*-all.jar | head -n1)
         aws s3 cp --no-progress --region eu-west-1 $LOCAL_FILE s3://r5-builds/${VERSION}.jar
-    # If this run is for the head of a branch, also copy to branch-latest.jar. 'aws s3 cp' will overwrite by default.
+    # If we are on the head of dev or master, also copy to branch-latest.jar. 'aws s3 cp' will overwrite by default.
     - name: Copy to branch-latest.jar on S3
-      if: startsWith(github.ref, 'refs/heads/')
+      if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/master'
       run: |
         VERSION=$(gradle -q printVersion | head -n1)
         BRANCH=${GITHUB_REF#refs/heads/}
