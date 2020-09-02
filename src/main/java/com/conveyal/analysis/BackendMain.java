@@ -16,7 +16,6 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import javax.imageio.ImageIO;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -58,9 +57,6 @@ public abstract class BackendMain {
         LOG.info("Starting Conveyal analysis backend, the time is now {}", DateTime.now());
         LOG.info("Backend version is: {}", BackendVersion.instance.version);
         LOG.info("Connecting to database...");
-
-        // Initialize ImageIO. See http://stackoverflow.com/questions/20789546
-        ImageIO.scanForPlugins();
 
         // Persistence, the census extractor, and ApiMain are initialized statically, without creating instances,
         // passing in non-static components we've already created. TODO migrate to non-static Components.

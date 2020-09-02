@@ -18,21 +18,11 @@ jar {
     // For Java 11 Modules, specify a module name.
     // Do not create module-info.java until all our dependencies specify a module name.
     // Main-Class R5Main will start a worker, BackendMain must be specified on JVM command line to start backend.
-    // Store the build version in the JAR manifest
-    // to allow using it in Java code with X.class.getPackage().getImplementationVersion()
     manifest {
         attributes 'Automatic-Module-Name': 'com.conveyal.analysis',
                    'Main-Class': 'com.conveyal.r5.R5Main',
-                   'Implementation-Title': 'Conveyal Analysis Backend',
-                   'Implementation-Version': project.version,
-                   'Implementation-Vendor': 'Conveyal LLC',
-                   // Mimic Maven manifest entry that helps with automated installation of the right JVM
-                   'Build-Jdk-Spec': targetCompatibility.getMajorVersion(),
-                   // Metadata to satisfy Java Advanced Imaging (why is this not merged from its JAR?)
-                   'Specification-Title': 'Java Advanced Imaging Image I/O Tools',
-                   'Specification-Version': '1.1',
-                   'Specification-Vendor': 'Sun Microsystems, Inc.',
-                   'Extension-Name': 'com.sun.media.imageio'
+                   // Mimic Maven manifest entry that helps automatically install the right JVM
+                   'Build-Jdk-Spec': targetCompatibility.getMajorVersion()
     }
 }
 
