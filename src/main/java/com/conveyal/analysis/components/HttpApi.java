@@ -20,7 +20,6 @@ import spark.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
 
 /**
  * This Component is a web server that serves up our HTTP API endpoints, both to the UI and to the workers.
@@ -124,7 +123,7 @@ public class HttpApi implements Component {
                     FileUtils.transferFromFileTo(file, res.raw().getOutputStream());
                     return null;
                 } else {
-                    return new GZIPInputStream(FileUtils.getInputStream(file));
+                    return FileUtils.getInputStream(file);
                 }
             });
         }
