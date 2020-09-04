@@ -274,15 +274,11 @@ public class FastRaptorWorker {
      * and prepare for the scheduled search at the next-earlier minute
      */
     private void advanceScheduledSearchToPreviousMinute (int nextMinuteDepartureTime) {
-        for (RaptorState state : this.scheduleState) {
-            state.setDepartureTime(nextMinuteDepartureTime);
+        for (int i = 0; i < this.scheduleState.length; i++) {
+            this.scheduleState[i] = new RaptorState(
+                    transit.getStopCount(),
+                    request.maxTripDurationMinutes * SECONDS_PER_MINUTE);
         }
-        // add initial stops
-        RaptorState initialState = scheduleState[0];
-        accessStops.forEachEntry((stop, accessTime) -> {
-            initialState.setTimeAtStop(stop, accessTime + nextMinuteDepartureTime, -1, -1, 0, 0, true);
-            return true; // continue iteration
-        });
     }
 
     /**
