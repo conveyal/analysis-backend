@@ -350,8 +350,8 @@ public class RaptorState {
 
         // We are reusing this state from one minute to the next. We must clear the touched stops sets before starting
         // a new search, otherwise the set of stops and patterns to explore will reflect the previous search.
-        bestStopsTouched.clear();
-        nonTransferStopsTouched.clear();
+        // bestStopsTouched.clear();
+        // nonTransferStopsTouched.clear();
     }
 
 }
