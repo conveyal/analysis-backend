@@ -18,8 +18,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static com.conveyal.r5.profile.FastRaptorWorker.FrequencyBoardingMode.HALF_HEADWAY;
 import static com.conveyal.r5.profile.FastRaptorWorker.FrequencyBoardingMode.MONTE_CARLO;
@@ -547,49 +545,66 @@ public class FastRaptorWorker {
     }
 
     /**
-     * Do a frequency search. If computeDeterministicUpperBound is true, worst-case frequency boarding time will be used
-     * so that the output of this function can be used in a range-RAPTOR search. Otherwise Monte Carlo schedules will be
-     * used to improve upon the output of the range-RAPTOR bounds search.
-     * FIXME computeDeterministicUpperBound mentioned abve doesn't seem to exist
+     * Perform one round of a Raptor search, considering only the frequency-based routes. These results are layered
+     * on top of (may improve upon) those from the fully scheduled routes.
+     * If the boarding mode is UPPER_BOUND, worst-case boarding time will be used at every boarding event.
+     * Arrival times produced can then be used as a valid upper bound for previous departure minutes in range RAPTOR.
+     *
+     * Otherwise randomized schedules will be used to improve upon the output of the range-RAPTOR bounds search.
+     * Those outputs may not be reused in successive iterations as schedules will change from one iteration to the next.
+     *
+     * TODO maybe convert all these functions to pure functions that create and output new round states.
      * @param frequencyBoardingMode see comments on enum values.
      */
-    private void doFrequencySearchForRound(
+    private void doFrequencySearchForRound (
             RaptorState inputState,
             RaptorState outputState,
             FrequencyBoardingMode frequencyBoardingMode
     ) {
         BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningFrequencyPatterns);
         for (int patternIndex = patternsToExplore.nextSetBit(0);
-             patternIndex >= 0;
-             patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
-        ){
+                 patternIndex >= 0;
+                 patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
+        ) {
             TripPattern pattern = transit.tripPatterns.get(patternIndex);
 
-            int tripScheduleIndex = -1; // first increment lands at 0
+            int tripScheduleIndex = -1; // First loop iteration will immediately increment to 0.
             for (TripSchedule schedule : pattern.tripSchedules) {
                 tripScheduleIndex++;
 
-                // scheduled trip or not running
-                if (!servicesActive.get(schedule.serviceCode) || schedule.headwaySeconds == null) continue;
-
-                for (int frequencyEntryIdx = 0; frequencyEntryIdx < schedule.headwaySeconds.length; frequencyEntryIdx++) {
+                // If this trip's service is inactive (it's not running) or it's a scheduled (non-freq) trip, skip it.
+                if (!servicesActive.get(schedule.serviceCode) || schedule.headwaySeconds == null) {
+                    continue;
+                }
+                // Loop through all the entries for this trip (time windows with service at a given frequency).
+                for (int frequencyEntryIdx = 0;
+                         frequencyEntryIdx < schedule.headwaySeconds.length;
+                         frequencyEntryIdx++
+                ) {
                     int boardTime = -1;
                     int boardStopPositionInPattern = -1;
                     int waitTime = -1;
 
-                    for (int stopPositionInPattern = 0; stopPositionInPattern < pattern.stops.length; stopPositionInPattern++) {
+                    // Scan down the stops in the pattern, boarding trips in the pattern when possible.
+                    // TODO factor out some of this scanning loop body into a method for clarity.
+                    for (int stopPositionInPattern = 0;
+                             stopPositionInPattern < pattern.stops.length;
+                             stopPositionInPattern++
+                    ) {
                         int stop = pattern.stops[stopPositionInPattern];
 
-                        // attempt to alight if boarded and if drop off is allowed
+                        // Attempt to alight if a trip has been boarded and if drop off is allowed at this stop.
                         if (boardTime > -1 && pattern.dropoffs[stopPositionInPattern] != PickDropType.NONE) {
-                            // attempt to alight
-                            int travelTime = schedule.arrivals[stopPositionInPattern] - schedule.departures[boardStopPositionInPattern];
+                            int relativeBoardTime = schedule.departures[boardStopPositionInPattern];
+                            int relativeAlightTime = schedule.arrivals[stopPositionInPattern];
+                            int travelTime = relativeAlightTime - relativeBoardTime;
                             int alightTime = boardTime + travelTime;
                             int boardStop = pattern.stops[boardStopPositionInPattern];
                             outputState.setTimeAtStop(stop, alightTime, patternIndex, boardStop, waitTime, travelTime, false);
                         }
 
-                        // attempt to board if pick up is allowed
+                        // If this stop was updated in the previous round and pickup is allowed at this stop, see if
+                        // we can board an earlier trip.
                         // (even if already boarded, since this is a frequency trip and we could move back)
                         if (inputState.bestStopsTouched.get(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
                             int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
