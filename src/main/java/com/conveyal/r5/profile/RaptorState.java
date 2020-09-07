@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.BitSet;
 
+import static com.conveyal.r5.common.Util.newIntArray;
 import static com.conveyal.r5.profile.FastRaptorWorker.UNREACHED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -121,24 +122,27 @@ public class RaptorState {
      * Travel times to all stops are initialized to UNREACHED, which will be improved upon by the search process.
      */
     public RaptorState (int nStops, int maxDurationSeconds) {
-        this.bestTimes = new int[nStops];
-        this.bestNonTransferTimes = new int[nStops];
+        this.maxDurationSeconds = maxDurationSeconds;
 
-        Arrays.fill(bestTimes, UNREACHED);
-        Arrays.fill(bestNonTransferTimes, UNREACHED);
+        // Array slot for every stop is initialized to the maximum integer value, which the search will improve upon.
+        this.bestTimes = newIntArray(nStops, UNREACHED);
+        this.bestNonTransferTimes = newIntArray(nStops, UNREACHED);
 
-        this.previousPatterns = new int[nStops];
-        this.previousStop = new int[nStops];
-        this.transferStop = new int[nStops];
-        Arrays.fill(previousPatterns, -1);
-        Arrays.fill(previousStop, -1);
-        Arrays.fill(transferStop, -1);
+        // Initialized to contain all -1, indicating "none".
+        this.previousPatterns = newIntArray(nStops, -1);
+        this.previousStop = newIntArray(nStops, -1);
+        this.transferStop = newIntArray(nStops, -1);
 
+        // These fields accumulate times, so are initially filled with zeros.
         this.nonTransferWaitTime = new int[nStops];
         this.nonTransferInVehicleTravelTime = new int[nStops];
+
+        // Empty sets that will track the stops that have been updated in this round.
         this.nonTransferStopsTouched = new BitSet(nStops);
         this.bestStopsTouched = new BitSet(nStops);
-        this.maxDurationSeconds = maxDurationSeconds;
+
+        // Previous round reference should be set as needed by the code calling this constructor.
+        this.previous = null;
     }
 
     /**

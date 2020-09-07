@@ -1,8 +1,7 @@
 package com.conveyal.r5.common;
 
-/**
- * Created by abyrd on 2017-11-29
- */
+import java.util.Arrays;
+
 public abstract class Util {
 
     public static String human (double n, String units) {
@@ -24,6 +23,13 @@ public abstract class Util {
             prefix = "Ti";
         }
         return String.format("%1.1f %s%s", n, prefix, units);
+    }
+
+    /** Convenience method to create an array and fill it immediately with a single value. */
+    public static int[] newIntArray (int length, int defaultValue) {
+        int[] array = new int[length];
+        Arrays.fill(array, defaultValue);
+        return array;
     }
 
 }
