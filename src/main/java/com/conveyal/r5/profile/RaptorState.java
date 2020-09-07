@@ -100,6 +100,7 @@ public class RaptorState {
      * Stops reached by transit in this round. This allows us to only make transfers from stops that have been
      * updated with a lower time based on transit usage in this round, rather than transfers in a previous round.
      * TODO this field is probably unnecessary if transit and post-transit transfers are processed separately.
+     * TODO rename to "updatedStops" rather than "touched"
      */
     public BitSet nonTransferStopsTouched;
 
@@ -141,10 +142,9 @@ public class RaptorState {
     }
 
     /**
-     * Specialized copy constructor for making the next state in a series representing a series of rounds in a single
-     * raptor search. This makes a deep copy of all fields except the sets of touched stops (which are initialized to
-     * be empty) and the previous state pointer.
-     * FIXME only used via copy() method to initialize a frequency search - we should probably set previous to null.
+     * Copy constructor for reusing search state from one minute to the next in a range raptor search.
+     * This makes a deep copy of all fields, except the sets of updated stops (which are cleared) and the reference
+     * to the previous round's state (which should be set as needed by the caller).
      */
     private RaptorState(RaptorState state) {
         this.bestTimes = Arrays.copyOf(state.bestTimes, state.bestTimes.length);
@@ -153,15 +153,18 @@ public class RaptorState {
         this.previousStop = Arrays.copyOf(state.previousStop, state.previousStop.length);
         this.transferStop = Arrays.copyOf(state.transferStop, state.transferStop.length);
         this.nonTransferWaitTime = Arrays.copyOf(state.nonTransferWaitTime, state.nonTransferWaitTime.length);
-        this.nonTransferInVehicleTravelTime = Arrays.copyOf(state.nonTransferInVehicleTravelTime, state.nonTransferInVehicleTravelTime.length);
+        this.nonTransferInVehicleTravelTime =
+                Arrays.copyOf(state.nonTransferInVehicleTravelTime, state.nonTransferInVehicleTravelTime.length);
         this.departureTime = state.departureTime;
+        this.maxDurationSeconds = state.maxDurationSeconds;
 
-        this.previous = state;
+        // As a failsafe, do not copy previous-round reference.
+        // When creating new state chains, this reference must always change to a new state object.
+        this.previous = null;
 
+        // Note that these sets are cleared when making the copy.
         this.nonTransferStopsTouched = new BitSet(state.bestTimes.length);
         this.bestStopsTouched = new BitSet(state.bestTimes.length);
-
-        this.maxDurationSeconds = state.maxDurationSeconds;
     }
 
     /**
