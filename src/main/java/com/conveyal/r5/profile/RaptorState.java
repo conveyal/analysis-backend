@@ -168,11 +168,8 @@ public class RaptorState {
     }
 
     /**
-     * Makes a deep copy of this raptor state, clearing the sets of reached stops and setting the new state's previous
-     * pointer to this existing state.
-     *
-     * FIXME this seems designed for progressing to the next round, but is only used for starting frequency searches.
-     *       it should probably set the previous pointer to null.
+     * Makes a deep copy of this raptor state. Everything is replicated, except the sets of stops updated in this round
+     * (which are cleared) and the reference to the previous round's state (which is nulled out).
      */
     public RaptorState copy () {
         return new RaptorState(this);

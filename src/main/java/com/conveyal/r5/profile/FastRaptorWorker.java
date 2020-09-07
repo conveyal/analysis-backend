@@ -339,25 +339,24 @@ public class FastRaptorWorker {
             raptorTimer.scheduledSearch.stop();
         }
 
-        // Now run frequency searches using randomized schedules for all frequency lines. We use the scheduled search
-        // and the worst-case boarding wait for all frequency routes to establish an upper bound on arrival times for
-        // the frequency searches, so we are copying the arrival times from the just completed search.
+        // Now run one or more frequency searches using randomized schedules for all frequency lines.
+        // These will improve upon any upper bound travel times just established at this departure minute.
         // This is a key innovation, described in more detail in Conway, Byrd, and van der Linden 2017.
+        // Unlike those scheduled results, these frequency results are not reusable at the previous minute because
+        // the schedule is almost certain to be different at that previous minute.
         if (transit.hasFrequencies) {
             raptorTimer.frequencySearch.start();
             int[][] result = new int[iterationsPerMinute][];
+
             // In Monte Carlo mode, each iteration is a fresh randomization of frequency route offsets.
             // In half-headway mode, only one iteration will happen and schedules will not be randomized.
             for (int iteration = 0; iteration < iterationsPerMinute; iteration++) {
-                // For each new randomized schedule, we start with a fresh copy of the upper bound travel times.
-                RaptorState[] frequencyState = Stream.of(scheduleState)
-                        .map(RaptorState::copy)
-                        .toArray(RaptorState[]::new);
 
-                // Recreate the chain of pointers between rounds for the freshly copied states.
-                for (int i = 1; i < frequencyState.length; i++) {
-                    frequencyState[i].previous = frequencyState[i - 1];
-                }
+                // Make a fresh copy of the upper bound travel times for each new randomized schedule (iteration).
+                // Array contains one state per round we're going to perform with this schedule.
+                RaptorState[] frequencyState = copyMultiRoundState(scheduleState);
+
+                // Note: at this point, the updated stops sets have been cleared in the frequency states.
 
                 if (boardingMode == MONTE_CARLO) {
                     // Take a new Monte Carlo draw if requested (i.e. if boarding assumption is not half-headway): for
@@ -422,6 +421,21 @@ public class FastRaptorWorker {
             }
             return result;
         }
+    }
+
+    /**
+     * Make a deep copy of an array of RaptorState representing the initial street search and N transit rides (rounds).
+     * The copy process clears the sets of flags showing which stops were updated in each round, and the chain of
+     * previous-round references is recreated to reflect the new instances.
+     * TODO create a proper named type for these arrays of states.
+     */
+    private static RaptorState[] copyMultiRoundState(RaptorState[] original) {
+        RaptorState[] copy = new RaptorState[original.length];
+        for (int r = 0; r < original.length; r++) {
+            copy[r] = original[r].copy();
+            copy[r].previous = (r == 0) ? null : copy[r - 1];
+        }
+        return copy;
     }
 
     /**
