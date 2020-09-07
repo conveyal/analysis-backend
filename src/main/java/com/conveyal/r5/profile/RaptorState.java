@@ -311,17 +311,9 @@ public class RaptorState {
      * will the downstream results change. This also clears the reached stops sets in preparation for a new round.
      */
     public void setDepartureTime(int departureTime) {
-        int previousDepartureTime = this.departureTime;
+        final int additionalWaitSeconds = this.departureTime - departureTime;
+        checkState(additionalWaitSeconds == 60, "Departure times may only be decremented by one minute.");
         this.departureTime = departureTime;
-        if (previousDepartureTime == 0) {
-            // This is the first departure minute being examined, so all state should be UNREACHED or -1 and there is
-            // nothing to update. This only skips the process for the highest boarding minute, so it's a very minor
-            // optimization. But it prevents any misunderstandings about what will happen when "updating" an empty state.
-            // Alternatively, we could not call this method on the first round and use it only for decrementing
-            // departure time in later rounds.
-            return;
-        }
-        checkState(departureTime < previousDepartureTime, "Departure times may only be decremented.");
 
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
         int maxClockTime = departureTime + maxDurationSeconds;
@@ -342,7 +334,6 @@ public class RaptorState {
         }
 
         // Update waiting times for all remaining trips, to reflect additional waiting time at first boarding.
-        int additionalWaitSeconds = previousDepartureTime - departureTime;
         for (int stop = 0; stop < this.bestTimes.length; stop++) {
             if (this.previousPatterns[stop] > -1) {
                 this.nonTransferWaitTime[stop] += additionalWaitSeconds;
