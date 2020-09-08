@@ -511,26 +511,21 @@ public class FastRaptorWorker {
                 ) {
                     int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
                     if (onTrip == -1) {
-                        if (inputState.stopWasUpdated(stop)) { // FIXME due to enclosing conditional this is always true.
-                            int candidateTripIndex = -1;
-                            EARLIEST_TRIP:
-                            for (TripSchedule candidateSchedule : pattern.tripSchedules) {
-                                candidateTripIndex++;
-
-                                if (!servicesActive.get(candidateSchedule.serviceCode) || candidateSchedule.headwaySeconds != null) {
-                                    // frequency trip or not running
-                                    continue;
-                                }
-
-                                if (earliestBoardTime < candidateSchedule.departures[stopPositionInPattern]) {
-                                    // board this vehicle
-                                    onTrip = candidateTripIndex;
-                                    schedule = candidateSchedule;
-                                    boardTime = candidateSchedule.departures[stopPositionInPattern];
-                                    waitTime = boardTime - inputState.bestTimes[stop];
-                                    boardStop = stop;
-                                    break EARLIEST_TRIP;
-                                }
+                        int candidateTripIndex = -1;
+                        for (TripSchedule candidateSchedule : pattern.tripSchedules) {
+                            candidateTripIndex++;
+                            if (!servicesActive.get(candidateSchedule.serviceCode) || candidateSchedule.headwaySeconds != null) {
+                                // frequency trip or not running
+                                continue;
+                            }
+                            if (earliestBoardTime < candidateSchedule.departures[stopPositionInPattern]) {
+                                // board this vehicle
+                                onTrip = candidateTripIndex;
+                                schedule = candidateSchedule;
+                                boardTime = candidateSchedule.departures[stopPositionInPattern];
+                                waitTime = boardTime - inputState.bestTimes[stop];
+                                boardStop = stop;
+                                break;
                             }
                         }
                     } else {
