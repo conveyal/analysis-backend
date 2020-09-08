@@ -358,10 +358,9 @@ public class FastRaptorWorker {
                     doFrequencySearchForRound(scheduleState[round - 1], scheduleState[round], UPPER_BOUND);
                     raptorTimer.scheduledSearchFrequencyBounds.stop();
                 }
-
-                raptorTimer.scheduledSearchTransfers.start();
                 // Apply transfers to the scheduled result that will be reused for the previous departure minute.
                 // Transfers will be applied separately to the derived frequency result below, when relevant.
+                raptorTimer.scheduledSearchTransfers.start();
                 doTransfers(scheduleState[round]);
                 raptorTimer.scheduledSearchTransfers.stop();
             }
@@ -421,6 +420,7 @@ public class FastRaptorWorker {
             // It may be somewhat less inefficient than it seems if we make arrays of references all to the same object.
             // TODO check whether we're actually hitting this code with iterationsPerMinute > 1 on scheduled networks.
             //      maybe we should even require that iterationsPerMinute == 1 for non-freq searches in an assertion.
+            //      checkState(iterationsPerMinute == 1); int[][] result = new int[1][];
             int[][] result = new int[iterationsPerMinute][];
             RaptorState finalRoundState = scheduleState[request.maxRides];
             // DEBUG print out full path (all rounds) to one stop at one departure minute, when no frequency trips.
@@ -474,6 +474,7 @@ public class FastRaptorWorker {
      * A sub-step in the process of performing a RAPTOR search at one specific departure time (at one specific minute).
      * This method handles only the routes that have exact schedules. There is another method that handles only the
      * other kind of routes: the frequency-based routes.
+     * TODO force inputState = outputState.previous instead of passing in an arbitrary input state
      */
     private void doScheduledSearchForRound(RaptorState inputState, RaptorState outputState) {
         BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningScheduledPatterns);
@@ -714,15 +715,23 @@ public class FastRaptorWorker {
             int frequencyEntryIdx,
             int earliestTime
     ) {
-        // earliest board time is start time plus travel time plus offset
+        checkState(offset >= 0);
+        // Find the time the first vehicle in this entry will depart from the current stop:
+        // The start time of the entry window, plus travel time from first stop to current stop, plus phase offset.
+        // TODO check that frequency trips' stop times are always normalized to zero at first departure.
+        // TODO rename to firstVehicleDeparts (and add a lastVehicleDeparts and/or windowEndsAtThisStop?)
         int earliestBoardTimeThisEntry = schedule.startTimes[frequencyEntryIdx] +
-                schedule.departures[stopPositionInPattern] +
-                offset;
+                                         schedule.departures[stopPositionInPattern] +
+                                         offset;
 
-        // compute the number of trips on this entry
-        // We take the difference between the end time and the start time including the offset
-        // to get the time between the first trip and the last possible trip. We int-divide by the
-        // headway and add one to correct for the fencepost problem.
+        // Compute the number of trips within this entry, considering the offset of the first departure from the window
+        // start time. Take the difference between the end time and the start time including the offset to get the
+        // time between the first trip and the last possible trip. Int-divide by the headway and add one to correct
+        // for the fencepost problem.
+        // TODO explain the specific "fencepost problem" here.
+        //  (60 - 0) / 10 = 6, the number of trips in an hour with 10-minute headways. Nonzero offset reduces that by 1.
+        // FIXME why are we using the number of trips in the entry? Can't we just test against the end of the window?
+        //  That end of window would also need to be adjusted for travel time.
         int numberOfTripsThisEntry = (schedule.endTimes[frequencyEntryIdx] -
                 (schedule.startTimes[frequencyEntryIdx] + offset)) /
                 schedule.headwaySeconds[frequencyEntryIdx] + 1;
@@ -738,7 +747,6 @@ public class FastRaptorWorker {
             // We are waiting at the stop before the first vehicle in this entry departs from this stop.
             earliestFeasibleTripIndexThisEntry = 0;
         } else {
-            // find earliest trip later than the lower bound on board time
             // We add one because int math floors the result.
             // This is why we subtracted one second above, so that if the earliest board time
             // is exactly the second when the trip arrives, we will find that trip rather than the

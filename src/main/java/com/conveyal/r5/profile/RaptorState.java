@@ -4,9 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.BitSet;
 
 import static com.conveyal.r5.common.Util.newIntArray;
+import static com.conveyal.r5.profile.FastRaptorWorker.ENABLE_OPTIMIZATIONS;
 import static com.conveyal.r5.profile.FastRaptorWorker.UNREACHED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -292,20 +292,22 @@ public class RaptorState {
         this.departureTime = departureTime;
 
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
-        int maxClockTime = departureTime + maxDurationSeconds;
-        // TODO This whole loop seems unnecessary - in testing removing it does not change results since actual times
-        //  and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being true.
-        //  It could have some performance impact, though the updated stops set is reconstructed at each step.
-        for (int i = 0; i < bestTimes.length; i++) {
-            if (bestTimes[i] >= maxClockTime) {
-                bestTimes[i] = UNREACHED;
-                transferStop[i] = -1;
-            }
-            if (bestNonTransferTimes[i] >= maxClockTime) {
-                bestNonTransferTimes[i] = UNREACHED;
-                // These were not being set before - they might not be necessary but at least it's clearer to set them.
-                previousPatterns[i] = -1;
-                previousStop[i] = -1;
+        // This whole loop seems unnecessary - in testing removing it does not change results since actual times
+        // and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being true.
+        // It could have some performance impact.
+        if (ENABLE_OPTIMIZATIONS) {
+            int maxClockTime = departureTime + maxDurationSeconds;
+            for (int i = 0; i < bestTimes.length; i++) {
+                if (bestTimes[i] >= maxClockTime) {
+                    bestTimes[i] = UNREACHED;
+                    transferStop[i] = -1;
+                }
+                if (bestNonTransferTimes[i] >= maxClockTime) {
+                    bestNonTransferTimes[i] = UNREACHED;
+                    // These were not being set before - they might not be necessary but at least it's clearer to set them.
+                    previousPatterns[i] = -1;
+                    previousStop[i] = -1;
+                }
             }
         }
         // Update waiting times for all remaining trips, to reflect additional waiting time at first boarding.
