@@ -335,8 +335,7 @@ public class FastRaptorWorker {
         if (transit.hasSchedules) {
             raptorTimer.scheduledSearch.start();
             // We always process the full number of rounds requested, i.e. we don't break out of the loop early when
-            // no improvement in travel times is achieved. That would complicate the code that handles the results. We
-            // do limit the patterns explored in each round to those passing through stops updated in the previous round.
+            // no improvement in travel times is achieved. That would complicate the code that handles the results.
             for (int round = 1; round <= request.maxRides; round++) {
                 // Reuse state from the same round at a later minute, merging in any improvements from the previous
                 // round at this same departure minute. If there are no later minutes or previous rounds, all stops will
@@ -381,35 +380,22 @@ public class FastRaptorWorker {
             // In Monte Carlo mode, each iteration is a fresh randomization of frequency route offsets.
             // In half-headway mode, only one iteration will happen and schedules will not be randomized.
             for (int iteration = 0; iteration < iterationsPerMinute; iteration++) {
-
                 // Make a fresh copy of the upper bound travel times for each new randomized schedule (iteration).
                 // Array contains one state per round we're going to perform with this schedule.
                 RaptorState[] frequencyState = copyMultiRoundState(scheduleState);
-
-                // Note: at this point, the updated stops sets have been cleared in the frequency states.
-
                 if (boardingMode == MONTE_CARLO) {
-                    // Take a new Monte Carlo draw if requested (i.e. if boarding assumption is not half-headway): for
-                    // each frequency-based route, choose how long after service starts the first vehicle leaves (the
-                    // route's "phase"). We run all Raptor rounds with one draw before proceeding to the next draw.
                     offsets.randomize();
                 }
-
                 // Proceed through one round per transit ride; round 0 represents walking to transit stops from origin.
+                // Scan both scheduled and frequency routes to allow transferring back and forth between them.
                 for (int round = 1; round <= request.maxRides; round++) {
                     frequencyState[round].minMergePrevious();
 
-                    // Scheduled search. This is improving on travel times from stops touched by frequency routes or
-                    // combinations of frequency and scheduled routes.
                     raptorTimer.frequencySearchScheduled.start();
                     doScheduledSearchForRound(frequencyState[round - 1], frequencyState[round]);
                     raptorTimer.frequencySearchScheduled.stop();
 
-                    // Frequency search: additionally use stops touched by scheduled search
-                    // okay to destructively modify last round frequency state, it will not be used after this
                     raptorTimer.frequencySearchFrequency.start();
-                    frequencyState[round - 1].bestStopsTouched.or(scheduleState[round - 1].bestStopsTouched);
-                    frequencyState[round - 1].nonTransferStopsTouched.or(scheduleState[round - 1].nonTransferStopsTouched);
                     doFrequencySearchForRound(frequencyState[round - 1], frequencyState[round], boardingMode);
                     raptorTimer.frequencySearchFrequency.stop();
 
@@ -417,8 +403,7 @@ public class FastRaptorWorker {
                     doTransfers(frequencyState[round]);
                     raptorTimer.frequencySearchTransfers.stop();
                 }
-                // We are processing frequency routes, states are already a copy of the retained scheduled search state,
-                // no need to make an additional protective copy.
+                // No need to make an additional protective copy, this state is already a copy of the scheduled state.
                 RaptorState finalRoundState = frequencyState[request.maxRides];
                 result[iteration] = finalRoundState.bestNonTransferTimes;
                 if (retainPaths) {
@@ -520,12 +505,12 @@ public class FastRaptorWorker {
                 }
 
                 // Don't attempt to board if this stop was not reached in the last round or if pick up is not allowed.
-                if (inputState.bestStopsTouched.get(stop) &&
+                if (inputState.stopWasUpdated(stop) &&
                     pattern.pickups[stopPositionInPattern] != PickDropType.NONE
                 ) {
                     int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
                     if (onTrip == -1) {
-                        if (inputState.bestStopsTouched.get(stop)) { // FIXME due to enclosing conditional this is always true.
+                        if (inputState.stopWasUpdated(stop)) { // FIXME due to enclosing conditional this is always true.
                             int candidateTripIndex = -1;
                             EARLIEST_TRIP:
                             for (TripSchedule candidateSchedule : pattern.tripSchedules) {
@@ -651,7 +636,7 @@ public class FastRaptorWorker {
                         // If this stop was updated in the previous round and pickup is allowed at this stop, see if
                         // we can board an earlier trip.
                         // (even if already boarded, since this is a frequency trip and we could move back)
-                        if (inputState.bestStopsTouched.get(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
+                        if (inputState.stopWasUpdated(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
                             int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
 
                             // if we're computing the upper bound, we want the worst case. This is the only thing that is
@@ -836,13 +821,11 @@ public class FastRaptorWorker {
      */
     private void doTransfers (RaptorState state) {
         // Cast and multiplication factored out of the tight loop below to ensure they are not repeatedly evaluated.
-        int walkSpeedMillimetersPerSecond = (int) (request.walkSpeed * 1000);
-        int maxWalkMillimeters = walkSpeedMillimetersPerSecond * (request.maxWalkTime * SECONDS_PER_MINUTE);
-
-        for (int stop = state.nonTransferStopsTouched.nextSetBit(0);
-             stop > -1;
-             stop = state.nonTransferStopsTouched.nextSetBit(stop + 1)
-        ){
+        final int walkSpeedMillimetersPerSecond = (int) (request.walkSpeed * 1000);
+        final int maxWalkMillimeters = walkSpeedMillimetersPerSecond * (request.maxWalkTime * SECONDS_PER_MINUTE);
+        final int nStops = state.bestNonTransferTimes.length;
+        for (int stop = 0; stop < nStops; stop++) {
+            if (!state.stopWasUpdatedPreTransfer(stop)) continue;
             TIntList transfersFromStop = transit.transfersForStop.get(stop);
             if (transfersFromStop != null) {
                 for (int i = 0; i < transfersFromStop.size(); i += 2) {
@@ -866,10 +849,9 @@ public class FastRaptorWorker {
      */
     private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns) {
         BitSet patternsToExplore = new BitSet();
-        for (int stop = state.bestStopsTouched.nextSetBit(0);
-             stop >= 0;
-             stop = state.bestStopsTouched.nextSetBit(stop + 1)
-        ) {
+        final int nStops = state.bestTimes.length;
+        for (int stop = 0; stop < nStops; stop++) {
+            if (!state.stopWasUpdated(stop)) continue;
             TIntIterator patternsAtStop = transit.patternsForStop.get(stop).iterator();
             while (patternsAtStop.hasNext()) {
                 int pattern = patternsAtStop.next();

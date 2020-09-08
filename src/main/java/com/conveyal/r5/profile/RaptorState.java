@@ -98,20 +98,6 @@ public class RaptorState {
     public int[] transferStop;
 
     /**
-     * Stops reached by transit in this round. This allows us to only make transfers from stops that have been
-     * updated with a lower time based on transit usage in this round, rather than transfers in a previous round.
-     * TODO this field is probably unnecessary if transit and post-transit transfers are processed separately.
-     * TODO rename to "updatedStops" rather than "touched"
-     */
-    public BitSet nonTransferStopsTouched;
-
-    /**
-     * Stops that have been updated by either transit arrivals or transfers in this round.
-     * This determines which routes should be explored in the next round.
-     */
-    public BitSet bestStopsTouched;
-
-    /**
      * This RaptorState will only store information about trips shorter than this duration. Travel times at or above
      * this limit will be treated as if the stop could not be reached at all.
      */
@@ -137,10 +123,6 @@ public class RaptorState {
         this.nonTransferWaitTime = new int[nStops];
         this.nonTransferInVehicleTravelTime = new int[nStops];
 
-        // Empty sets that will track the stops that have been updated in this round.
-        this.nonTransferStopsTouched = new BitSet(nStops);
-        this.bestStopsTouched = new BitSet(nStops);
-
         // Previous round reference should be set as needed by the code calling this constructor.
         this.previous = null;
     }
@@ -165,10 +147,6 @@ public class RaptorState {
         // As a failsafe, do not copy previous-round reference.
         // When creating new state chains, this reference must always change to a new state object.
         this.previous = null;
-
-        // Note that these sets are cleared when making the copy.
-        this.nonTransferStopsTouched = new BitSet(state.bestTimes.length);
-        this.bestStopsTouched = new BitSet(state.bestTimes.length);
     }
 
     /**
@@ -238,7 +216,6 @@ public class RaptorState {
         // We may want to consider splitting the post-transfer updating out into its own method to make this clearer.
         if (!transfer && time < bestNonTransferTimes[stop]) {
             bestNonTransferTimes[stop] = time;
-            nonTransferStopsTouched.set(stop);
             previousPatterns[stop] = fromPattern;
             previousStop[stop] = fromStop;
 
@@ -279,7 +256,6 @@ public class RaptorState {
         // by an optimal arrival at the source station of the transfer.
         if (time < bestTimes[stop]) {
             bestTimes[stop] = time;
-            bestStopsTouched.set(stop);
             if (transfer) {
                 transferStop[stop] = fromStop;
             } else {
@@ -332,7 +308,6 @@ public class RaptorState {
                 previousStop[i] = -1;
             }
         }
-
         // Update waiting times for all remaining trips, to reflect additional waiting time at first boarding.
         for (int stop = 0; stop < this.bestTimes.length; stop++) {
             if (this.previousPatterns[stop] > -1) {
@@ -342,11 +317,20 @@ public class RaptorState {
                 this.nonTransferInVehicleTravelTime[stop] = 0;
             }
         }
+    }
 
-        // We are reusing this state from one minute to the next. We must clear the touched stops sets before starting
-        // a new search, otherwise the set of stops and patterns to explore will reflect the previous search.
-        bestStopsTouched.clear();
-        nonTransferStopsTouched.clear();
+    /** @return whether the time was updated (with or without transfer) in the round represented by this state. */
+    public boolean stopWasUpdated (int stop) {
+        int time = this.bestTimes[stop];
+        int prevTime = (previous != null) ? previous.bestTimes[stop] : UNREACHED;
+        return time < prevTime;
+    }
+
+    /** @return whether the time was updated before transfers were applied in the round represented by this state. */
+    public boolean stopWasUpdatedPreTransfer (int stop) {
+        int time = this.bestNonTransferTimes[stop];
+        int prevTime = (previous != null) ? previous.bestNonTransferTimes[stop] : UNREACHED;
+        return time < prevTime;
     }
 
 }
