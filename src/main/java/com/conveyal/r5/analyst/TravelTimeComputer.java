@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.function.IntFunction;
 
 import static com.conveyal.r5.analyst.scenario.PickupWaitTimes.NO_SERVICE_HERE;
@@ -113,6 +114,9 @@ public class TravelTimeComputer {
         // multiple LegModes that have the same StreetMode (such as BIKE and BIKE_RENT).
         EnumSet<StreetMode> accessModes = LegMode.toStreetModeSet(request.accessModes);
 
+        // Map from transit stop vertex indices to the mode used to reach those vertices;
+        HashMap<Integer, StreetMode> optimalAccessModes = new HashMap<>();
+
         // Perform a street search for each access mode. For now, direct modes must be the same as access modes.
         for (StreetMode accessMode : accessModes) {
             LOG.info("Performing street search for mode: {}", accessMode);
@@ -174,6 +178,7 @@ public class TravelTimeComputer {
                 // Note that getReachedStops() returns the routing variable units, not necessarily seconds.
                 // TODO add logic here if linkedStops are specified in pickupDelay?
                 TIntIntMap travelTimesToStopsSeconds = sr.getReachedStops();
+
                 if (accessService != NO_WAIT_ALL_STOPS) {
                     LOG.info("Delaying transit access times by {} seconds (to wait for {} pick-up).",
                             accessService.waitTimeSeconds, accessMode);
@@ -182,7 +187,7 @@ public class TravelTimeComputer {
                     }
                     travelTimesToStopsSeconds.transformValues(i -> i + accessService.waitTimeSeconds);
                 }
-                minMergeMap(accessTimes, travelTimesToStopsSeconds);
+                minMergeMap(accessTimes, travelTimesToStopsSeconds, accessMode, optimalAccessModes);
             }
 
             LinkedPointSet linkedDestinations = network.linkageCache.getLinkage(
@@ -317,7 +322,7 @@ public class TravelTimeComputer {
         // When building a static site, perform some additional initialization causing the propagator to do extra work.
         if (request.computePaths || request.computeTravelTimeBreakdown) {
             perTargetPropagater.pathsToStopsForIteration = worker.pathsPerIteration;
-            perTargetPropagater.pathWriter = new PathWriter(request);
+            perTargetPropagater.pathWriter = new PathWriter(request, optimalAccessModes);
         }
 
         return perTargetPropagater.propagate();
@@ -326,17 +331,20 @@ public class TravelTimeComputer {
 
 
     /**
-     * Utility method. Merges two Trove int-int maps, keeping the minimum value when keys collide.
+     * Utility method. Merges two Trove int-int maps, keeping the minimum value when keys collide. Also
      */
-    private static void minMergeMap (TIntIntMap target, TIntIntMap source) {
+    private static void minMergeMap (TIntIntMap target, TIntIntMap source, StreetMode accessMode,
+                                     HashMap<Integer, StreetMode> modes) {
         source.forEachEntry((key, val) -> {
             if (target.containsKey(key)) {
                 int existingVal = target.get(key);
                 if (val < existingVal) {
                     target.put(key, val);
+                    modes.put(key, accessMode);
                 }
             } else {
                 target.put(key, val);
+                modes.put(key, accessMode);
             }
             return true;
         });

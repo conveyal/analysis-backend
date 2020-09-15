@@ -2,6 +2,7 @@ package com.conveyal.r5.analyst.cluster;
 
 import com.conveyal.r5.analyst.PersistenceBuffer;
 import com.conveyal.r5.profile.Path;
+import com.conveyal.r5.profile.StreetMode;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
@@ -14,6 +15,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -58,10 +60,16 @@ public class PathWriter {
      */
     private final TIntList pathIndexes = new TIntArrayList();
 
+    /**
+     * Map from transit stop vertex indices to the mode used to reach those vertices.
+     */
+    private final HashMap<Integer, StreetMode> accessModes;
+
     /** Constructor. Holds onto the task object, which is used to create unique names for the results files. */
-    public PathWriter (AnalysisWorkerTask task) {
+    public PathWriter (AnalysisWorkerTask task, HashMap<Integer, StreetMode> accessModes) {
         this.task = task;
         this.nTargets = task.width * task.height;
+        this.accessModes = accessModes;
         indexForPath = new TObjectIntHashMap<>(nTargets / 2, 0.5f, NO_PATH);
         nPathsPerTarget = task.nPathsPerTarget;
     }
@@ -82,6 +90,7 @@ public class PathWriter {
         int nPathsRecorded = 0;
         for (Path path : paths) {
             if (path != null) {
+                path.accessMode = accessModes.get(path.boardStops[0]);
                 // Deduplicate paths across destinations using the map.
                 int pathIndex = indexForPath.get(path);
                 if (pathIndex == NO_PATH) {
