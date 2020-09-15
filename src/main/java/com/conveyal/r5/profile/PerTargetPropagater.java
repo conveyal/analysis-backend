@@ -359,10 +359,12 @@ public class PerTargetPropagater {
                         if (timeAtTarget < maxTravelTimeSeconds && timeAtTarget < perIterationTravelTimes[iteration]) {
                             // To reach this target, alighting at this stop is faster than any previously checked stop.
                             perIterationTravelTimes[iteration] = timeAtTarget;
-                            if (calculateComponents || targetIndex == destinationIndex) {
+                            if (calculateComponents) {
                                 Path[] pathsToStops = pathsToStopsForIteration.get(iteration);
                                 for (Path path : pathsToStops) {
-                                    path.egressMode = linkedTargets.streetMode;
+                                    if (path != null) {
+                                        path.egressMode = linkedTargets.streetMode;
+                                    }
                                 }
                                 perIterationPaths[iteration] = pathsToStops[stop];
                             }
