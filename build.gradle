@@ -57,6 +57,12 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+// A task to copy all dependencies of the project into a single directory
+task copyDependencies(type: Copy) {
+    from configurations.default
+    into 'dependencies'
+}
+
 // Create a configuration properties file (by copying the template) before running this task.
 task testShadowJarRunnable(type: JavaExec) {
     dependsOn(shadowJar)
