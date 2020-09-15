@@ -357,16 +357,16 @@ public class PerTargetPropagater {
 
                         int timeAtTarget = timeAtStop + secondsFromStopToTarget;
                         if (timeAtTarget < maxTravelTimeSeconds && timeAtTarget < perIterationTravelTimes[iteration]) {
-                            // To reach this target, alighting at this stop is faster than any previously checked stop.
+                            // To reach this target in this iteration, alighting at this stop and proceeding by this
+                            // egress mode is faster than any previously checked stop/egress mode combination.
+                            // Because that's the case, update the best known travel time and corresponding path.
                             perIterationTravelTimes[iteration] = timeAtTarget;
                             if (calculateComponents) {
-                                Path[] pathsToStops = pathsToStopsForIteration.get(iteration);
-                                for (Path path : pathsToStops) {
-                                    if (path != null) {
-                                        path.egressMode = linkedTargets.streetMode;
-                                    }
+                                Path path = pathsToStopsForIteration.get(iteration)[stop];
+                                if (path != null) {
+                                    path.egressMode = linkedTargets.streetMode;
                                 }
-                                perIterationPaths[iteration] = pathsToStops[stop];
+                                perIterationPaths[iteration] = path;
                             }
                         }
                     }

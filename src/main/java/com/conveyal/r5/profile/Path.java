@@ -30,6 +30,11 @@ public class Path {
     public int[] boardStopPositions;
     public int[] alightStopPositions;
     public StreetMode accessMode = StreetMode.WALK;
+    /**
+     * Used only in propagation for writing paths for Taui outputs (abusing input paths as scratch buffer)
+     * TODO update egress mode outside of path (e.g. in wrapper or array parallel to perIterationTravelTimes in
+     * propagater)
+     */
     public StreetMode egressMode = StreetMode.WALK;
     public final int length;
 
