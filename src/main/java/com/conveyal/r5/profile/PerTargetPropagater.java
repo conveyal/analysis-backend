@@ -361,6 +361,9 @@ public class PerTargetPropagater {
                             perIterationTravelTimes[iteration] = timeAtTarget;
                             if (calculateComponents || targetIndex == destinationIndex) {
                                 Path[] pathsToStops = pathsToStopsForIteration.get(iteration);
+                                for (Path path : pathsToStops) {
+                                    path.egressMode = linkedTargets.streetMode;
+                                }
                                 perIterationPaths[iteration] = pathsToStops[stop];
                             }
                         }
