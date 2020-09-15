@@ -123,7 +123,8 @@ public class MultiOriginAssembler {
         this.nPercentiles = job.templateTask.percentiles.length;
         // Newly launched analyses have the cutoffs field, even when being sent to old workers that don't read it.
         this.nCutoffs = job.templateTask.cutoffsMinutes.length;
-        this.nDestinationPointSets = job.templateTask.destinationPointSetKeys.length;
+        this.nDestinationPointSets = job.templateTask.makeTauiSite ? 0 :
+                job.templateTask.destinationPointSetKeys.length;
         this.nOriginsTotal = job.nTasksTotal;
         this.originsReceived = new BitSet(job.nTasksTotal);
         this.originPointSet = job.originPointSet;
@@ -151,7 +152,7 @@ public class MultiOriginAssembler {
                 }
             }
 
-            if (job.templateTask.destinationPointSetKeys[0].endsWith(FileStorageFormat.FREEFORM.extension)) {
+            if (!job.templateTask.makeTauiSite && job.templateTask.destinationPointSetKeys[0].endsWith(FileStorageFormat.FREEFORM.extension)) {
                 // It's kind of fragile to read from an external network service here. But this is
                 // only triggered when destinations are freeform, which is an experimental feature.
                 destinationPointSet = PointSetCache.readFreeFormFromFileStore(job.templateTask.grid);

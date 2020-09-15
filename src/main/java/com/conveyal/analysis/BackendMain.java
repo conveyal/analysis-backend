@@ -16,7 +16,6 @@ import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import javax.imageio.ImageIO;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -44,12 +43,20 @@ public abstract class BackendMain {
     }
 
     protected static void startServer (Components components, Thread... postStartupThreads) {
+        // We have several non-daemon background thread pools which will keep the JVM alive if the main thread crashes.
+        // If initialization fails, we need to catch the exception or error and force JVM shutdown.
+        try {
+            startServerInternal(components, postStartupThreads);
+        } catch (Throwable throwable) {
+            LOG.error("Exception while starting up backend, shutting down JVM.\n{}", ExceptionUtils.asString(throwable));
+            System.exit(1);
+        }
+    }
+
+    private static void startServerInternal (Components components, Thread... postStartupThreads) {
         LOG.info("Starting Conveyal analysis backend, the time is now {}", DateTime.now());
         LOG.info("Backend version is: {}", BackendVersion.instance.version);
         LOG.info("Connecting to database...");
-
-        // Initialize ImageIO. See http://stackoverflow.com/questions/20789546
-        ImageIO.scanForPlugins();
 
         // Persistence, the census extractor, and ApiMain are initialized statically, without creating instances,
         // passing in non-static components we've already created. TODO migrate to non-static Components.
@@ -69,6 +76,11 @@ public abstract class BackendMain {
         LOG.info("Conveyal Analysis server is ready.");
         for (Thread thread : postStartupThreads) {
             thread.start();
+        }
+
+        if (components.config.immediateShutdown) {
+            LOG.info("Startup has completed successfully. Exiting immediately as requested.");
+            System.exit(0);
         }
 
         // TODO transform this into a task managed by a scheduled task executor component.
