@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 
 import static com.conveyal.r5.common.Util.newIntArray;
-import static com.conveyal.r5.profile.FastRaptorWorker.ENABLE_OPTIMIZATIONS;
+import static com.conveyal.r5.profile.FastRaptorWorker.ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS;
 import static com.conveyal.r5.profile.FastRaptorWorker.UNREACHED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -106,6 +106,7 @@ public class RaptorState {
     /**
      * Create a RaptorState for a network with a particular number of stops, and a given maximum travel duration.
      * Travel times to all stops are initialized to UNREACHED, which will be improved upon by the search process.
+     * The previous round field is left null and should be set as needed by the code calling this constructor.
      */
     public RaptorState (int nStops, int maxDurationSeconds) {
         this.maxDurationSeconds = maxDurationSeconds;
@@ -288,14 +289,16 @@ public class RaptorState {
      */
     public void setDepartureTime(int departureTime) {
         final int additionalWaitSeconds = this.departureTime - departureTime;
+        // In current usage, we always decrement by one minute. McRaptor steps by different numbers of minutes but uses
+        // a separate code path, and in fact does not apply the range raptor optimization.
         checkState(additionalWaitSeconds == 60, "Departure times may only be decremented by one minute.");
         this.departureTime = departureTime;
 
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
-        // This whole loop seems unnecessary - in testing removing it does not change results since actual times
-        // and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being true.
-        // It could have some performance impact.
-        if (ENABLE_OPTIMIZATIONS) {
+        // This whole loop does not seem strictly necessary. In testing, removing it does not change results since
+        // real travel times and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being
+        // true. Clearing these could have some performance impact though, avoiding scanning some routes.
+        if (ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS) {
             int maxClockTime = departureTime + maxDurationSeconds;
             for (int i = 0; i < bestTimes.length; i++) {
                 if (bestTimes[i] >= maxClockTime) {

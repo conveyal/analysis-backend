@@ -79,8 +79,12 @@ public class FastRaptorWorker {
      */
     private static final int MINIMUM_BOARD_WAIT_SEC = 60;
 
-    /** Enable code paths that should affect efficiency but have no effect on output. */
-    public static final boolean ENABLE_OPTIMIZATIONS = true;
+    // ENABLE_OPTIMIZATION_X flags enable code paths that should affect efficiency but have no effect on output.
+
+    public static final boolean ENABLE_OPTIMIZATION_RANGE_RAPTOR = true;
+    public static final boolean ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND = true;
+    public static final boolean ENABLE_OPTIMIZATION_UPDATED_STOPS = true;
+    public static final boolean ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS = true;
 
     /** The width of the departure time window in minutes. */
     public final int nMinutes;
@@ -151,9 +155,9 @@ public class FastRaptorWorker {
         // How many random schedules per departure minute to meet or exceed the requested total iterations?
         monteCarloDrawsPerMinute = request.getMonteCarloDrawsPerMinute();
 
-        // Zero Monte Carlo draws means use half-headway instead of Monte Carlo randomization.
-        // TODO review this logic and parameter flow
-        boardingMode = (monteCarloDrawsPerMinute == 0) ? HALF_HEADWAY : MONTE_CARLO;
+        // Hidden feature: activate half-headway boarding times by specifying zero Monte Carlo draws.
+        // The UI requires one or more draws, so this can only be activated by editing request JSON directly.
+        boardingMode = (request.monteCarloDraws == 0) ? HALF_HEADWAY : MONTE_CARLO;
     }
 
     /**
@@ -300,6 +304,7 @@ public class FastRaptorWorker {
         final RaptorState initialState = scheduleState[0];
         accessStops.forEachEntry((stop, accessTime) -> {
             boolean updated = initialState.setTimeAtStop(stop, accessTime + nextMinuteDepartureTime, -1, -1, 0, 0, true);
+            // This assertion holds with constant access mode speeds. Adding variable speeds will break this assumption.
             checkState(updated, "Stepping departure time back one minute should always update access stops.");
             return true; // continue iteration
         });
@@ -321,7 +326,7 @@ public class FastRaptorWorker {
      * iteration (clock times as opposed to durations).
      */
     private int[][] runRaptorForDepartureMinute (int departureTime) {
-        if (scheduleState != null && ENABLE_OPTIMIZATIONS) {
+        if (ENABLE_OPTIMIZATION_RANGE_RAPTOR && scheduleState != null) {
             advanceScheduledSearchToPreviousMinute(departureTime);
         } else {
             initializeScheduleState(departureTime);
@@ -348,12 +353,12 @@ public class FastRaptorWorker {
                 doScheduledSearchForRound(scheduleState[round - 1], scheduleState[round]);
                 raptorTimer.scheduledSearchTransit.stop();
 
-                // If there are frequency routes, we will be randomizing the schedules of those routes.
+                // If there are frequency routes, we will be randomizing the schedules (phase) of those routes.
                 // First perform a frequency search using worst-case boarding time to provide a tighter upper bound on
                 // total travel time. Each randomized schedule will then improve on these travel times.
                 // This should be a pure optimization, which is only helpful for Monte Carlo mode (not half-headway).
                 // Perhaps we should only do it when iterationsPerMinute is high (2 or more?)
-                if (transit.hasFrequencies && boardingMode == MONTE_CARLO && ENABLE_OPTIMIZATIONS) {
+                if (ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND && transit.hasFrequencies && boardingMode == MONTE_CARLO) {
                     raptorTimer.scheduledSearchFrequencyBounds.start();
                     doFrequencySearchForRound(scheduleState[round - 1], scheduleState[round], UPPER_BOUND);
                     raptorTimer.scheduledSearchFrequencyBounds.stop();
@@ -369,9 +374,10 @@ public class FastRaptorWorker {
 
         // Now run one or more frequency searches using randomized schedules for all frequency lines.
         // These will improve upon any upper bound travel times just established at this departure minute.
-        // This is a key innovation, described in more detail in Conway, Byrd, and van der Linden 2017.
-        // Unlike those scheduled results, these frequency results are not reusable at the previous minute because
-        // the schedule is almost certain to be different at that previous minute.
+        // This is a key innovation, described in more detail in Conway, Byrd, and van der Linden 2017:
+        // The range-RAPTOR optimization (using arrival times for departure time t as an upper bound on arrival times
+        // for departure time t - 1) works for the patterns with true schedules or worst-case (full headway) waiting
+        // times, but not the patterns with randomized schedules.
         if (transit.hasFrequencies) {
             raptorTimer.frequencySearch.start();
             int[][] result = new int[iterationsPerMinute][];
@@ -851,6 +857,10 @@ public class FastRaptorWorker {
      * The pattern indexes returned are limited to those in the supplied set.
      */
     private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns) {
+        if (!ENABLE_OPTIMIZATION_UPDATED_STOPS) {
+            // We do not write to the returned bitset, only iterate over it, so do not need to make a protective copy.
+            return runningPatterns;
+        }
         BitSet patternsToExplore = new BitSet();
         final int nStops = state.bestTimes.length;
         for (int stop = 0; stop < nStops; stop++) {
