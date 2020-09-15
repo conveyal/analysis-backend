@@ -6,13 +6,7 @@ package com.conveyal.r5.profile;
  * speeds depending on the selected mode.
  */
 public enum StreetMode {
-    WALK(0),
-    BICYCLE(1),
-    CAR(2);
-
-    final int value;
-
-    StreetMode(int value) {
-        this.value = value;
-    }
+    WALK,
+    BICYCLE,
+    CAR;
 }

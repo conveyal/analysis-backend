@@ -166,8 +166,8 @@ public class Path {
         result = 31 * result + Arrays.hashCode(trips);
         result = 31 * result + Arrays.hashCode(boardStopPositions);
         result = 31 * result + Arrays.hashCode(alightStopPositions);
-        result = 31 * result + accessMode.value;
-        result = 31 * result + egressMode.value;
+        result = 31 * result + accessMode.hashCode();
+        result = 31 * result + egressMode.hashCode();
         return result;
     }
 
