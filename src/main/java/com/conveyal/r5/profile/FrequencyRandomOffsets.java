@@ -47,6 +47,11 @@ public class FrequencyRandomOffsets {
         }
     }
 
+     /**
+      * Take a new Monte Carlo draw if requested (i.e. if boarding assumption is not half-headway): for each
+      * frequency-based route, choose how long after service starts the first vehicle leaves (the route's "phase").
+      * We run all Raptor rounds with one draw before proceeding to the next draw.
+      */
     public void randomize () {
         int remaining = 0;
 

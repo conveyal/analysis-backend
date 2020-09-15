@@ -4,8 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.BitSet;
 
+import static com.conveyal.r5.common.Util.newIntArray;
+import static com.conveyal.r5.profile.FastRaptorWorker.ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS;
 import static com.conveyal.r5.profile.FastRaptorWorker.UNREACHED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -97,19 +98,6 @@ public class RaptorState {
     public int[] transferStop;
 
     /**
-     * Stops reached by transit in this round. This allows us to only make transfers from stops that have been
-     * updated with a lower time based on transit usage in this round, rather than transfers in a previous round.
-     * TODO this field is probably unnecessary if transit and post-transit transfers are processed separately.
-     */
-    public BitSet nonTransferStopsTouched;
-
-    /**
-     * Stops that have been updated by either transit arrivals or transfers in this round.
-     * This determines which routes should be explored in the next round.
-     */
-    public BitSet bestStopsTouched;
-
-    /**
      * This RaptorState will only store information about trips shorter than this duration. Travel times at or above
      * this limit will be treated as if the stop could not be reached at all.
      */
@@ -118,33 +106,32 @@ public class RaptorState {
     /**
      * Create a RaptorState for a network with a particular number of stops, and a given maximum travel duration.
      * Travel times to all stops are initialized to UNREACHED, which will be improved upon by the search process.
+     * The previous round field is left null and should be set as needed by the code calling this constructor.
      */
     public RaptorState (int nStops, int maxDurationSeconds) {
-        this.bestTimes = new int[nStops];
-        this.bestNonTransferTimes = new int[nStops];
+        this.maxDurationSeconds = maxDurationSeconds;
 
-        Arrays.fill(bestTimes, UNREACHED);
-        Arrays.fill(bestNonTransferTimes, UNREACHED);
+        // Array slot for every stop is initialized to the maximum integer value, which the search will improve upon.
+        this.bestTimes = newIntArray(nStops, UNREACHED);
+        this.bestNonTransferTimes = newIntArray(nStops, UNREACHED);
 
-        this.previousPatterns = new int[nStops];
-        this.previousStop = new int[nStops];
-        this.transferStop = new int[nStops];
-        Arrays.fill(previousPatterns, -1);
-        Arrays.fill(previousStop, -1);
-        Arrays.fill(transferStop, -1);
+        // Initialized to contain all -1, indicating "none".
+        this.previousPatterns = newIntArray(nStops, -1);
+        this.previousStop = newIntArray(nStops, -1);
+        this.transferStop = newIntArray(nStops, -1);
 
+        // These fields accumulate times, so are initially filled with zeros.
         this.nonTransferWaitTime = new int[nStops];
         this.nonTransferInVehicleTravelTime = new int[nStops];
-        this.nonTransferStopsTouched = new BitSet(nStops);
-        this.bestStopsTouched = new BitSet(nStops);
-        this.maxDurationSeconds = maxDurationSeconds;
+
+        // Previous round reference should be set as needed by the code calling this constructor.
+        this.previous = null;
     }
 
     /**
-     * Specialized copy constructor for making the next state in a series representing a series of rounds in a single
-     * raptor search. This makes a deep copy of all fields except the sets of touched stops (which are initialized to
-     * be empty) and the previous state pointer.
-     * FIXME only used via copy() method to initialize a frequency search - we should probably set previous to null.
+     * Copy constructor for reusing search state from one minute to the next in a range raptor search.
+     * This makes a deep copy of all fields, except the sets of updated stops (which are cleared) and the reference
+     * to the previous round's state (which should be set as needed by the caller).
      */
     private RaptorState(RaptorState state) {
         this.bestTimes = Arrays.copyOf(state.bestTimes, state.bestTimes.length);
@@ -153,23 +140,19 @@ public class RaptorState {
         this.previousStop = Arrays.copyOf(state.previousStop, state.previousStop.length);
         this.transferStop = Arrays.copyOf(state.transferStop, state.transferStop.length);
         this.nonTransferWaitTime = Arrays.copyOf(state.nonTransferWaitTime, state.nonTransferWaitTime.length);
-        this.nonTransferInVehicleTravelTime = Arrays.copyOf(state.nonTransferInVehicleTravelTime, state.nonTransferInVehicleTravelTime.length);
+        this.nonTransferInVehicleTravelTime =
+                Arrays.copyOf(state.nonTransferInVehicleTravelTime, state.nonTransferInVehicleTravelTime.length);
         this.departureTime = state.departureTime;
-
-        this.previous = state;
-
-        this.nonTransferStopsTouched = new BitSet(state.bestTimes.length);
-        this.bestStopsTouched = new BitSet(state.bestTimes.length);
-
         this.maxDurationSeconds = state.maxDurationSeconds;
+
+        // As a failsafe, do not copy previous-round reference.
+        // When creating new state chains, this reference must always change to a new state object.
+        this.previous = null;
     }
 
     /**
-     * Makes a deep copy of this raptor state, clearing the sets of reached stops and setting the new state's previous
-     * pointer to this existing state.
-     *
-     * FIXME this seems designed for progressing to the next round, but is only used for starting frequency searches.
-     *       it should probably set the previous pointer to null.
+     * Makes a deep copy of this raptor state. Everything is replicated, except the sets of stops updated in this round
+     * (which are cleared) and the reference to the previous round's state (which is nulled out).
      */
     public RaptorState copy () {
         return new RaptorState(this);
@@ -234,7 +217,6 @@ public class RaptorState {
         // We may want to consider splitting the post-transfer updating out into its own method to make this clearer.
         if (!transfer && time < bestNonTransferTimes[stop]) {
             bestNonTransferTimes[stop] = time;
-            nonTransferStopsTouched.set(stop);
             previousPatterns[stop] = fromPattern;
             previousStop[stop] = fromStop;
 
@@ -275,7 +257,6 @@ public class RaptorState {
         // by an optimal arrival at the source station of the transfer.
         if (time < bestTimes[stop]) {
             bestTimes[stop] = time;
-            bestStopsTouched.set(stop);
             if (transfer) {
                 transferStop[stop] = fromStop;
             } else {
@@ -307,38 +288,32 @@ public class RaptorState {
      * will the downstream results change. This also clears the reached stops sets in preparation for a new round.
      */
     public void setDepartureTime(int departureTime) {
-        int previousDepartureTime = this.departureTime;
+        final int additionalWaitSeconds = this.departureTime - departureTime;
+        // In current usage, we always decrement by one minute. McRaptor steps by different numbers of minutes but uses
+        // a separate code path, and in fact does not apply the range raptor optimization.
+        checkState(additionalWaitSeconds == 60, "Departure times may only be decremented by one minute.");
         this.departureTime = departureTime;
-        if (previousDepartureTime == 0) {
-            // This is the first departure minute being examined, so all state should be UNREACHED or -1 and there is
-            // nothing to update. This only skips the process for the highest boarding minute, so it's a very minor
-            // optimization. But it prevents any misunderstandings about what will happen when "updating" an empty state.
-            // Alternatively, we could not call this method on the first round and use it only for decrementing
-            // departure time in later rounds.
-            return;
-        }
-        checkState(departureTime < previousDepartureTime, "Departure times may only be decremented.");
 
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
-        int maxClockTime = departureTime + maxDurationSeconds;
-        // TODO This whole loop seems unnecessary - in testing removing it does not change results since actual times
-        //  and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being true.
-        //  It could have some performance impact, though the updated stops set is reconstructed at each step.
-        for (int i = 0; i < bestTimes.length; i++) {
-            if (bestTimes[i] >= maxClockTime) {
-                bestTimes[i] = UNREACHED;
-                transferStop[i] = -1;
-            }
-            if (bestNonTransferTimes[i] >= maxClockTime) {
-                bestNonTransferTimes[i] = UNREACHED;
-                // These were not being set before - they might not be necessary but at least it's clearer to set them.
-                previousPatterns[i] = -1;
-                previousStop[i] = -1;
+        // This whole loop does not seem strictly necessary. In testing, removing it does not change results since
+        // real travel times and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being
+        // true. Clearing these could have some performance impact though, avoiding scanning some routes.
+        if (ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS) {
+            int maxClockTime = departureTime + maxDurationSeconds;
+            for (int i = 0; i < bestTimes.length; i++) {
+                if (bestTimes[i] >= maxClockTime) {
+                    bestTimes[i] = UNREACHED;
+                    transferStop[i] = -1;
+                }
+                if (bestNonTransferTimes[i] >= maxClockTime) {
+                    bestNonTransferTimes[i] = UNREACHED;
+                    // These were not being set before - they might not be necessary but at least it's clearer to set them.
+                    previousPatterns[i] = -1;
+                    previousStop[i] = -1;
+                }
             }
         }
-
         // Update waiting times for all remaining trips, to reflect additional waiting time at first boarding.
-        int additionalWaitSeconds = previousDepartureTime - departureTime;
         for (int stop = 0; stop < this.bestTimes.length; stop++) {
             if (this.previousPatterns[stop] > -1) {
                 this.nonTransferWaitTime[stop] += additionalWaitSeconds;
@@ -347,11 +322,20 @@ public class RaptorState {
                 this.nonTransferInVehicleTravelTime[stop] = 0;
             }
         }
+    }
 
-        // We are reusing this state from one minute to the next. We must clear the touched stops sets before starting
-        // a new search, otherwise the set of stops and patterns to explore will reflect the previous search.
-        bestStopsTouched.clear();
-        nonTransferStopsTouched.clear();
+    /** @return whether the time was updated (with or without transfer) in the round represented by this state. */
+    public boolean stopWasUpdated (int stop) {
+        int time = this.bestTimes[stop];
+        int prevTime = (previous != null) ? previous.bestTimes[stop] : UNREACHED;
+        return time < prevTime;
+    }
+
+    /** @return whether the time was updated before transfers were applied in the round represented by this state. */
+    public boolean stopWasUpdatedPreTransfer (int stop) {
+        int time = this.bestNonTransferTimes[stop];
+        int prevTime = (previous != null) ? previous.bestNonTransferTimes[stop] : UNREACHED;
+        return time < prevTime;
     }
 
 }
