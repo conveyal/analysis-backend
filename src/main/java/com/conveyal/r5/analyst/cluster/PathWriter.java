@@ -142,6 +142,8 @@ public class PathWriter {
             dataOutput.writeInt(pathForIndex.size());
             for (Path path : pathForIndex) {
                 dataOutput.writeInt(path.patterns.length);
+                dataOutput.write(path.accessMode.toString().substring(0,3).getBytes());
+                dataOutput.write(path.egressMode.toString().substring(0,3).getBytes());
                 for (int i = 0 ; i < path.patterns.length; i ++){
                     dataOutput.writeInt(path.boardStops[i]);
                     dataOutput.writeInt(path.patterns[i]);
