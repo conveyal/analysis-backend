@@ -683,9 +683,7 @@ public class AnalysisWorker implements Runnable {
         if (decayFunction != null) {
             jsonBlock.javascriptDecayFunction = decayFunction.javascriptFunction();
         }
-        if (pathResult.paths[0] != null) {
-            jsonBlock.pathSummaries = pathResult.getSummaries();
-        }
+
         LOG.info("Travel time surface written, appending {}.", jsonBlock);
         // We could do this when setting up the Spark handler, supplying writeValue as the response transformer
         // But then you also have to handle the case where you are returning raw bytes.
