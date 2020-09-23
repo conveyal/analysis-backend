@@ -100,7 +100,8 @@ public class TestDecayFunctions extends TestCase {
             int zero = function.reachesZeroAt(cutoffSeconds);
             checkState(zero >= 0, "Decay function zero point must be zero or positive, but was {}.", zero);
             checkState(zero < FOUR_HOURS_IN_SECONDS, "Decay function zero point must be less than four hours.");
-            checkState(zero >= cutoffSeconds, "Zero point should be at or above cutoff.");
+            // Disabling this assertion until we have a policy for functions like exponential, not affected by cutoff
+            // checkState(zero >= cutoffSeconds, "Zero point should be at or above cutoff.");
             double zeroValue = Math.abs(function.computeWeight(cutoffSeconds, zero));
             checkState(zeroValue < ZERO_EPSILON, "Decay function output for zero point must be close to zero.");
             double almostZeroValue = Math.abs(function.computeWeight(cutoffSeconds, zero - 1));
