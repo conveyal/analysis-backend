@@ -164,10 +164,8 @@ public class OpportunityDatasetController implements HttpController {
                 createDatasetsFromPointSets(email, accessGroup, config.seamlessCensusBucket(),
                                             downloadBatchId, regionId, status, grids);
             } catch (IOException e) {
-                status.status = Status.ERROR;
-                status.message = ExceptionUtils.asString(e);
-                status.completed();
-                throw AnalysisServerException.unknown(e);
+                status.completeWithError(e);
+                LOG.error("Exception processing LODES data: " + ExceptionUtils.asString(e));
             }
         });
 
@@ -252,16 +250,13 @@ public class OpportunityDatasetController implements HttpController {
                 }
                 status.uploadedGrids += 1;
                 if (status.uploadedGrids == status.totalGrids) {
-                    status.status = Status.DONE;
-                    status.completed();
+                    status.completeSuccessfully();
                 }
                 LOG.info("Completed {}/{} uploads for {}", status.uploadedGrids, status.totalGrids, status.name);
             } catch (NumberFormatException e) {
                 throw new AnalysisServerException("Error attempting to parse number in uploaded file: " + e.toString());
             } catch (Exception e) {
-                status.status = Status.ERROR;
-                status.message = ExceptionUtils.asString(e);
-                status.completed();
+                status.completeWithError(e);
                 throw AnalysisServerException.unknown(e);
             }
         }
@@ -442,36 +437,46 @@ public class OpportunityDatasetController implements HttpController {
      * The request should be a multipart/form-data POST request, containing uploaded files and associated parameters.
      */
     private OpportunityDatasetUploadStatus createOpportunityDataset(Request req, Response res) {
+
         final String accessGroup = req.attribute("accessGroup");
         final String email = req.attribute("email");
 
-        String sourceName, regionId;
-        Map<String, List<FileItem>> formFields;
+        final String sourceName, regionId;
+        final Map<String, List<FileItem>> formFields;
         try {
             ServletFileUpload sfu = new ServletFileUpload(fileItemFactory);
             formFields = sfu.parseParameterMap(req.raw());
             sourceName = getFormField(formFields, "Name", true);
             regionId = getFormField(formFields, "regionId", true);
         } catch (Exception e) {
-            throw AnalysisServerException.fileUpload("Unable to create opportunity dataset. " + e.getMessage());
+            // We can't even get enough information to create a status tracking object. Re-throw an exception.
+            throw AnalysisServerException.fileUpload("Unable to parse opportunity dataset. " + ExceptionUtils.asString(e));
         }
 
-        // Set a region wide status that we are processing opportunity data.
-        // TODO change this into a centrally located "Region/Account Status" field.
+        // Create a region-wide status object tracking the processing of opportunity data.
+        // Create the status object before doing anything including input and parameter validation, so that any problems
+        // are recorded in a persistent purpose-built way rather than falling back on the UI's catch-all error window.
+        // TODO more standardized mechanism for tracking asynchronous tasks and catching exceptions on them
         OpportunityDatasetUploadStatus status = new OpportunityDatasetUploadStatus(regionId, sourceName);
         addStatusAndRemoveOldStatuses(status);
 
-        // Create a single unique ID string that will be referenced by all opportunity datasets produced by this upload.
-        // This allows us to group together datasets from the same source and associate them with the file(s) that produced them.
-        final String sourceFileId = new ObjectId().toString();
-
-        // Call remove() rather than get() so that subsequent code will see only string parameters, not the files.
-        List<FileItem> fileItems = formFields.remove("files");
-        final UploadFormat uploadFormat = detectUploadFormatAndValidate(fileItems);
-        Map<String, String> parameters = extractStringParameters(formFields);
+        final List<FileItem> fileItems;
+        final UploadFormat uploadFormat;
+        final Map<String, String> parameters;
+        try {
+            // Validate inputs and parameters, which will throw an exception if there's anything wrong with them.
+            // Call remove() rather than get() so that subsequent code will see only string parameters, not the files.
+            fileItems = formFields.remove("files");
+            uploadFormat = detectUploadFormatAndValidate(fileItems);
+            parameters = extractStringParameters(formFields);
+        } catch (Exception e) {
+            status.completeWithError(e);
+            return status;
+        }
 
         // We are going to call several potentially slow blocking methods to create and persist new pointsets.
         // This whole series of actions will be run sequentially but within an asynchronous Executor task.
+        // After enqueueing, the status is returned so the UI can track progress.
         taskScheduler.enqueueHeavyTask(() -> {
             try {
                 // A place to accumulate all the PointSets created, both FreeForm and Grids.
@@ -505,26 +510,23 @@ public class OpportunityDatasetController implements HttpController {
                             pointsets.add(gridFromFreeForm);
                         }
                     } else {
-                        // This older process creates a grid for every non-ignored field in the CSV.
+                        // This is the common default process: create a grid for every non-ignored field in the CSV.
                         pointsets.addAll(createGridsFromCsv(csvFileItem, formFields, status));
                     }
                 }
-                // Create OpprtunityDatasets with metadata about PointSets and store them.
                 if (pointsets.isEmpty()) {
-                    status.status = Status.ERROR;
-                    status.message = "Unable to create any opportunity dataset from the files uploaded.";
-                    status.completed();
-                } else {
-                    LOG.info("Uploading opportunity datasets to S3 and storing metadata in database.");
-                    createDatasetsFromPointSets(email, accessGroup, sourceName, sourceFileId, regionId, status, pointsets);
+                    throw new RuntimeException("No opportunity dataset was created from the files uploaded.");
                 }
+                LOG.info("Uploading opportunity datasets to S3 and storing metadata in database.");
+                // Create a single unique ID string that will be referenced by all opportunity datasets produced by
+                // this upload. This allows us to group together datasets from the same source and associate them with
+                // the file(s) that produced them.
+                final String sourceFileId = new ObjectId().toString();
+                createDatasetsFromPointSets(email, accessGroup, sourceName, sourceFileId, regionId, status, pointsets);
             } catch (Exception e) {
-                status.status = Status.ERROR;
-                status.message = ExceptionUtils.asString(e);
-                status.completed();
+                status.completeWithError(e);
             }
         });
-
         return status;
     }
 
@@ -734,6 +736,7 @@ public class OpportunityDatasetController implements HttpController {
     /**
      * Implements R5 ProgressListener interface to allow code in R5 to update it.
      * This is serialized into HTTP responses so all fields must be public.
+     * TODO generalize into a system for tracking progress on all asynchronous server-side tasks.
      */
     public static class OpportunityDatasetUploadStatus implements ProgressListener {
         public String id;
@@ -755,8 +758,18 @@ public class OpportunityDatasetController implements HttpController {
             this.createdAt = new Date();
         }
 
-        public void completed () {
+        private void completed (Status status) {
+            this.status = status;
             this.completedAt = new Date();
+        }
+
+        public void completeWithError (Exception e) {
+            message = "Unable to create opportunity dataset. " + ExceptionUtils.asString(e);
+            completed(Status.ERROR);
+        }
+
+        public void completeSuccessfully () {
+            completed(Status.DONE);
         }
 
         @Override

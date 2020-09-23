@@ -18,8 +18,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static com.conveyal.r5.profile.FastRaptorWorker.FrequencyBoardingMode.HALF_HEADWAY;
 import static com.conveyal.r5.profile.FastRaptorWorker.FrequencyBoardingMode.MONTE_CARLO;
@@ -81,6 +79,13 @@ public class FastRaptorWorker {
      */
     private static final int MINIMUM_BOARD_WAIT_SEC = 60;
 
+    // ENABLE_OPTIMIZATION_X flags enable code paths that should affect efficiency but have no effect on output.
+
+    public static final boolean ENABLE_OPTIMIZATION_RANGE_RAPTOR = true;
+    public static final boolean ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND = true;
+    public static final boolean ENABLE_OPTIMIZATION_UPDATED_STOPS = true;
+    public static final boolean ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS = true;
+
     /** The width of the departure time window in minutes. */
     public final int nMinutes;
 
@@ -122,7 +127,7 @@ public class FastRaptorWorker {
      * This state is reused at each departure minute without re-initializing it (this is the range-raptor optimization).
      * The randomized schedules at each departure minute are applied on top of this scheduled state.
      */
-    private final RaptorState[] scheduleState;
+    private RaptorState[] scheduleState;
 
     /**
      * This should be either HALF_HEADWAY or MONTE_CARLO.
@@ -141,27 +146,18 @@ public class FastRaptorWorker {
         this.request = request;
         this.accessStops = accessStops;
         this.servicesActive  = transit.getActiveServicesForDate(request.date);
-        // we add one to request.maxRides, first state is result of initial walk
-        this.scheduleState = IntStream.range(0, request.maxRides + 1)
-                .mapToObj((i) -> new RaptorState(
-                            transit.getStopCount(),
-                            request.maxTripDurationMinutes * SECONDS_PER_MINUTE))
-                .toArray(RaptorState[]::new);
-
-        for (int i = 1; i < this.scheduleState.length; i++) {
-            this.scheduleState[i].previous = this.scheduleState[i - 1];
-        }
 
         offsets = new FrequencyRandomOffsets(transitLayer);
 
         // compute number of minutes for scheduled search
         nMinutes = request.getTimeWindowLengthMinutes();
 
-        // how many monte carlo draws per minute of scheduled search to get desired total iterations?
+        // How many random schedules per departure minute to meet or exceed the requested total iterations?
         monteCarloDrawsPerMinute = request.getMonteCarloDrawsPerMinute();
 
-        // Zero Monte Carlo draws means use half-headway instead of Monte Carlo randomization.
-        boardingMode = (monteCarloDrawsPerMinute == 0) ? HALF_HEADWAY : MONTE_CARLO;
+        // Hidden feature: activate half-headway boarding times by specifying zero Monte Carlo draws.
+        // The UI requires one or more draws, so this can only be activated by editing request JSON directly.
+        boardingMode = (request.monteCarloDraws == 0) ? HALF_HEADWAY : MONTE_CARLO;
     }
 
     /**
@@ -172,8 +168,7 @@ public class FastRaptorWorker {
     public int[][] route () {
         raptorTimer.fullSearch.start();
         prefilterPatterns();
-        // Initialize result storage.
-        // Results are one arrival time at each stop, for every raptor iteration.
+        // Initialize result storage. Results are one arrival time at each stop, for every raptor iteration.
         final int nStops = transit.getStopCount();
         final int nIterations;
         if (boardingMode == HALF_HEADWAY) {
@@ -190,10 +185,11 @@ public class FastRaptorWorker {
         if (retainPaths) pathsPerIteration = new ArrayList<>();
 
         // This main outer loop iterates backward over all minutes in the departure times window.
+        // TODO revise this loop so seconds are derived from minute numbers
         int currentIteration = 0;
         for (int departureTime = request.toTime - DEPARTURE_STEP_SEC, minute = nMinutes;
-             departureTime >= request.fromTime;
-             departureTime -= DEPARTURE_STEP_SEC, minute--
+                 departureTime >= request.fromTime;
+                 departureTime -= DEPARTURE_STEP_SEC, minute--
         ) {
             if (minute % 15 == 0) LOG.debug("  minute {}", minute);
 
@@ -270,17 +266,46 @@ public class FastRaptorWorker {
     }
 
     /**
-     * Set the departure time in the scheduled search to the given departure time,
-     * and prepare for the scheduled search at the next-earlier minute
+     * Create the initial array of states for the latest departure minute in the window, one state for each round.
+     * One state for each allowed transit ride, plus a zeroth round containing the results of the access street search.
+     * Each state is chained to the one representing the previous round in the array via its "previous" field.
+     * For testing algorithmic correctness and speedup, we may want to switch off the range raptor optimization.
+     * In that case, this method can be substituted for advanceScheduledSearchToPreviousMinute(), creating a completely
+     * fresh set of states at each departure minute. (Though for such checks, we should also be scanning scheduled and
+     * frequency-based routes within a single round, instead of applying them in two phases.)
+     */
+    private void initializeScheduleState (int departureTime) {
+        this.scheduleState = new RaptorState[request.maxRides + 1];
+        for (int r = 0; r < scheduleState.length; r++) {
+            scheduleState[r] = new RaptorState(transit.getStopCount(), request.maxTripDurationMinutes * SECONDS_PER_MINUTE);
+            scheduleState[r].departureTime = departureTime;
+            scheduleState[r].previous = (r == 0) ? null : scheduleState[r - 1];
+        }
+        // Add initial stops reached by the access mode (pre-transit)
+        RaptorState initialState = scheduleState[0];
+        accessStops.forEachEntry((stop, accessTime) -> {
+            initialState.setTimeAtStop(stop, accessTime + departureTime, -1, -1, 0, 0, true);
+            return true; // continue iteration
+        });
+    }
+
+
+    /**
+     * Set the departure time in the scheduled search to the given departure time, and prepare for the scheduled
+     * search at the next-earlier minute. This is reusing results from one departure time as an upper bound on
+     * arrival times for an earlier departure time (i.e. range raptor).
      */
     private void advanceScheduledSearchToPreviousMinute (int nextMinuteDepartureTime) {
         for (RaptorState state : this.scheduleState) {
             state.setDepartureTime(nextMinuteDepartureTime);
         }
-        // add initial stops
-        RaptorState initialState = scheduleState[0];
+        // Add initial stops reached by the access mode (pre-transit) to round zero.
+        // The new departure time is earlier than the old time, so all these stops will be flagged as updated.
+        final RaptorState initialState = scheduleState[0];
         accessStops.forEachEntry((stop, accessTime) -> {
-            initialState.setTimeAtStop(stop, accessTime + nextMinuteDepartureTime, -1, -1, 0, 0, true);
+            boolean updated = initialState.setTimeAtStop(stop, accessTime + nextMinuteDepartureTime, -1, -1, 0, 0, true);
+            // This assertion holds with constant access mode speeds. Adding variable speeds will break this assumption.
+            checkState(updated, "Stepping departure time back one minute should always update access stops.");
             return true; // continue iteration
         });
     }
@@ -290,27 +315,32 @@ public class FastRaptorWorker {
      * consists of many such searches at different departure times, working backward from the end of a time
      * window toward its beginning, and reusing state between searches as an optimization.
      *
+     * We are using the Range-RAPTOR extension described in Delling, Pajor, and Werneck:
+     * “Round-Based Public Transit Routing,” January 1, 2012.
+     * http://research.microsoft.com/pubs/156567/raptor_alenex.pdf
+     * In this optimization, we re-use the arrival times found by searches that depart later, because the arrival
+     * time at each location at time t + n is an upper bound on the arrival time departing at time t.
+     *
      * @param departureTime When this search departs.
      * @return an array of length iterationsPerMinute, containing the arrival times at each stop for each
      * iteration (clock times as opposed to durations).
      */
     private int[][] runRaptorForDepartureMinute (int departureTime) {
-        advanceScheduledSearchToPreviousMinute(departureTime);
+        if (ENABLE_OPTIMIZATION_RANGE_RAPTOR && scheduleState != null) {
+            advanceScheduledSearchToPreviousMinute(departureTime);
+        } else {
+            initializeScheduleState(departureTime);
+        }
 
-        int iterationsPerMinute = (boardingMode == MONTE_CARLO) ? monteCarloDrawsPerMinute : 1;
+        final int iterationsPerMinute = (boardingMode == MONTE_CARLO) ? monteCarloDrawsPerMinute : 1;
 
-        // Run a Raptor search for only the scheduled routes (not the frequency-based routes).
-        // The initial round 0 holds the results of the street search: the travel times to transit stops from the origin
-        // using the non-transit access mode(s).
-        // We are using the Range-RAPTOR extension described in Delling, Daniel, Thomas Pajor, and Renato Werneck.
-        // “Round-Based Public Transit Routing,” January 1, 2012. http://research.microsoft.com/pubs/156567/raptor_alenex.pdf.
-        // In this optimization, we re-use the arrival times found by searches that depart later, because the arrival
-        // time at each location at time t + n is an upper bound on the arrival time departing at time t.
+        // Run a Raptor search for only the scheduled routes (not the frequency-based routes). The initial round 0
+        // holds the results of the street search: the travel times to transit stops from the origin using the
+        // non-transit access mode(s).
         if (transit.hasSchedules) {
             raptorTimer.scheduledSearch.start();
             // We always process the full number of rounds requested, i.e. we don't break out of the loop early when
-            // no improvement in travel times is achieved. That would complicate the code that handles the results. We
-            // do limit the patterns explored in each round to those passing through stops updated in the previous round.
+            // no improvement in travel times is achieved. That would complicate the code that handles the results.
             for (int round = 1; round <= request.maxRides; round++) {
                 // Reuse state from the same round at a later minute, merging in any improvements from the previous
                 // round at this same departure minute. If there are no later minutes or previous rounds, all stops will
@@ -323,17 +353,18 @@ public class FastRaptorWorker {
                 doScheduledSearchForRound(scheduleState[round - 1], scheduleState[round]);
                 raptorTimer.scheduledSearchTransit.stop();
 
-                // If there are frequency routes, we will be randomizing the offsets of those routes.
+                // If there are frequency routes, we will be randomizing the schedules (phase) of those routes.
                 // First perform a frequency search using worst-case boarding time to provide a tighter upper bound on
-                // total travel time. Each randomized schedule will improve on these travel times.
-                // This is only helpful for Monte Carlo, not half-headway. Even in Monte Carlo mode,
-                // perhaps we should only do it when iterationsPerMinute is high (2 or more?).
-                if (transit.hasFrequencies && boardingMode == MONTE_CARLO) {
+                // total travel time. Each randomized schedule will then improve on these travel times.
+                // This should be a pure optimization, which is only helpful for Monte Carlo mode (not half-headway).
+                // Perhaps we should only do it when iterationsPerMinute is high (2 or more?)
+                if (ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND && transit.hasFrequencies && boardingMode == MONTE_CARLO) {
                     raptorTimer.scheduledSearchFrequencyBounds.start();
                     doFrequencySearchForRound(scheduleState[round - 1], scheduleState[round], UPPER_BOUND);
                     raptorTimer.scheduledSearchFrequencyBounds.stop();
                 }
-
+                // Apply transfers to the scheduled result that will be reused for the previous departure minute.
+                // Transfers will be applied separately to the derived frequency result below, when relevant.
                 raptorTimer.scheduledSearchTransfers.start();
                 doTransfers(scheduleState[round]);
                 raptorTimer.scheduledSearchTransfers.stop();
@@ -341,47 +372,35 @@ public class FastRaptorWorker {
             raptorTimer.scheduledSearch.stop();
         }
 
-        // Now run frequency searches using randomized schedules for all frequency lines. We use the scheduled search
-        // and the worst-case boarding wait for all frequency routes to establish an upper bound on arrival times for
-        // the frequency searches, so we are copying the arrival times from the just completed search.
-        // This is a key innovation, described in more detail in Conway, Byrd, and van der Linden 2017.
+        // Now run one or more frequency searches using randomized schedules for all frequency lines.
+        // These will improve upon any upper bound travel times just established at this departure minute.
+        // This is a key innovation, described in more detail in Conway, Byrd, and van der Linden 2017:
+        // The range-RAPTOR optimization (using arrival times for departure time t as an upper bound on arrival times
+        // for departure time t - 1) works for the patterns with true schedules or worst-case (full headway) waiting
+        // times, but not the patterns with randomized schedules.
         if (transit.hasFrequencies) {
             raptorTimer.frequencySearch.start();
             int[][] result = new int[iterationsPerMinute][];
+
             // In Monte Carlo mode, each iteration is a fresh randomization of frequency route offsets.
             // In half-headway mode, only one iteration will happen and schedules will not be randomized.
             for (int iteration = 0; iteration < iterationsPerMinute; iteration++) {
-                // For each new randomized schedule, we start with a fresh copy of the upper bound travel times.
-                RaptorState[] frequencyState = Stream.of(scheduleState)
-                        .map(RaptorState::copy)
-                        .toArray(RaptorState[]::new);
-
-                // Recreate the chain of pointers between rounds for the freshly copied states.
-                for (int i = 1; i < frequencyState.length; i++) {
-                    frequencyState[i].previous = frequencyState[i - 1];
-                }
-
+                // Make a fresh copy of the upper bound travel times for each new randomized schedule (iteration).
+                // Array contains one state per round we're going to perform with this schedule.
+                RaptorState[] frequencyState = copyMultiRoundState(scheduleState);
                 if (boardingMode == MONTE_CARLO) {
-                    // Take a new Monte Carlo draw if requested (i.e. if boarding assumption is not half-headway): for
-                    // each frequency-based route, choose how long after service starts the first vehicle leaves (the
-                    // route's "phase"). We run all Raptor rounds with one draw before proceeding to the next draw.
                     offsets.randomize();
                 }
-
+                // Proceed through one round per transit ride; round 0 represents walking to transit stops from origin.
+                // Scan both scheduled and frequency routes to allow transferring back and forth between them.
                 for (int round = 1; round <= request.maxRides; round++) {
                     frequencyState[round].minMergePrevious();
 
-                    // Scheduled search. This is improving on travel times from stops touched by frequency routes or
-                    // combinations of frequency and scheduled routes.
                     raptorTimer.frequencySearchScheduled.start();
                     doScheduledSearchForRound(frequencyState[round - 1], frequencyState[round]);
                     raptorTimer.frequencySearchScheduled.stop();
 
-                    // Frequency search: additionally use stops touched by scheduled search
-                    // okay to destructively modify last round frequency state, it will not be used after this
                     raptorTimer.frequencySearchFrequency.start();
-                    frequencyState[round - 1].bestStopsTouched.or(scheduleState[round - 1].bestStopsTouched);
-                    frequencyState[round - 1].nonTransferStopsTouched.or(scheduleState[round - 1].nonTransferStopsTouched);
                     doFrequencySearchForRound(frequencyState[round - 1], frequencyState[round], boardingMode);
                     raptorTimer.frequencySearchFrequency.stop();
 
@@ -389,8 +408,7 @@ public class FastRaptorWorker {
                     doTransfers(frequencyState[round]);
                     raptorTimer.frequencySearchTransfers.stop();
                 }
-                // We are processing frequency routes, states are already a copy of the retained scheduled search state,
-                // no need to make an additional protective copy.
+                // No need to make an additional protective copy, this state is already a copy of the scheduled state.
                 RaptorState finalRoundState = frequencyState[request.maxRides];
                 result[iteration] = finalRoundState.bestNonTransferTimes;
                 if (retainPaths) {
@@ -408,6 +426,7 @@ public class FastRaptorWorker {
             // It may be somewhat less inefficient than it seems if we make arrays of references all to the same object.
             // TODO check whether we're actually hitting this code with iterationsPerMinute > 1 on scheduled networks.
             //      maybe we should even require that iterationsPerMinute == 1 for non-freq searches in an assertion.
+            //      checkState(iterationsPerMinute == 1); int[][] result = new int[1][];
             int[][] result = new int[iterationsPerMinute][];
             RaptorState finalRoundState = scheduleState[request.maxRides];
             // DEBUG print out full path (all rounds) to one stop at one departure minute, when no frequency trips.
@@ -424,6 +443,21 @@ public class FastRaptorWorker {
             }
             return result;
         }
+    }
+
+    /**
+     * Make a deep copy of an array of RaptorState representing the initial street search and N transit rides (rounds).
+     * The copy process clears the sets of flags showing which stops were updated in each round, and the chain of
+     * previous-round references is recreated to reflect the new instances.
+     * TODO create a proper named type for these arrays of states.
+     */
+    private static RaptorState[] copyMultiRoundState(RaptorState[] original) {
+        RaptorState[] copy = new RaptorState[original.length];
+        for (int r = 0; r < original.length; r++) {
+            copy[r] = original[r].copy();
+            copy[r].previous = (r == 0) ? null : copy[r - 1];
+        }
+        return copy;
     }
 
     /**
@@ -446,6 +480,7 @@ public class FastRaptorWorker {
      * A sub-step in the process of performing a RAPTOR search at one specific departure time (at one specific minute).
      * This method handles only the routes that have exact schedules. There is another method that handles only the
      * other kind of routes: the frequency-based routes.
+     * TODO force inputState = outputState.previous instead of passing in an arbitrary input state
      */
     private void doScheduledSearchForRound(RaptorState inputState, RaptorState outputState) {
         BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningScheduledPatterns);
@@ -477,31 +512,26 @@ public class FastRaptorWorker {
                 }
 
                 // Don't attempt to board if this stop was not reached in the last round or if pick up is not allowed.
-                if (inputState.bestStopsTouched.get(stop) &&
+                if (inputState.stopWasUpdated(stop) &&
                     pattern.pickups[stopPositionInPattern] != PickDropType.NONE
                 ) {
                     int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
                     if (onTrip == -1) {
-                        if (inputState.bestStopsTouched.get(stop)) { // FIXME due to enclosing conditional this is always true.
-                            int candidateTripIndex = -1;
-                            EARLIEST_TRIP:
-                            for (TripSchedule candidateSchedule : pattern.tripSchedules) {
-                                candidateTripIndex++;
-
-                                if (!servicesActive.get(candidateSchedule.serviceCode) || candidateSchedule.headwaySeconds != null) {
-                                    // frequency trip or not running
-                                    continue;
-                                }
-
-                                if (earliestBoardTime < candidateSchedule.departures[stopPositionInPattern]) {
-                                    // board this vehicle
-                                    onTrip = candidateTripIndex;
-                                    schedule = candidateSchedule;
-                                    boardTime = candidateSchedule.departures[stopPositionInPattern];
-                                    waitTime = boardTime - inputState.bestTimes[stop];
-                                    boardStop = stop;
-                                    break EARLIEST_TRIP;
-                                }
+                        int candidateTripIndex = -1;
+                        for (TripSchedule candidateSchedule : pattern.tripSchedules) {
+                            candidateTripIndex++;
+                            if (!servicesActive.get(candidateSchedule.serviceCode) || candidateSchedule.headwaySeconds != null) {
+                                // frequency trip or not running
+                                continue;
+                            }
+                            if (earliestBoardTime < candidateSchedule.departures[stopPositionInPattern]) {
+                                // board this vehicle
+                                onTrip = candidateTripIndex;
+                                schedule = candidateSchedule;
+                                boardTime = candidateSchedule.departures[stopPositionInPattern];
+                                waitTime = boardTime - inputState.bestTimes[stop];
+                                boardStop = stop;
+                                break;
                             }
                         }
                     } else {
@@ -547,51 +577,68 @@ public class FastRaptorWorker {
     }
 
     /**
-     * Do a frequency search. If computeDeterministicUpperBound is true, worst-case frequency boarding time will be used
-     * so that the output of this function can be used in a range-RAPTOR search. Otherwise Monte Carlo schedules will be
-     * used to improve upon the output of the range-RAPTOR bounds search.
-     * FIXME computeDeterministicUpperBound mentioned abve doesn't seem to exist
+     * Perform one round of a Raptor search, considering only the frequency-based routes. These results are layered
+     * on top of (may improve upon) those from the fully scheduled routes.
+     * If the boarding mode is UPPER_BOUND, worst-case boarding time will be used at every boarding event.
+     * Arrival times produced can then be used as a valid upper bound for previous departure minutes in range RAPTOR.
+     *
+     * Otherwise randomized schedules will be used to improve upon the output of the range-RAPTOR bounds search.
+     * Those outputs may not be reused in successive iterations as schedules will change from one iteration to the next.
+     *
+     * TODO maybe convert all these functions to pure functions that create and output new round states.
      * @param frequencyBoardingMode see comments on enum values.
      */
-    private void doFrequencySearchForRound(
+    private void doFrequencySearchForRound (
             RaptorState inputState,
             RaptorState outputState,
             FrequencyBoardingMode frequencyBoardingMode
     ) {
         BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningFrequencyPatterns);
         for (int patternIndex = patternsToExplore.nextSetBit(0);
-             patternIndex >= 0;
-             patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
-        ){
+                 patternIndex >= 0;
+                 patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
+        ) {
             TripPattern pattern = transit.tripPatterns.get(patternIndex);
 
-            int tripScheduleIndex = -1; // first increment lands at 0
+            int tripScheduleIndex = -1; // First loop iteration will immediately increment to 0.
             for (TripSchedule schedule : pattern.tripSchedules) {
                 tripScheduleIndex++;
 
-                // scheduled trip or not running
-                if (!servicesActive.get(schedule.serviceCode) || schedule.headwaySeconds == null) continue;
-
-                for (int frequencyEntryIdx = 0; frequencyEntryIdx < schedule.headwaySeconds.length; frequencyEntryIdx++) {
+                // If this trip's service is inactive (it's not running) or it's a scheduled (non-freq) trip, skip it.
+                if (!servicesActive.get(schedule.serviceCode) || schedule.headwaySeconds == null) {
+                    continue;
+                }
+                // Loop through all the entries for this trip (time windows with service at a given frequency).
+                for (int frequencyEntryIdx = 0;
+                         frequencyEntryIdx < schedule.headwaySeconds.length;
+                         frequencyEntryIdx++
+                ) {
                     int boardTime = -1;
                     int boardStopPositionInPattern = -1;
                     int waitTime = -1;
 
-                    for (int stopPositionInPattern = 0; stopPositionInPattern < pattern.stops.length; stopPositionInPattern++) {
+                    // Scan down the stops in the pattern, boarding trips in the pattern when possible.
+                    // TODO factor out some of this scanning loop body into a method for clarity.
+                    for (int stopPositionInPattern = 0;
+                             stopPositionInPattern < pattern.stops.length;
+                             stopPositionInPattern++
+                    ) {
                         int stop = pattern.stops[stopPositionInPattern];
 
-                        // attempt to alight if boarded and if drop off is allowed
+                        // Attempt to alight if a trip has been boarded and if drop off is allowed at this stop.
                         if (boardTime > -1 && pattern.dropoffs[stopPositionInPattern] != PickDropType.NONE) {
-                            // attempt to alight
-                            int travelTime = schedule.arrivals[stopPositionInPattern] - schedule.departures[boardStopPositionInPattern];
+                            int relativeBoardTime = schedule.departures[boardStopPositionInPattern];
+                            int relativeAlightTime = schedule.arrivals[stopPositionInPattern];
+                            int travelTime = relativeAlightTime - relativeBoardTime;
                             int alightTime = boardTime + travelTime;
                             int boardStop = pattern.stops[boardStopPositionInPattern];
                             outputState.setTimeAtStop(stop, alightTime, patternIndex, boardStop, waitTime, travelTime, false);
                         }
 
-                        // attempt to board if pick up is allowed
+                        // If this stop was updated in the previous round and pickup is allowed at this stop, see if
+                        // we can board an earlier trip.
                         // (even if already boarded, since this is a frequency trip and we could move back)
-                        if (inputState.bestStopsTouched.get(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
+                        if (inputState.stopWasUpdated(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
                             int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
 
                             // if we're computing the upper bound, we want the worst case. This is the only thing that is
@@ -600,6 +647,9 @@ public class FastRaptorWorker {
 
                             final int newBoardingDepartureTimeAtStop;
 
+                            // TODO Because all the parameters are nearly the same for these function calls,
+                            //  this looks like a good candidate for polymorphism (board time strategy passed in).
+                            //  The offset could be looked up by the getDepartureTime method itself, not passed in.
                             if (frequencyBoardingMode == MONTE_CARLO) {
                                 int offset = offsets.offsets.get(patternIndex)[tripScheduleIndex][frequencyEntryIdx];
                                 newBoardingDepartureTimeAtStop = getRandomFrequencyDepartureTime(
@@ -624,22 +674,26 @@ public class FastRaptorWorker {
                                           earliestBoardTime
                                   );
                             } else {
-                                // TODO make half_headway the else clause
                                 throw new AssertionError("Unknown departure search method.");
                             }
-                            int remainOnBoardDepartureTimeAtStop = Integer.MAX_VALUE;
 
+                            // If we have already boarded some trip at a previous stop in the pattern, determine
+                            // when we'd be departing if we just stayed on that trip.
+                            int remainOnBoardDepartureTimeAtStop = Integer.MAX_VALUE;
                             if (boardTime > -1) {
-                                // We cannot re-use the calculation from above. We're using departure time at this stop
-                                // here to account for any dwell time. TODO clarify what that means and how this works.
+                                // We cannot re-use the travel time calculation from above. Here, we measure departure
+                                // to departure (rather than departure to arrival) to account for any dwell time.
                                 int travelTime = schedule.departures[stopPositionInPattern]
                                         - schedule.departures[boardStopPositionInPattern];
                                 remainOnBoardDepartureTimeAtStop = boardTime + travelTime;
                             }
-                            if (newBoardingDepartureTimeAtStop > -1
-                                    && newBoardingDepartureTimeAtStop < remainOnBoardDepartureTimeAtStop) {
-                                // board this trip
+                            // If we are able to board a trip at this stop, and it's better than any trip boarded
+                            // earlier in the pattern, then switch to that trip.
+                            if (newBoardingDepartureTimeAtStop > -1 &&
+                                newBoardingDepartureTimeAtStop < remainOnBoardDepartureTimeAtStop
+                            ) {
                                 boardTime = newBoardingDepartureTimeAtStop;
+                                // TODO is this wait time calculation right?
                                 waitTime = boardTime - inputState.bestTimes[stop];
                                 boardStopPositionInPattern = stopPositionInPattern;
                             }
@@ -662,34 +716,44 @@ public class FastRaptorWorker {
             int frequencyEntryIdx,
             int earliestTime
     ) {
-        // earliest board time is start time plus travel time plus offset
+        checkState(offset >= 0);
+        // Find the time the first vehicle in this entry will depart from the current stop:
+        // The start time of the entry window, plus travel time from first stop to current stop, plus phase offset.
+        // TODO check that frequency trips' stop times are always normalized to zero at first departure.
+        // TODO rename to firstVehicleDeparts (and add a lastVehicleDeparts and/or windowEndsAtThisStop?)
         int earliestBoardTimeThisEntry = schedule.startTimes[frequencyEntryIdx] +
-                schedule.departures[stopPositionInPattern] +
-                offset;
+                                         schedule.departures[stopPositionInPattern] +
+                                         offset;
 
-        // compute the number of trips on this entry
-        // We take the difference between the end time and the start time including the offset
-        // to get the time between the first trip and the last possible trip. We int-divide by the
-        // headway and add one to correct for the fencepost problem.
+        // Compute the number of trips within this entry, considering the offset of the first departure from the window
+        // start time. Take the difference between the end time and the start time including the offset to get the
+        // time between the first trip and the last possible trip. Int-divide by the headway and add one to correct
+        // for the fencepost problem.
+        // TODO explain the specific "fencepost problem" here.
+        //  (60 - 0) / 10 = 6, the number of trips in an hour with 10-minute headways. Nonzero offset reduces that by 1.
+        // FIXME why are we using the number of trips in the entry? Can't we just test against the end of the window?
+        //  That end of window would also need to be adjusted for travel time.
         int numberOfTripsThisEntry = (schedule.endTimes[frequencyEntryIdx] -
                 (schedule.startTimes[frequencyEntryIdx] + offset)) /
                 schedule.headwaySeconds[frequencyEntryIdx] + 1;
 
-        // the earliest time we can leave this stop based on when we arrived
-        // We subtract one because we find trips that have departure time > this time, not
-        // >=
-        int lowerBoundBoardTime = earliestTime - 1;
+        // The earliest time we can leave this stop based on when we arrived.
+        // We subtract one because we find trips that have departure time > this time, not >=
+        // TODO check that that departure inequality is consistent everywhere
+        // TODO avoid converting to trip index and then back to departure times?
+        int boardAfterTime = earliestTime - 1;
         int earliestFeasibleTripIndexThisEntry;
-        if (lowerBoundBoardTime <= earliestBoardTimeThisEntry) {
+        // Find the earliest trip departing from this stop later than when we begin waiting at the stop.
+        if (boardAfterTime <= earliestBoardTimeThisEntry) {
+            // We are waiting at the stop before the first vehicle in this entry departs from this stop.
             earliestFeasibleTripIndexThisEntry = 0;
         } else {
-            // find earliest trip later than the lower bound on board time
             // We add one because int math floors the result.
             // This is why we subtracted one second above, so that if the earliest board time
             // is exactly the second when the trip arrives, we will find that trip rather than the
             // next trip when we add one.
             earliestFeasibleTripIndexThisEntry =
-                    (lowerBoundBoardTime - earliestBoardTimeThisEntry) / schedule.headwaySeconds[frequencyEntryIdx] + 1;
+                    (boardAfterTime - earliestBoardTimeThisEntry) / schedule.headwaySeconds[frequencyEntryIdx] + 1;
         }
 
         if (earliestFeasibleTripIndexThisEntry < numberOfTripsThisEntry) {
@@ -762,16 +826,15 @@ public class FastRaptorWorker {
      * post-transfer times are also updated.
      * The patterns to be explored in the next round are then determined by which stops were updated by either transit
      * or transfer arrivals.
+     * FIXME this should be skipped on the last round, where resulting values will not be used.
      */
     private void doTransfers (RaptorState state) {
         // Cast and multiplication factored out of the tight loop below to ensure they are not repeatedly evaluated.
-        int walkSpeedMillimetersPerSecond = (int) (request.walkSpeed * 1000);
-        int maxWalkMillimeters = walkSpeedMillimetersPerSecond * (request.maxWalkTime * SECONDS_PER_MINUTE);
-
-        for (int stop = state.nonTransferStopsTouched.nextSetBit(0);
-             stop > -1;
-             stop = state.nonTransferStopsTouched.nextSetBit(stop + 1)
-        ){
+        final int walkSpeedMillimetersPerSecond = (int) (request.walkSpeed * 1000);
+        final int maxWalkMillimeters = walkSpeedMillimetersPerSecond * (request.maxWalkTime * SECONDS_PER_MINUTE);
+        final int nStops = state.bestNonTransferTimes.length;
+        for (int stop = 0; stop < nStops; stop++) {
+            if (!state.stopWasUpdatedPreTransfer(stop)) continue;
             TIntList transfersFromStop = transit.transfersForStop.get(stop);
             if (transfersFromStop != null) {
                 for (int i = 0; i < transfersFromStop.size(); i += 2) {
@@ -794,11 +857,14 @@ public class FastRaptorWorker {
      * The pattern indexes returned are limited to those in the supplied set.
      */
     private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns) {
+        if (!ENABLE_OPTIMIZATION_UPDATED_STOPS) {
+            // We do not write to the returned bitset, only iterate over it, so do not need to make a protective copy.
+            return runningPatterns;
+        }
         BitSet patternsToExplore = new BitSet();
-        for (int stop = state.bestStopsTouched.nextSetBit(0);
-             stop >= 0;
-             stop = state.bestStopsTouched.nextSetBit(stop + 1)
-        ) {
+        final int nStops = state.bestTimes.length;
+        for (int stop = 0; stop < nStops; stop++) {
+            if (!state.stopWasUpdated(stop)) continue;
             TIntIterator patternsAtStop = transit.patternsForStop.get(stop).iterator();
             while (patternsAtStop.hasNext()) {
                 int pattern = patternsAtStop.next();

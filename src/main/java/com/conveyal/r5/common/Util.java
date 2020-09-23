@@ -1,10 +1,8 @@
 package com.conveyal.r5.common;
 
 import java.util.Collection;
+import java.util.Arrays;
 
-/**
- * Created by abyrd on 2017-11-29
- */
 public abstract class Util {
 
     public static String human (double n, String units) {
@@ -51,4 +49,12 @@ public abstract class Util {
     public static <T> boolean notNullOrEmpty (int[] array) {
         return !isNullOrEmpty(array);
     }
+
+    /** Convenience method to create an array and fill it immediately with a single value. */
+    public static int[] newIntArray (int length, int defaultValue) {
+        int[] array = new int[length];
+        Arrays.fill(array, defaultValue);
+        return array;
+    }
+
 }
