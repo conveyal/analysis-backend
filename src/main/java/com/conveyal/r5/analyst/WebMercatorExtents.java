@@ -63,16 +63,16 @@ public class WebMercatorExtents {
     /** Create the minimum-size immutable WebMercatorExtents containing both this one and the other one. */
     public WebMercatorExtents expandToInclude (WebMercatorExtents other) {
         checkState(this.zoom == other.zoom, "All grids supplied must be at the same zoom level.");
-        int thisEast = this.west + this.width;
-        int otherEast = other.west + other.width;
-        int thisSouth = this.north + other.height;
-        int otherSouth = other.north + other.height;
-        int outWest = Math.min(other.west, this.west);
-        int outEast = Math.max(otherEast, thisEast);
-        int outNorth = Math.min(other.north, this.north);
-        int outSouth = Math.max(otherSouth, thisSouth);
-        int outWidth = outEast - outWest;
-        int outHeight = outSouth - outNorth;
+        final int thisEast = this.west + this.width;
+        final int otherEast = other.west + other.width;
+        final int thisSouth = this.north + other.height;
+        final int otherSouth = other.north + other.height;
+        final int outWest = Math.min(other.west, this.west);
+        final int outEast = Math.max(otherEast, thisEast);
+        final int outNorth = Math.min(other.north, this.north);
+        final int outSouth = Math.max(otherSouth, thisSouth);
+        final int outWidth = outEast - outWest;
+        final int outHeight = outSouth - outNorth;
         return new WebMercatorExtents(outWest, outNorth, outWidth, outHeight, this.zoom);
     }
 
