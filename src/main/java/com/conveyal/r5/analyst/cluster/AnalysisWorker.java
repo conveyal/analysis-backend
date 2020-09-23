@@ -614,19 +614,18 @@ public class AnalysisWorker implements Runnable {
         }
     }
 
+    /**
+     * This is a model from which we can serialize the block of JSON metadata at the end of a
+     * binary grid of travel times, which we return from the worker to the UI via the backend.
+     */
     public static class GridJsonBlock {
 
-        /** For each destination pointset, for each percentile, for each minute from zero to 120,
-            the number of opportunities reachable in the time range [m, m+1). */
-        int[][][] marginalOpportunities;
-
-        /** For each destination pointset, for each percentile, for each minute from zero to 120,
-            the change in the accessibility indicator value when the cutoff is increased from m to m+1. */
-        int[][][] marginalAccessibility;
-
-        /** For each destination pointset, for each percentile, for each minute from zero to 120,
-            the cumulative opportunities accessibility including effects of the distance decay function. */
-        public int [][][] accessibility;
+        /**
+         * For each destination pointset, for each percentile, for each minute from zero to 120, the cumulative
+         * opportunities accessibility including effects of the distance decay function. We may eventually want to also
+         * include the marginal opportunities at each minute, without the decay function applied.
+         */
+        public int[][][] accessibility;
 
         public List<TaskError> scenarioApplicationWarnings;
 
