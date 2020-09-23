@@ -1,6 +1,7 @@
 package com.conveyal.r5.analyst.cluster;
 
 import com.conveyal.r5.analyst.PersistenceBuffer;
+import com.conveyal.r5.analyst.StreetTimesAndModes;
 import com.conveyal.r5.profile.Path;
 import com.conveyal.r5.profile.StreetMode;
 import gnu.trove.iterator.TIntIterator;
@@ -16,7 +17,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -67,10 +67,10 @@ public class PathWriter {
     /**
      * Map from transit stop vertex indices to the mode used to reach those vertices.
      */
-    private final HashMap<Integer, StreetMode> accessModes;
+    private final StreetTimesAndModes accessModes;
 
     /** Constructor. Holds onto the task object, which is used to create unique names for the results files. */
-    public PathWriter (AnalysisWorkerTask task, HashMap<Integer, StreetMode> accessModes) {
+    public PathWriter (AnalysisWorkerTask task, StreetTimesAndModes accessModes) {
         this.task = task;
         this.nTargets = task.width * task.height;
         this.accessModes = accessModes;
@@ -94,7 +94,7 @@ public class PathWriter {
         int nPathsRecorded = 0;
         for (Path path : paths) {
             if (path != null) {
-                path.accessMode = accessModes.get(path.boardStops[0]);
+                path.accessMode = accessModes.streetTimesAndModes.get(path.boardStops[0]).mode;
                 // Deduplicate paths across destinations using the map.
                 int pathIndex = indexForPath.get(path);
                 if (pathIndex == NO_PATH) {
