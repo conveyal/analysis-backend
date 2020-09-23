@@ -141,13 +141,13 @@ public class TravelTimeReducer {
             travelTimeResult = new TravelTimeResult(task);
         }
 
-        // Validate and copy the travel time cutoffs, which only makes sense when calculating accessibility.
-        // Validation should probably happen earlier when making or handling incoming tasks.
+        // Validate and copy the travel time cutoffs, converting them to minutes to avoid repeated multiplication
+        // in tight loops. Also find the points where the decay function reaches zero for these cutoffs.
+        // This is only relevant when calculating accessibility.
         this.decayFunction = task.decayFunction;
         if (calculateAccessibility) {
             task.validateCutoffsMinutes();
             this.nCutoffs = task.cutoffsMinutes.length;
-            // Convert cutoffs to seconds, to avoid repeated multiplication in tight loops.
             this.cutoffsSeconds = new int[nCutoffs];
             this.zeroPointsForCutoffs = new int[nCutoffs];
             for (int c = 0; c < nCutoffs; c++) {
