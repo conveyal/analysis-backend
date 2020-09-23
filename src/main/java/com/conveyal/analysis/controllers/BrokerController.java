@@ -137,10 +137,11 @@ public class BrokerController implements HttpController {
         Project project = Persistence.projects.findByIdIfPermitted(analysisRequest.projectId, accessGroup);
         // Transform the analysis UI/backend task format into a slightly different type for R5 workers.
         TravelTimeSurfaceTask task = (TravelTimeSurfaceTask) analysisRequest.populateTask(new TravelTimeSurfaceTask(), project);
-        // WORK IN PROGRESS: worker side accessibility
+        // If destination opportunities are supplied, prepare to calculate accessibility worker-side
         if (notNullOrEmpty(analysisRequest.destinationPointSetIds)){
-            // Look up destination pointset (there should always be zero or one of them). This is mostly copypasted
-            // from the create regional analysis -ideally we'd reuse code but they're in different places.
+            // Look up all destination opportunity data sets from the database and derive their storage keys.
+            // This is mostly copypasted from the code to create a regional analysis.
+            // Ideally we'd reuse the same code in both places.
             // We should refactor the populateTask method (and move it off the request) to take care of all this.
             List<OpportunityDataset> opportunityDatasets = new ArrayList<>();
             for (String destinationPointSetId : analysisRequest.destinationPointSetIds) {

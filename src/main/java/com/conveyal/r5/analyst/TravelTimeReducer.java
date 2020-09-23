@@ -123,7 +123,6 @@ public class TravelTimeReducer {
         this.destinationPointSets = task.destinationPointSets;
         if (task instanceof TravelTimeSurfaceTask) {
             calculateTravelTimes = true;
-            // WORK IN PROGRESS: worker side accessibility
             calculateAccessibility = notNullOrEmpty(task.destinationPointSets);
         } else {
             // Maybe we should define recordAccessibility and recordTimes on the common superclass AnalysisWorkerTask.
