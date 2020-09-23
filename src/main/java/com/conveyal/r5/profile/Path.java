@@ -2,13 +2,13 @@ package com.conveyal.r5.profile;
 
 import com.conveyal.r5.transit.TransitLayer;
 import com.conveyal.r5.transit.TripPattern;
-import com.google.common.primitives.Ints;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -163,18 +163,19 @@ public class Path {
 
     @Override
     public int hashCode() {
-        int result = Ints.hashCode(length);
-        result = 31 * result + Arrays.hashCode(patterns);
-        result = 31 * result + Arrays.hashCode(boardStops);
-        result = 31 * result + Arrays.hashCode(alightStops);
-        result = 31 * result + Arrays.hashCode(alightTimes);
-        result = 31 * result + Arrays.hashCode(trips);
-        result = 31 * result + Arrays.hashCode(boardStopPositions);
-        result = 31 * result + Arrays.hashCode(alightStopPositions);
-        result = 31 * result + accessMode.hashCode();
-        result = 31 * result + egressMode.hashCode();
-        return result;
+        return Objects.hash(
+                patterns,
+                boardStops,
+                alightStops,
+                alightTimes,
+                trips,
+                boardStopPositions,
+                alightStopPositions,
+                accessMode,
+                egressMode
+        );
     }
+
 
     /**
      * Gets tripPattern at provided pathIndex
