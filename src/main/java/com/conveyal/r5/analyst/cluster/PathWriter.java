@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -116,9 +117,9 @@ public class PathWriter {
     }
 
     private static byte getSingleByteCode(StreetMode mode){
-        if (mode == StreetMode.WALK) return (byte) 'W';
-        if (mode == StreetMode.BICYCLE) return (byte) 'B';
-        return (byte) 'C'; // CAR
+        if (mode == StreetMode.WALK) return StandardCharsets.US_ASCII.encode("W").get(0); // WALK
+        if (mode == StreetMode.BICYCLE) return StandardCharsets.US_ASCII.encode("B").get(0); // BICYCLE
+        return StandardCharsets.US_ASCII.encode("C").get(0); // CAR
     };
 
     /**
