@@ -14,7 +14,6 @@ import com.conveyal.r5.analyst.PersistenceBuffer;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.S3FilePersistence;
 import com.conveyal.r5.analyst.TravelTimeComputer;
-import com.conveyal.r5.analyst.decay.DecayFunction;
 import com.conveyal.r5.analyst.error.ScenarioApplicationException;
 import com.conveyal.r5.analyst.error.TaskError;
 import com.conveyal.r5.common.JsonUtilities;
@@ -470,7 +469,6 @@ public class AnalysisWorker implements Runnable {
             addJsonToGrid(
                     byteArrayOutputStream,
                     oneOriginResult.accessibility,
-                    task.decayFunction,
                     transportNetwork.scenarioApplicationWarnings,
                     transportNetwork.scenarioApplicationInfo
             );
@@ -626,12 +624,6 @@ public class AnalysisWorker implements Runnable {
             the change in the accessibility indicator value when the cutoff is increased from m to m+1. */
         int[][][] marginalAccessibility;
 
-        /**
-         * A Javascript function body that gives weight factors in range [0...1] for travel times in minutes.
-         * This should be a higher order function that returns a single-cutoff function for a given cutoff.
-         */
-        public String javascriptDecayFunction;
-
         /** For each destination pointset, for each percentile, for each minute from zero to 120,
             the cumulative opportunities accessibility including effects of the distance decay function. */
         public int [][][] accessibility;
@@ -663,7 +655,6 @@ public class AnalysisWorker implements Runnable {
     public static void addJsonToGrid (
             OutputStream outputStream,
             AccessibilityResult accessibilityResult,
-            DecayFunction decayFunction,
             List<TaskError> scenarioApplicationWarnings,
             List<TaskError> scenarioApplicationInfo
     ) throws IOException {
@@ -675,9 +666,6 @@ public class AnalysisWorker implements Runnable {
             // accessibility values (especially for cases where there are relatively few opportunities across the whole
             // study area). But we'd need to control the number of decimal places serialized into the JSON.
             jsonBlock.accessibility = accessibilityResult.getIntValues();
-        }
-        if (decayFunction != null) {
-            jsonBlock.javascriptDecayFunction = decayFunction.javascriptFunction();
         }
         LOG.info("Travel time surface written, appending {}.", jsonBlock);
         // We could do this when setting up the Spark handler, supplying writeValue as the response transformer
