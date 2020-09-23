@@ -35,4 +35,15 @@ public class FixedExponentialDecayFunction extends DecayFunction {
         Preconditions.checkArgument(decayConstant > -1);
     }
 
+    @Override
+    public int reachesZeroAt (int cutoffSeconds) {
+        // This function is a bit strange in that it doesn't react to the cutoff parameter, so it doesn't respect
+        // the otherwise intuitive constraint that it must reach zero at or above the cutoff. One option is to always
+        // return the maximum value of two hours (since lower zero points are just an optimization). Another is to
+        // compute the zero crossing once in the prepare() method, then always return that same value. But for the time
+        // being we have just modified the default zero crossing finder to allow values lower than the cutoff.
+        // return TWO_HOURS_IN_SECONDS;
+        return super.reachesZeroAt(cutoffSeconds);
+    }
+
 }
