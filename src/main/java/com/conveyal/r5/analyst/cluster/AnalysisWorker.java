@@ -407,8 +407,8 @@ public class AnalysisWorker implements Runnable {
 
     /**
      * Synchronously handle one single-point task.
-     * @return the travel time grid (binary data) which will be passed back to the client UI. This binary response may
-     *         have errors appended as JSON to the end.
+     * @return the travel time grid (binary data) which will be passed back to the client UI, with a JSON block at the
+     *         end containing accessibility figures, scenario application warnings, and informational messages.
      */
     protected byte[] handleOneSinglePointTask (TravelTimeSurfaceTask task)
             throws WorkerNotReadyException, ScenarioApplicationException, IOException {
@@ -432,14 +432,14 @@ public class AnalysisWorker implements Runnable {
         networkId = task.graphId;
         TransportNetwork transportNetwork = networkLoaderState.value;
 
-        // WORK IN PROGRESS: worker side accessibility
-        {
+        // The presence of destination point set keys indicates that we should calculate single-point accessibility.
+        // Every task should include a decay function (set to step function by backend if not supplied by user).
+        // In this case our highest cutoff is always 120, so we need to search all the way out to 120 minutes.
+        if (notNullOrEmpty(task.destinationPointSetKeys)) {
             task.decayFunction.prepare();
+            task.cutoffsMinutes = IntStream.range(0, 120).toArray();
             task.maxTripDurationMinutes = 120;
-            if (notNullOrEmpty(task.destinationPointSetKeys)) {
-                task.cutoffsMinutes = IntStream.range(0, 120).toArray();
-                task.loadAndValidateDestinationPointSets(pointSetCache);
-            }
+            task.loadAndValidateDestinationPointSets(pointSetCache);
         }
 
         // After the AsyncLoader has reported all required data are ready for analysis, advance the shutdown clock to
