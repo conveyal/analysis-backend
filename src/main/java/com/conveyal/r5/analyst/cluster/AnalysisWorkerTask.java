@@ -35,11 +35,11 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
     /**
      * The largest number of cutoffs we'll accept in a regional analysis task. Too many cutoffs can create very large
      * output files. This limit does not apply when calculating single-point accessibility on the worker, where there
-     * will always be 120 cutoffs.
+     * will always be 121 cutoffs (from zero to 120 minutes inclusive).
      */
     public static final int MAX_REGIONAL_CUTOFFS = 12;
 
-    public static final int N_SINGLE_POINT_CUTOFFS = 120;
+    public static final int N_SINGLE_POINT_CUTOFFS = 121;
 
     /** The largest number of percentiles we'll accept in a task. */
     public static final int MAX_PERCENTILES = 5;
@@ -265,7 +265,7 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
                 "Maximum number of cutoffs allowed in a regional analysis is " + MAX_REGIONAL_CUTOFFS);
         } else {
             checkArgument(nCutoffs == N_SINGLE_POINT_CUTOFFS,
-                "Single point accessibility should always have 120 cutoffs.");
+                "Single point accessibility has the wrong number of cutoffs.");
         }
         for (int c = 0; c < nCutoffs; c++) {
             checkArgument(cutoffsMinutes[c] >= 0, "Cutoffs must be non-negative integers.");

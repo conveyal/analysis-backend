@@ -437,7 +437,7 @@ public class AnalysisWorker implements Runnable {
         // In this case our highest cutoff is always 120, so we need to search all the way out to 120 minutes.
         if (notNullOrEmpty(task.destinationPointSetKeys)) {
             task.decayFunction.prepare();
-            task.cutoffsMinutes = IntStream.range(0, 120).toArray();
+            task.cutoffsMinutes = IntStream.rangeClosed(0, 120).toArray();
             task.maxTripDurationMinutes = 120;
             task.loadAndValidateDestinationPointSets(pointSetCache);
         }
@@ -621,9 +621,9 @@ public class AnalysisWorker implements Runnable {
     public static class GridJsonBlock {
 
         /**
-         * For each destination pointset, for each percentile, for each minute from zero to 120, the cumulative
-         * opportunities accessibility including effects of the distance decay function. We may eventually want to also
-         * include the marginal opportunities at each minute, without the decay function applied.
+         * For each destination pointset, for each percentile, for each cutoff minute from zero to 120 (inclusive), the
+         * cumulative opportunities accessibility including effects of the distance decay function. We may eventually
+         * want to also include the marginal opportunities at each minute, without the decay function applied.
          */
         public int[][][] accessibility;
 
