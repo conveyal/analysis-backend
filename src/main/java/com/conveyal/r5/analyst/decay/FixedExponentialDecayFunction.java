@@ -7,14 +7,15 @@ import org.apache.commons.math3.util.FastMath;
  * This is equivalent to using the ExponentialDecayFunction with a cutoff (half-life) of log(0.5)/decayConstant.
  * Cutoffs can only be a whole number of minutes. This class allows directly setting a precise externally determined
  * constant, even if it does not correspond to an integer half-life. Note that this decay function will completely
- * ignore the travel time cutoff, and results will not change from one cutoff to another.
+ * ignore the travel time cutoff, and results will not change from one cutoff to another. For this reason we do not
+ * expose this function as an easily selectable choice in the client UI.
  */
 public class FixedExponentialDecayFunction extends DecayFunction {
 
     /**
      * Note that this is a decay constant for travel times in seconds.
      * If your decay constant is for travel times in minutes, you will need to divide it by 60.
-     * Values are expected to be negative to ensure decay (rather than growth).
+     * Only positive values in the range (0, 1) are allowed to ensure decay (rather than growth or stagnation).
      */
     public double decayConstant;
 
@@ -26,13 +27,13 @@ public class FixedExponentialDecayFunction extends DecayFunction {
         if (travelTimeSeconds >= TWO_HOURS_IN_SECONDS) {
             return 0;
         }
-        return FastMath.exp(decayConstant * travelTimeSeconds);
+        return FastMath.exp(-decayConstant * travelTimeSeconds);
     }
 
     @Override
     public void prepare () {
-        Preconditions.checkArgument(decayConstant < 0);
-        Preconditions.checkArgument(decayConstant > -1);
+        Preconditions.checkArgument(decayConstant > 0);
+        Preconditions.checkArgument(decayConstant < 1);
     }
 
     @Override

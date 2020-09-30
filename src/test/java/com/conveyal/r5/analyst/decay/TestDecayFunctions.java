@@ -47,7 +47,7 @@ public class TestDecayFunctions extends TestCase {
         // printFunctionValues(movableFunction);
         FixedExponentialDecayFunction fixedFunction = new FixedExponentialDecayFunction();
         // Set constant for a half life of 10 minutes (in seconds)
-        fixedFunction.decayConstant = FastMath.log(0.5) / TEN_MINUTES_IN_SECONDS;
+        fixedFunction.decayConstant = -(FastMath.log(0.5) / TEN_MINUTES_IN_SECONDS);
         testFunctionCharacteristics(fixedFunction);
         for (int t = 0; t < 120; t++) {
             int travelTimeSeconds = t * 60;
