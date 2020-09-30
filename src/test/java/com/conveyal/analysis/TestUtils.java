@@ -81,22 +81,6 @@ public class TestUtils {
         return foundObject;
     }
 
-    public static JsonNode createRegion () throws IOException {
-        return parseJson(
-            given()
-                .port(7070)
-                .contentType("application/json")
-                .body(
-                    "{\"name\":\"test-create\",\"description\":\"test-description\",\"bounds\":{\"north\":37.05956083025126,\"south\":37.04421668967971,\"east\":-122.06634521484376,\"west\":-122.08282470703126}}"
-                )
-                .post("api/region")
-            .then()
-                .extract()
-                .response()
-                .asString()
-        );
-    }
-
     /**
      * Zip files in a folder into a temporary zip file
      */
