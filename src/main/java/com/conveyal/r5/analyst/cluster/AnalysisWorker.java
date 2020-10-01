@@ -46,9 +46,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
@@ -57,7 +55,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
+import static com.conveyal.r5.common.Util.notNullOrEmpty;
 import static com.conveyal.r5.profile.PerTargetPropagater.SECONDS_PER_MINUTE;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -407,8 +407,8 @@ public class AnalysisWorker implements Runnable {
 
     /**
      * Synchronously handle one single-point task.
-     * @return the travel time grid (binary data) which will be passed back to the client UI. This binary response may
-     *         have errors appended as JSON to the end.
+     * @return the travel time grid (binary data) which will be passed back to the client UI, with a JSON block at the
+     *         end containing accessibility figures, scenario application warnings, and informational messages.
      */
     protected byte[] handleOneSinglePointTask (TravelTimeSurfaceTask task)
             throws WorkerNotReadyException, ScenarioApplicationException, IOException {
@@ -432,6 +432,16 @@ public class AnalysisWorker implements Runnable {
         networkId = task.graphId;
         TransportNetwork transportNetwork = networkLoaderState.value;
 
+        // The presence of destination point set keys indicates that we should calculate single-point accessibility.
+        // Every task should include a decay function (set to step function by backend if not supplied by user).
+        // In this case our highest cutoff is always 120, so we need to search all the way out to 120 minutes.
+        if (notNullOrEmpty(task.destinationPointSetKeys)) {
+            task.decayFunction.prepare();
+            task.cutoffsMinutes = IntStream.rangeClosed(0, 120).toArray();
+            task.maxTripDurationMinutes = 120;
+            task.loadAndValidateDestinationPointSets(pointSetCache);
+        }
+
         // After the AsyncLoader has reported all required data are ready for analysis, advance the shutdown clock to
         // reflect that the worker is performing single-point work.
         adjustShutdownClock(SINGLE_KEEPALIVE_MINUTES);
@@ -454,9 +464,11 @@ public class AnalysisWorker implements Runnable {
             // Catch-all, if the client didn't specifically ask for a GeoTIFF give it a proprietary grid.
             // Return raw byte array representing grid to caller, for return to client over HTTP.
             // TODO eventually reuse same code path as static site time grid saving
+            // TODO move the JSON writing code into the grid writer, it's essentially part of the grid format
             timeGridWriter.writeToDataOutput(new LittleEndianDataOutputStream(byteArrayOutputStream));
-            addWarningAndInfoJson(
+            addJsonToGrid(
                     byteArrayOutputStream,
+                    oneOriginResult.accessibility,
                     transportNetwork.scenarioApplicationWarnings,
                     transportNetwork.scenarioApplicationInfo
             );
@@ -603,30 +615,61 @@ public class AnalysisWorker implements Runnable {
     }
 
     /**
-     * This is somewhat hackish - when we want to return errors to the UI, we just append them as JSON at the end of
-     * a binary result. We always append this JSON even when there are no errors so the UI has something to decode,
-     * even if it's an empty list.
-     *
-     * TODO use different HTTP codes and MIME types to return errors or valid results.
-     * We probably want to keep doing this though because we want to return a result AND the warnings.
+     * This is a model from which we can serialize the block of JSON metadata at the end of a
+     * binary grid of travel times, which we return from the worker to the UI via the backend.
      */
-    public static void addWarningAndInfoJson (
+    public static class GridJsonBlock {
+
+        /**
+         * For each destination pointset, for each percentile, for each cutoff minute from zero to 120 (inclusive), the
+         * cumulative opportunities accessibility including effects of the distance decay function. We may eventually
+         * want to also include the marginal opportunities at each minute, without the decay function applied.
+         */
+        public int[][][] accessibility;
+
+        public List<TaskError> scenarioApplicationWarnings;
+
+        public List<TaskError> scenarioApplicationInfo;
+
+        @Override
+        public String toString () {
+            return String.format(
+                "[travel time grid metadata block with %d warning and %d informational messages]",
+                scenarioApplicationWarnings.size(),
+                scenarioApplicationInfo.size()
+            );
+        }
+    }
+
+    /**
+     * Our binary travel time grid format ends with a block of JSON containing additional structured data.
+     * This includes
+     * This is somewhat hackish - when we want to return errors to the UI, we just append them as JSON at the end of
+     * We always append this JSON even when it won't contain anything so the UI has something to decode.
+     * The response's HTTP status code is set by the caller - it may be an error or not. If we only have warnings
+     * and no serious errors, we use a success error code.
+     * TODO distinguish between warnings and errors - we already distinguish between info and warnings.
+     * This could be turned into a GridJsonBlock constructor, with the JSON writing code in an instance method.
+     */
+    public static void addJsonToGrid (
             OutputStream outputStream,
+            AccessibilityResult accessibilityResult,
             List<TaskError> scenarioApplicationWarnings,
             List<TaskError> scenarioApplicationInfo
     ) throws IOException {
-        LOG.info(
-            "Travel time surface written, appending metadata with {} warning and {} informational messages.",
-            scenarioApplicationWarnings.size(),
-            scenarioApplicationInfo.size()
-        );
-        // We create a single-entry map because this converts easily to a JSON object.
-        Map<String, List<TaskError>> errorsToSerialize = new HashMap<>();
-        errorsToSerialize.put("scenarioApplicationWarnings", scenarioApplicationWarnings);
-        errorsToSerialize.put("scenarioApplicationInfo", scenarioApplicationInfo);
+        var jsonBlock = new GridJsonBlock();
+        jsonBlock.scenarioApplicationInfo = scenarioApplicationInfo;
+        jsonBlock.scenarioApplicationWarnings = scenarioApplicationWarnings;
+        if (accessibilityResult != null) {
+            // Due to the application of distance decay functions, we may want to make the shift to non-integer
+            // accessibility values (especially for cases where there are relatively few opportunities across the whole
+            // study area). But we'd need to control the number of decimal places serialized into the JSON.
+            jsonBlock.accessibility = accessibilityResult.getIntValues();
+        }
+        LOG.info("Travel time surface written, appending {}.", jsonBlock);
         // We could do this when setting up the Spark handler, supplying writeValue as the response transformer
         // But then you also have to handle the case where you are returning raw bytes.
-        JsonUtilities.objectMapper.writeValue(outputStream, errorsToSerialize);
+        JsonUtilities.objectMapper.writeValue(outputStream, jsonBlock);
         LOG.info("Done writing");
     }
 

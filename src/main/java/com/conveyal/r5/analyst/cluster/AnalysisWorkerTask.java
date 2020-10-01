@@ -1,6 +1,8 @@
 package com.conveyal.r5.analyst.cluster;
 
 import com.conveyal.r5.analyst.FreeFormPointSet;
+import com.conveyal.r5.analyst.Grid;
+import com.conveyal.r5.analyst.GridTransformWrapper;
 import com.conveyal.r5.analyst.PointSet;
 import com.conveyal.r5.analyst.PointSetCache;
 import com.conveyal.r5.analyst.WebMercatorExtents;
@@ -11,6 +13,8 @@ import com.conveyal.r5.profile.ProfileRequest;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+import java.util.Arrays;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -29,11 +33,13 @@ import static com.google.common.base.Preconditions.checkState;
 public abstract class AnalysisWorkerTask extends ProfileRequest {
 
     /**
-     * The largest number of cutoffs we'll accept in a task. Too many cutoffs can create very large output files.
-     * Note that when we begin calculating single-point accessibility on the worker instead of in the UI, there will
-     * frequently be 120 cutoffs. Then this limit will only apply to regional analyses, not single-point.
+     * The largest number of cutoffs we'll accept in a regional analysis task. Too many cutoffs can create very large
+     * output files. This limit does not apply when calculating single-point accessibility on the worker, where there
+     * will always be 121 cutoffs (from zero to 120 minutes inclusive).
      */
-    public static final int MAX_CUTOFFS = 12;
+    public static final int MAX_REGIONAL_CUTOFFS = 12;
+
+    public static final int N_SINGLE_POINT_CUTOFFS = 121;
 
     /** The largest number of percentiles we'll accept in a task. */
     public static final int MAX_PERCENTILES = 5;
@@ -135,6 +141,9 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * The storage keys for the pointsets we will compute access to. The format is regionId/datasetId.fileFormat.
      * Ideally we'd just provide the IDs of the grids, but creating the key requires us to know the region
      * ID and file format, which are not otherwise easily available.
+     * This field is required for regional analyses, which always compute accessibility to destinations.
+     * On the other hand, in a single point request this may be null, in which case the worker will report only
+     * travel times to destinations and not accessibility figures.
      */
     public String[] destinationPointSetKeys;
 
@@ -200,27 +209,38 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * supplied cache. The PointSets themselves are not serialized and sent over to the worker in the task, so this
      * method is called by the worker to materialize them.
      *
-     * For now, this requires grids with the same extents. Future enhancements could first create a stack of aligned
-     * targets, with appropriate indexing.
-     *
-     * TODO merge multiple destination pointsets from a regional request into a single supergrid?
+     * If multiple grids are specified, they must be at the same zoom level, but they will all be wrapped to transform
+     * their indexes to match a single task-wide grid.
      */
     public void loadAndValidateDestinationPointSets (PointSetCache pointSetCache) {
+        // First, validate and load the pointsets.
+        // They need to be loaded so we can see their types and dimensions for the next step.
         checkNotNull(destinationPointSetKeys);
         int nPointSets = destinationPointSetKeys.length;
-        checkState(nPointSets > 0 && nPointSets <= 10,
-                "You must specify at least 1 destination PointSet, but no more than 10.");
+        checkState(
+            nPointSets > 0 && nPointSets <= 10,
+            "You must specify at least 1 destination PointSet, but no more than 10."
+        );
         destinationPointSets = new PointSet[nPointSets];
         for (int i = 0; i < nPointSets; i++) {
             PointSet pointSet = pointSetCache.get(destinationPointSetKeys[i]);
             checkNotNull(pointSet, "Could not load PointSet specified in regional task.");
             destinationPointSets[i] = pointSet;
-            if (pointSet instanceof FreeFormPointSet) {
-                checkArgument(nPointSets == 1,
-                        "If a freeform destination PointSet is specified, it must be the only one.");
-            } else {
-                checkArgument(pointSet.getWebMercatorExtents().equals(destinationPointSets[0].getWebMercatorExtents()),
-                        "If multiple grids are specified as destinations, they must have identical extents.");
+        }
+        // Next, if the destinations are gridded PointSets (as opposed to FreeFormPointSets),
+        // transform cell numbers where necessary between task-wide grid and each individual grid.
+        boolean freeForm = Arrays.stream(destinationPointSets).anyMatch(FreeFormPointSet.class::isInstance);
+        if (freeForm){
+            checkArgument(nPointSets == 1, "Only one freeform destination PointSet may be specified.");
+        } else {
+            // Get a grid for this particular task (determined by dimensions in the request, or by unifying the grids).
+            // This requires the grids to already be loaded into the array, hence the two-stage loading then wrapping.
+            final var taskGridExtents = this.getWebMercatorExtents();
+            for (int i = 0; i < nPointSets; i++) {
+                Grid grid = (Grid) destinationPointSets[i];
+                if (! grid.getWebMercatorExtents().equals(taskGridExtents)) {
+                    destinationPointSets[i] = new GridTransformWrapper(taskGridExtents, grid);
+                }
             }
         }
     }
@@ -239,11 +259,19 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
 
     public void validateCutoffsMinutes () {
         checkNotNull(cutoffsMinutes);
-        int nCutoffs = cutoffsMinutes.length;
+        final int nCutoffs = cutoffsMinutes.length;
         checkArgument(nCutoffs >= 1, "At least one cutoff must be supplied.");
-        checkArgument(nCutoffs <= MAX_CUTOFFS, "Maximum number of cutoffs allowed is " + MAX_CUTOFFS);
+        // This should probably be handled with method overrides, but we are already using instanceOf everywhere.
+        // In the longer term we should just merge both subtypes into this AnalysisWorkerTask superclass.
+        if (this instanceof RegionalTask) {
+            checkArgument(nCutoffs <= MAX_REGIONAL_CUTOFFS,
+                "Maximum number of cutoffs allowed in a regional analysis is " + MAX_REGIONAL_CUTOFFS);
+        } else {
+            checkArgument(nCutoffs == N_SINGLE_POINT_CUTOFFS,
+                "Single point accessibility has the wrong number of cutoffs.");
+        }
         for (int c = 0; c < nCutoffs; c++) {
-            checkArgument(cutoffsMinutes[c] > 0, "Cutoffs must be positive integers.");
+            checkArgument(cutoffsMinutes[c] >= 0, "Cutoffs must be non-negative integers.");
             checkArgument(cutoffsMinutes[c] <= 120, "Cutoffs must be at most 120 minutes.");
             if (c > 0) {
                 checkArgument(cutoffsMinutes[c] >= cutoffsMinutes[c - 1], "Cutoffs must be in ascending order.");

@@ -96,6 +96,9 @@ public class AnalysisRequest {
      * The IDs of pointsets to be used as destinations in accessibility or travel time calculations. This can be
      * one or more grids with identical extents, or a single freeform pointset.
      * This replaces the deprecated singular opportunityDatasetId.
+     * This field is required for regional analyses, which always compute accessibility to destinations.
+     * On the other hand, in a single point request this may be null, in which case the worker will report only
+     * travel times to destinations and not accessibility figures.
      */
     public String[] destinationPointSetIds;
 

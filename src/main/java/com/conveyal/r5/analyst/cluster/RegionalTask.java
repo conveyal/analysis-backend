@@ -53,11 +53,14 @@ public class RegionalTask extends AnalysisWorkerTask implements Cloneable {
     }
 
     /**
-     * For Taui sites, there is no opportunity grid. The grid of destinations is the extents given in the task,
-     * which for static sites is also the grid of origins.
+     * For Taui (static) sites, there is no fixed opportunity grid as accessibility is computed in the web UI.
+     * The grid of destinations is the extents given in the task, which for Taui sites is also the grid of origins.
      *
      * For standard, non-Taui regional analyses, we expect at least one valid grid of opportunities to be specified as
-     * the destinations. This is necessary to compute accessibility. So we extract those bounds from the grids.
+     * the destinations, as this is necessary to compute accessibility. Travel times to any location outside those grids
+     * cannot change accessibility results, and we are not displaying travel time isochrones, so we extract the
+     * minimal bounds containing all destination opportunity grids. This is not optimal where the full extent of the
+     * road network is smaller than the opportunity data, but that should be rare.
      */
     @Override
     public WebMercatorExtents getWebMercatorExtents() {

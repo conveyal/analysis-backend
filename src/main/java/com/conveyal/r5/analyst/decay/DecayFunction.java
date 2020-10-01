@@ -32,7 +32,7 @@ public abstract class DecayFunction {
      * weight, i.e. the point at which the decreasing weight curve has reached zero. Some functions approach zero
      * asymptotically, so they will still return tiny fractional weights all the way out to two hours (or infinity).
      * This can lead to a lot of unnecessary computation, causing us to search all the way out to 2 hours. It is
-     * advisable for decay function implemetations truncate the curve when the weight falls below some threshold, so we
+     * advisable for decay function implementations truncate the curve when the weight falls below some threshold, so we
      * get a small finite travel time above which we can consider all opportunities unreachable.
      *
      * Contract:
@@ -70,11 +70,13 @@ public abstract class DecayFunction {
 
     /**
      * For functions without a simple analytic solution, find the effective zero point by bisection.
-     * We require functions to reach zero at or above the cutoff point, but before four hours.
      * Adapted from Python's bisect_right function. Quick benchmarks show effective search time is under one msec.
+     * We initially required functions to reach zero at or above the cutoff point, but before four hours.
+     * However, this intuitive constraint doesn't hold for functions that do not respond to cutoff:
+     * the function will always have the same zero point, even when the cutoff is moved above that zero point.
      */
     private int findZeroPoint (int cutoffSeconds) {
-        int low = cutoffSeconds;
+        int low = 0;
         int high = 4 * 60 * 60;
         while (low < high) {
             int mid = (low + high) / 2;
@@ -87,4 +89,5 @@ public abstract class DecayFunction {
         }
         return low;
     }
+
 }

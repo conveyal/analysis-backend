@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.conveyal.r5.analyst.cluster.AnalysisWorker.addWarningAndInfoJson;
+import static com.conveyal.r5.analyst.cluster.AnalysisWorker.addJsonToGrid;
 
 /**
  * This class contains Spark HTTP request handler methods that are served up by Analysis workers.
@@ -95,7 +95,7 @@ public class AnalysisWorkerController {
         // TODO expand task errors, this just logs the memory address of the list.
         LOG.warn("Reporting errors in response to single-point request:\n" + taskErrors.toString());
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        addWarningAndInfoJson(byteArrayOutputStream, taskErrors, Collections.emptyList());
+        addJsonToGrid(byteArrayOutputStream, null, taskErrors, Collections.emptyList());
         byteArrayOutputStream.close();
         return byteArrayOutputStream.toByteArray();
     }
