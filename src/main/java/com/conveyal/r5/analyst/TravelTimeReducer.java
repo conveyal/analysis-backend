@@ -39,16 +39,16 @@ public class TravelTimeReducer {
     /** If we are calculating accessibility, the PointSets containing opportunities. */
     private PointSet[] destinationPointSets;
 
-    /** TODO Explain. */
+    /** The array indexes at which we'll find each percentile in a sorted list of length timesPerDestination. */
     private final int[] percentileIndexes;
 
-    /** TODO Explain. */
+    /** The number of different percentiles that were requested. */
     private final int nPercentiles;
 
-    /** TODO explain. */
+    /** The travel time cutoffs supplied in the request, validated and converted to seconds. */
     private int[] cutoffsSeconds;
 
-    /** TODO Explain. */
+    /** The length of the cutoffs array, just for convenience and code clarity. */
     private int nCutoffs;
 
     /**
@@ -140,7 +140,7 @@ public class TravelTimeReducer {
             travelTimeResult = new TravelTimeResult(task);
         }
 
-        // Validate and copy the travel time cutoffs, converting them to minutes to avoid repeated multiplication
+        // Validate and copy the travel time cutoffs, converting them to seconds to avoid repeated multiplication
         // in tight loops. Also find the points where the decay function reaches zero for these cutoffs.
         // This is only relevant when calculating accessibility.
         this.decayFunction = task.decayFunction;
@@ -234,10 +234,7 @@ public class TravelTimeReducer {
         }
         if (calculateAccessibility) {
             // This can handle multiple opportunity grids as long as they have exactly the same extents.
-            // That should cover common use cases but will eventually need to be adapted to handle multiple different
-            // grid extents. This will require transforming indexes between multiple grids possibly of different sizes
-            // (a GridIndexTransform class?). If the transform is only for reading into a single super-grid, they will
-            // only need to add a single number to the width and y.
+            // Grids of different extents are handled by using GridTransformWrapper to give them all the same extents.
             for (int d = 0; d < destinationPointSets.length; d++) {
                 final double opportunityCountAtTarget = destinationPointSets[d].getOpportunityCount(target);
                 if (!(opportunityCountAtTarget > 0)) {
