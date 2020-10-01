@@ -12,7 +12,6 @@ import com.conveyal.analysis.controllers.HttpController;
 import com.conveyal.analysis.controllers.ModificationController;
 import com.conveyal.analysis.controllers.OpportunityDatasetController;
 import com.conveyal.analysis.controllers.ProjectController;
-import com.conveyal.analysis.controllers.RegionController;
 import com.conveyal.analysis.controllers.RegionalAnalysisController;
 import com.conveyal.analysis.controllers.TimetableController;
 import com.conveyal.analysis.persistence.AnalysisDB;
@@ -61,7 +60,6 @@ public class LocalComponents extends Components {
         final List<HttpController> httpControllers = Arrays.asList(
                 // These handlers are at paths beginning with /api
                 // and therefore subject to authentication and authorization.
-                new RegionController(),
                 new ModificationController(),
                 new ProjectController(),
                 new GTFSGraphQLController(components.gtfsCache),
