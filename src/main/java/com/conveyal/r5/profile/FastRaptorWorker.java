@@ -350,7 +350,7 @@ public class FastRaptorWorker {
                 scheduleState[round].minMergePrevious();
 
                 raptorTimer.scheduledSearchTransit.start();
-                doScheduledSearchForRound(scheduleState[round - 1], scheduleState[round]);
+                doScheduledSearchForRound(scheduleState[round]);
                 raptorTimer.scheduledSearchTransit.stop();
 
                 // If there are frequency routes, we will be randomizing the schedules (phase) of those routes.
@@ -360,7 +360,7 @@ public class FastRaptorWorker {
                 // Perhaps we should only do it when iterationsPerMinute is high (2 or more?)
                 if (ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND && transit.hasFrequencies && boardingMode == MONTE_CARLO) {
                     raptorTimer.scheduledSearchFrequencyBounds.start();
-                    doFrequencySearchForRound(scheduleState[round - 1], scheduleState[round], UPPER_BOUND);
+                    doFrequencySearchForRound(scheduleState[round], UPPER_BOUND);
                     raptorTimer.scheduledSearchFrequencyBounds.stop();
                 }
                 // Apply transfers to the scheduled result that will be reused for the previous departure minute.
@@ -397,11 +397,11 @@ public class FastRaptorWorker {
                     frequencyState[round].minMergePrevious();
 
                     raptorTimer.frequencySearchScheduled.start();
-                    doScheduledSearchForRound(frequencyState[round - 1], frequencyState[round]);
+                    doScheduledSearchForRound(frequencyState[round]);
                     raptorTimer.frequencySearchScheduled.stop();
 
                     raptorTimer.frequencySearchFrequency.start();
-                    doFrequencySearchForRound(frequencyState[round - 1], frequencyState[round], boardingMode);
+                    doFrequencySearchForRound(frequencyState[round], boardingMode);
                     raptorTimer.frequencySearchFrequency.stop();
 
                     raptorTimer.frequencySearchTransfers.start();
@@ -480,10 +480,10 @@ public class FastRaptorWorker {
      * A sub-step in the process of performing a RAPTOR search at one specific departure time (at one specific minute).
      * This method handles only the routes that have exact schedules. There is another method that handles only the
      * other kind of routes: the frequency-based routes.
-     * TODO force inputState = outputState.previous instead of passing in an arbitrary input state
      */
-    private void doScheduledSearchForRound(RaptorState inputState, RaptorState outputState) {
-        BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningScheduledPatterns);
+    private void doScheduledSearchForRound (RaptorState outputState) {
+        final RaptorState inputState = outputState.previous;
+        BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningScheduledPatterns, true);
         for (int patternIndex = patternsToExplore.nextSetBit(0);
              patternIndex >= 0;
              patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
@@ -512,7 +512,8 @@ public class FastRaptorWorker {
                 }
 
                 // Don't attempt to board if this stop was not reached in the last round or if pick up is not allowed.
-                if (inputState.stopWasUpdated(stop) &&
+                // Scheduled searches only care about updates within this departure minute, enabling range-raptor.
+                if (inputState.stopWasUpdated(stop, true) &&
                     pattern.pickups[stopPositionInPattern] != PickDropType.NONE
                 ) {
                     int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
@@ -588,12 +589,11 @@ public class FastRaptorWorker {
      * TODO maybe convert all these functions to pure functions that create and output new round states.
      * @param frequencyBoardingMode see comments on enum values.
      */
-    private void doFrequencySearchForRound (
-            RaptorState inputState,
-            RaptorState outputState,
-            FrequencyBoardingMode frequencyBoardingMode
-    ) {
-        BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningFrequencyPatterns);
+    private void doFrequencySearchForRound (RaptorState outputState, FrequencyBoardingMode frequencyBoardingMode) {
+        final RaptorState inputState = outputState.previous;
+        // Most frequency searches need to apply updates on top of changes from later departure minutes.
+        final boolean withinMinute = (frequencyBoardingMode == UPPER_BOUND);
+        BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningFrequencyPatterns, withinMinute);
         for (int patternIndex = patternsToExplore.nextSetBit(0);
                  patternIndex >= 0;
                  patternIndex = patternsToExplore.nextSetBit(patternIndex + 1)
@@ -638,7 +638,9 @@ public class FastRaptorWorker {
                         // If this stop was updated in the previous round and pickup is allowed at this stop, see if
                         // we can board an earlier trip.
                         // (even if already boarded, since this is a frequency trip and we could move back)
-                        if (inputState.stopWasUpdated(stop) && pattern.pickups[stopPositionInPattern] != PickDropType.NONE) {
+                        if (inputState.stopWasUpdated(stop, withinMinute) &&
+                            pattern.pickups[stopPositionInPattern] != PickDropType.NONE
+                        ) {
                             int earliestBoardTime = inputState.bestTimes[stop] + MINIMUM_BOARD_WAIT_SEC;
 
                             // if we're computing the upper bound, we want the worst case. This is the only thing that is
@@ -833,8 +835,12 @@ public class FastRaptorWorker {
         final int walkSpeedMillimetersPerSecond = (int) (request.walkSpeed * 1000);
         final int maxWalkMillimeters = walkSpeedMillimetersPerSecond * (request.maxWalkTime * SECONDS_PER_MINUTE);
         final int nStops = state.bestNonTransferTimes.length;
-        for (int stop = 0; stop < nStops; stop++) {
-            if (!state.stopWasUpdatedPreTransfer(stop)) continue;
+        // Compute transfers only from stops updated pre-transfer within this departure minute / randomized schedule.
+        // These transfers then update the post-transfers bitset to avoid concurrent modification while iterating.
+        for (int stop = state.nonTransferStopsUpdated.nextSetBit(0);
+                 stop > 0;
+                 stop = state.nonTransferStopsUpdated.nextSetBit(stop + 1)
+        ) {
             TIntList transfersFromStop = transit.transfersForStop.get(stop);
             if (transfersFromStop != null) {
                 for (int i = 0; i < transfersFromStop.size(); i += 2) {
@@ -855,8 +861,9 @@ public class FastRaptorWorker {
      * Find all patterns that could lead to improvements in the next round after the given state's raptor round.
      * Specifically, the patterns passing through all stops that were updated in the given state's round.
      * The pattern indexes returned are limited to those in the supplied set.
+     * @param withinMinute EXPLAIN
      */
-    private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns) {
+    private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns, boolean withinMinute) {
         if (!ENABLE_OPTIMIZATION_UPDATED_STOPS) {
             // We do not write to the returned bitset, only iterate over it, so do not need to make a protective copy.
             return runningPatterns;
@@ -864,7 +871,7 @@ public class FastRaptorWorker {
         BitSet patternsToExplore = new BitSet();
         final int nStops = state.bestTimes.length;
         for (int stop = 0; stop < nStops; stop++) {
-            if (!state.stopWasUpdated(stop)) continue;
+            if (!state.stopWasUpdated(stop, withinMinute)) continue;
             TIntIterator patternsAtStop = transit.patternsForStop.get(stop).iterator();
             while (patternsAtStop.hasNext()) {
                 int pattern = patternsAtStop.next();

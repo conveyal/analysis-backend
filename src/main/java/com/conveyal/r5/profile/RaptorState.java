@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 import static com.conveyal.r5.common.Util.newIntArray;
 import static com.conveyal.r5.profile.FastRaptorWorker.ENABLE_OPTIMIZATION_CLEAR_LONG_PATHS;
@@ -104,6 +105,21 @@ public class RaptorState {
     public int maxDurationSeconds;
 
     /**
+     * A set of all the stops whose arrival times were improved in this round, in the current raptor search in progress.
+     * Note that in range-raptor, when reusing state from a later departure minute, arrival times may be earlier at
+     * a particular stop than in the previous round due to those already-finished searches. That fact can easily be
+     * detected by looking at the times themselves. Here we are separately tracking the updates made on top of those
+     * upper bound times by this single-departure-minute (or single-randomized-schedule) search in progress.
+     */
+    public final BitSet stopsUpdated = new BitSet();
+
+    /**
+     * Same as stopsUpdated, but before transfers are applied.
+     * This is mostly needed to prevent concurrent iteration and modification of the set when evaluating transfers.
+     */
+    public final BitSet nonTransferStopsUpdated = new BitSet();
+
+    /**
      * Create a RaptorState for a network with a particular number of stops, and a given maximum travel duration.
      * Travel times to all stops are initialized to UNREACHED, which will be improved upon by the search process.
      * The previous round field is left null and should be set as needed by the code calling this constructor.
@@ -130,10 +146,10 @@ public class RaptorState {
 
     /**
      * Copy constructor for reusing search state from one minute to the next in a range raptor search.
-     * This makes a deep copy of all fields, except the sets of updated stops (which are cleared) and the reference
+     * This makes a deep copy of all fields, except the sets of stopsUpdated (which are cleared) and the reference
      * to the previous round's state (which should be set as needed by the caller).
      */
-    private RaptorState(RaptorState state) {
+    private RaptorState (RaptorState state) {
         this.bestTimes = Arrays.copyOf(state.bestTimes, state.bestTimes.length);
         this.bestNonTransferTimes = Arrays.copyOf(state.bestNonTransferTimes, state.bestNonTransferTimes.length);
         this.previousPatterns = Arrays.copyOf(state.previousPatterns, state.previousPatterns.length);
@@ -248,6 +264,7 @@ public class RaptorState {
                     "Components of travel time are greater than total travel time.");
 
             optimal = true;
+            nonTransferStopsUpdated.set(stop);
         }
 
         // At a given stop, bestTimes is always less than or equal to bestNonTransferTimes. It will always be equal to
@@ -263,8 +280,8 @@ public class RaptorState {
                 transferStop[stop] = -1;
             }
             optimal = true;
+            stopsUpdated.set(stop);
         }
-
         return optimal;
     }
 
@@ -293,7 +310,8 @@ public class RaptorState {
         // a separate code path, and in fact does not apply the range raptor optimization.
         checkState(additionalWaitSeconds == 60, "Departure times may only be decremented by one minute.");
         this.departureTime = departureTime;
-
+        this.stopsUpdated.clear();
+        this.nonTransferStopsUpdated.clear();
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
         // This whole loop does not seem strictly necessary. In testing, removing it does not change results since
         // real travel times and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being
@@ -324,18 +342,18 @@ public class RaptorState {
         }
     }
 
-    /** @return whether the time was updated (with or without transfer) in the round represented by this state. */
-    public boolean stopWasUpdated (int stop) {
-        int time = this.bestTimes[stop];
-        int prevTime = (previous != null) ? previous.bestTimes[stop] : UNREACHED;
-        return time < prevTime;
-    }
-
-    /** @return whether the time was updated before transfers were applied in the round represented by this state. */
-    public boolean stopWasUpdatedPreTransfer (int stop) {
-        int time = this.bestNonTransferTimes[stop];
-        int prevTime = (previous != null) ? previous.bestNonTransferTimes[stop] : UNREACHED;
-        return time < prevTime;
+    /**
+     * @param withinMinute if true, use the bitsets for the current minute, otherwise look at effects of all minutes.
+     * @return whether the time was updated (with or without transfer) in the round represented by this state.
+     */
+    public boolean stopWasUpdated (int stop, boolean withinMinute) {
+        if (withinMinute) {
+            return stopsUpdated.get(stop);
+        } else {
+            int time = this.bestTimes[stop];
+            int prevTime = (previous != null) ? previous.bestTimes[stop] : UNREACHED;
+            return time < prevTime;
+        }
     }
 
 }
