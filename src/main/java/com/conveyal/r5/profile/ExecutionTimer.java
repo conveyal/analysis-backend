@@ -67,9 +67,14 @@ public class ExecutionTimer {
         return String.format("%s: %s", name, description);
     }
 
+    /** Root timer is logged at INFO level, and details of children at DEBUG level. */
     public void log (int indentLevel) {
-        String indent = Strings.repeat("- ", indentLevel);
-        LOG.debug(indent + this.getMessage());
+        if (indentLevel == 0) {
+            LOG.info(getMessage());
+        } else {
+            String indent = Strings.repeat("- ", indentLevel);
+            LOG.debug(indent + getMessage());
+        }
     }
 
     public void logWithChildren () {
