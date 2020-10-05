@@ -859,9 +859,13 @@ public class FastRaptorWorker {
 
     /**
      * Find all patterns that could lead to improvements in the next round after the given state's raptor round.
-     * Specifically, the patterns passing through all stops that were updated in the given state's round.
+     * Specifically, the patterns passing through all stops that were updated in the given state's round. 
+     * For frequency upper-bound and schedule searches, no previously checked (i.e. later) departure time can yield 
+     * earlier arrival times at stops, so only patterns passing through stops updated in this round need to be checked in the next round. 
+     * For frequency searches, where the randomized schedules vary, a previously checked departure minute could lead to an
+     * earlier arrival, so the incumbent best arrival time at each stop needs to be compared directly against the arrival time in this round.
      * The pattern indexes returned are limited to those in the supplied set.
-     * @param withinMinute EXPLAIN
+     * @param withinMinute if true, consider updates only within this round; should be false when previously checked rounds (i.e. later departure minutes) can have earlier arrivals at stops (e.g. in the case of frequency searches with random schedules)
      */
     private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns, boolean withinMinute) {
         if (!ENABLE_OPTIMIZATION_UPDATED_STOPS) {
