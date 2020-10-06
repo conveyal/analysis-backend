@@ -355,8 +355,9 @@ public class FastRaptorWorker {
 
                 // If there are frequency routes, we will be randomizing the schedules (phase) of those routes.
                 // First perform a frequency search using worst-case boarding time to provide a tighter upper bound on
-                // total travel time. Each randomized schedule will then improve on these travel times.
-                // This should be a pure optimization, which is only helpful for Monte Carlo mode (not half-headway).
+                // total travel time. Each randomized schedule will then improve on these travel times. This should be
+                // a pure optimization, which is only helpful for Monte Carlo mode (not half-headway). Note that unlike
+                // the monte carlo draws, this frequency search is interleaved with the scheduled search in each round.
                 // Perhaps we should only do it when iterationsPerMinute is high (2 or more?)
                 if (ENABLE_OPTIMIZATION_FREQ_UPPER_BOUND && transit.hasFrequencies && boardingMode == MONTE_CARLO) {
                     raptorTimer.scheduledSearchFrequencyBounds.start();
@@ -579,19 +580,23 @@ public class FastRaptorWorker {
 
     /**
      * Perform one round of a Raptor search, considering only the frequency-based routes. These results are layered
-     * on top of (may improve upon) those from the fully scheduled routes.
-     * If the boarding mode is UPPER_BOUND, worst-case boarding time will be used at every boarding event.
-     * Arrival times produced can then be used as a valid upper bound for previous departure minutes in range RAPTOR.
+     * on top of (may improve upon) those from the fully scheduled routes. If the boarding mode is UPPER_BOUND,
+     * worst-case boarding time will be used at every boarding event. Arrival times produced can then be used as a
+     * valid upper bound for previous departure minutes in range-raptor, and for randomized schedules at the same
+     * departure minute.
      *
-     * Otherwise randomized schedules will be used to improve upon the output of the range-RAPTOR bounds search.
-     * Those outputs may not be reused in successive iterations as schedules will change from one iteration to the next.
+     * If the boarding mode is MONTE_CARLO, randomized schedules will be used to improve upon the output of the
+     * range-raptor upper bound search described above. Those outputs may not be reused in successive iterations, as
+     * these Monte Carlo schedules will change from one iteration to the next.
      *
      * TODO maybe convert all these functions to pure functions that create and output new round states.
      * @param frequencyBoardingMode see comments on enum values.
      */
     private void doFrequencySearchForRound (RaptorState outputState, FrequencyBoardingMode frequencyBoardingMode) {
         final RaptorState inputState = outputState.previous;
-        // Most frequency searches need to apply updates on top of changes from later departure minutes.
+        // Determine which routes are capable of improving on travel times in this round. Monte Carlo frequency searches
+        // are applying randomized schedules that are not present in the accumulated range-raptor upper bound state.
+        // Those randomized frequency routes may cascade improvements from updates made at previous departure minutes.
         final boolean withinMinute = (frequencyBoardingMode == UPPER_BOUND);
         BitSet patternsToExplore = patternsToExploreInNextRound(inputState, runningFrequencyPatterns, withinMinute);
         for (int patternIndex = patternsToExplore.nextSetBit(0);
@@ -858,14 +863,14 @@ public class FastRaptorWorker {
     }
 
     /**
-     * Find all patterns that could lead to improvements in the next round after the given state's raptor round.
-     * Specifically, the patterns passing through all stops that were updated in the given state's round. 
-     * For frequency upper-bound and schedule searches, no previously checked (i.e. later) departure time can yield 
-     * earlier arrival times at stops, so only patterns passing through stops updated in this round need to be checked in the next round. 
-     * For frequency searches, where the randomized schedules vary, a previously checked departure minute could lead to an
-     * earlier arrival, so the incumbent best arrival time at each stop needs to be compared directly against the arrival time in this round.
-     * The pattern indexes returned are limited to those in the supplied set.
-     * @param withinMinute if true, consider updates only within this round; should be false when previously checked rounds (i.e. later departure minutes) can have earlier arrivals at stops (e.g. in the case of frequency searches with random schedules)
+     * Find all patterns that could lead to improvements in the next raptor round after the given state's round.
+     * Specifically, these are the patterns passing through all stops that were updated in the given state's round.
+     * When the set of patterns being considered is consistent with those present in the accumulated range raptor state,
+     * it is sufficient to cascade updates from round to round within the current departure minute, without looking at
+     * the accumulated state from other minutes. But when the set of patterns being considered is different than those
+     * in the accumulated state (as when we're layering on randomized frequency routes), updates must be cascaded from
+     * things that happened in the other departure minutes - in this case the withinMinute parameter should be false.
+     * The pattern indexes returned are limited to those in the supplied set, reflecting active service on a given day.
      */
     private BitSet patternsToExploreInNextRound (RaptorState state, BitSet runningPatterns, boolean withinMinute) {
         if (!ENABLE_OPTIMIZATION_UPDATED_STOPS) {
