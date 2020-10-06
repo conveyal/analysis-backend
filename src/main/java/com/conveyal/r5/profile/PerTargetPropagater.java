@@ -108,6 +108,8 @@ public class PerTargetPropagater {
      */
     private Path[] perIterationPaths;
 
+    private final PropagationTimer timer = new PropagationTimer();
+
     /**
      * Constructor.
      */
@@ -119,27 +121,29 @@ public class PerTargetPropagater {
             int[][] travelTimesToStopsForIteration,
             int[] nonTransitTravelTimesToTargets
     ) {
-        this.maxTravelTimeSeconds = task.maxTripDurationMinutes * SECONDS_PER_MINUTE;
         this.targets = targets;
         this.modes = modes;
         this.request = task;
         this.travelTimesToStopsForIteration = travelTimesToStopsForIteration;
         this.nonTransitTravelTimesToTargets = nonTransitTravelTimesToTargets;
+
         // If we're making a static site we'll break travel times down into components and make paths.
         // This expects the pathsToStopsForIteration and pathWriter fields to be set separately by the caller.
-        this.calculateComponents = task.makeTauiSite;
+        calculateComponents = task.makeTauiSite;
 
+        maxTravelTimeSeconds = task.maxTripDurationMinutes * SECONDS_PER_MINUTE;
         oneToOne = request instanceof RegionalTask && ((RegionalTask) request).oneToOne;
-
         nIterations = travelTimesToStopsForIteration.length;
         nStops = travelTimesToStopsForIteration[0].length;
-        invertTravelTimes();
         nTargets = targets.featureCount();
+        linkedTargets = new ArrayList<>(modes.size());
+
+        timer.fullPropagation.start();
+        timer.transposition.start();
+        invertTravelTimes();
         if (nonTransitTravelTimesToTargets.length != nTargets) {
             throw new IllegalArgumentException("Non-transit travel times must have the same number of entries as there are points.");
         }
-        linkedTargets = new ArrayList<>(modes.size());
-
         for (StreetMode streetMode : modes) {
             LinkedPointSet linkedTargetsForMode = streetLayer.parentNetwork.linkageCache
                     .getLinkage(targets, streetLayer, streetMode);
@@ -148,6 +152,9 @@ public class PerTargetPropagater {
             linkedTargetsForMode.getEgressCostTable().destructivelyTransposeForPropagationAsNeeded();
             linkedTargets.add(linkedTargetsForMode);
         }
+        timer.transposition.stop();
+        // Prevent top-level timer from counting any intervening actions until caller calls propagate()
+        timer.fullPropagation.stop();
     }
 
     /**
@@ -156,7 +163,7 @@ public class PerTargetPropagater {
      */
     public OneOriginResult propagate () {
 
-        long startTimeMillis = System.currentTimeMillis();
+        timer.fullPropagation.start();
 
         // perIterationTravelTimes and perIterationDetails are reused when processing each target.
         perIterationTravelTimes = new int[nIterations];
@@ -189,7 +196,9 @@ public class PerTargetPropagater {
 
             // Improve upon these non-transit travel times based on transit travel times to nearby stops.
             // This fills in perIterationTravelTimes and perIterationPaths for one particular target.
+            timer.propagation.start();
             propagateTransit(targetIdx);
+            timer.propagation.stop();
 
             // Construct the PathScorer before extracting percentiles because the scorer needs to make a copy of
             // the unsorted complete travel times.
@@ -202,7 +211,9 @@ public class PerTargetPropagater {
 
             // Extract the requested percentiles and save them (and/or the resulting accessibility indicator values)
             int targetToWrite = oneToOne ? 0 : targetIdx;
+            timer.reducer.start();
             travelTimeReducer.extractTravelTimePercentilesAndRecord(targetToWrite, perIterationTravelTimes);
+            timer.reducer.stop();
 
             if (calculateComponents) {
                 // TODO Somehow report these in-vehicle, wait and walk breakdown values alongside the total travel time.
@@ -214,9 +225,8 @@ public class PerTargetPropagater {
                 pathWriter.recordPathsForTarget(selectedPaths);
             }
         }
-        LOG.info("Propagating {} iterations from {} stops to {} target points took {}s",
-                nIterations, nStops, endTarget - startTarget, (System.currentTimeMillis() - startTimeMillis) / 1000d
-        );
+        timer.fullPropagation.stop();
+        timer.log();
         if (pathWriter != null) {
             pathWriter.finishAndStorePaths();
         }
@@ -244,14 +254,12 @@ public class PerTargetPropagater {
      * locality problems elsewhere (since the pathfinding algorithm solves one iteration for all stops simultaneously).
      */
     private void invertTravelTimes() {
-        long startTime = System.currentTimeMillis();
         travelTimesToStop = new int[nStops][nIterations];
         for (int iteration = 0; iteration < nIterations; iteration++) {
             for (int stop = 0; stop < nStops; stop++) {
                 travelTimesToStop[stop][iteration] = travelTimesToStopsForIteration[iteration][stop];
             }
         }
-        LOG.info("Travel time matrix transposition took {} msec", System.currentTimeMillis() - startTime);
     }
 
     /**

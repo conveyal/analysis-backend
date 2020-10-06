@@ -18,6 +18,9 @@ import static com.google.common.base.Preconditions.checkState;
  * sub-millisecond in duration. (Arguably on large numbers of operations using msec would be fine because the number of
  * times we cross a millisecond boundary would be proportional to the portion of a millisecond that operation took, but
  * nanoTime() avoids the problem entirely.)
+ *
+ * TODO ability to dump to JSON or JsonNode tree for inclusion in response, via some kind of request-scoped context
+ *  object. This should help enable continuous performance tracking in CI.
  */
 public class ExecutionTimer {
 
@@ -67,9 +70,14 @@ public class ExecutionTimer {
         return String.format("%s: %s", name, description);
     }
 
+    /** Root timer is logged at INFO level, and details of children at DEBUG level. */
     public void log (int indentLevel) {
-        String indent = Strings.repeat("- ", indentLevel);
-        LOG.debug(indent + this.getMessage());
+        if (indentLevel == 0) {
+            LOG.info(getMessage());
+        } else {
+            String indent = Strings.repeat("- ", indentLevel);
+            LOG.debug(indent + getMessage());
+        }
     }
 
     public void logWithChildren () {
