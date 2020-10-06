@@ -310,8 +310,8 @@ public class RaptorState {
         // a separate code path, and in fact does not apply the range raptor optimization.
         checkState(additionalWaitSeconds == 60, "Departure times may only be decremented by one minute.");
         this.departureTime = departureTime;
-        this.stopsUpdated.clear();
-        this.nonTransferStopsUpdated.clear();
+        stopsUpdated.clear();
+        nonTransferStopsUpdated.clear();
         // Remove trips that exceed the maximum trip duration when the rider departs earlier (due to more wait time).
         // This whole loop does not seem strictly necessary. In testing, removing it does not change results since
         // real travel times and INF can both compare greater than a cutoff. In fact multi-cutoff depends on this being

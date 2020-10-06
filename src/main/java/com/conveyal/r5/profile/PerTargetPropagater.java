@@ -108,7 +108,7 @@ public class PerTargetPropagater {
      */
     private Path[] perIterationPaths;
 
-    private final PropagationTimer timer;
+    private final PropagationTimer timer = new PropagationTimer();
 
     /**
      * Constructor.
@@ -121,17 +121,17 @@ public class PerTargetPropagater {
             int[][] travelTimesToStopsForIteration,
             int[] nonTransitTravelTimesToTargets
     ) {
-        this.maxTravelTimeSeconds = task.maxTripDurationMinutes * SECONDS_PER_MINUTE;
         this.targets = targets;
         this.modes = modes;
         this.request = task;
         this.travelTimesToStopsForIteration = travelTimesToStopsForIteration;
         this.nonTransitTravelTimesToTargets = nonTransitTravelTimesToTargets;
+
         // If we're making a static site we'll break travel times down into components and make paths.
         // This expects the pathsToStopsForIteration and pathWriter fields to be set separately by the caller.
-        this.calculateComponents = task.makeTauiSite;
-        this.timer = new PropagationTimer();
+        calculateComponents = task.makeTauiSite;
 
+        maxTravelTimeSeconds = task.maxTripDurationMinutes * SECONDS_PER_MINUTE;
         oneToOne = request instanceof RegionalTask && ((RegionalTask) request).oneToOne;
         nIterations = travelTimesToStopsForIteration.length;
         nStops = travelTimesToStopsForIteration[0].length;
