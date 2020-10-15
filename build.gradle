@@ -18,11 +18,15 @@ jar {
     // For Java 11 Modules, specify a module name.
     // Do not create module-info.java until all our dependencies specify a module name.
     // Main-Class R5Main will start a worker, BackendMain must be specified on JVM command line to start backend.
+    // Build-Jdk-Spec mimics a Maven manifest entry that helps us automatically install the right JVM.
+    // Implementation-X attributes are needed for ImageIO (used by Geotools) to initialize in some environments.
     manifest {
         attributes 'Automatic-Module-Name': 'com.conveyal.analysis',
-                   'Main-Class': 'com.conveyal.r5.R5Main',
-                   // Mimic Maven manifest entry that helps automatically install the right JVM
-                   'Build-Jdk-Spec': targetCompatibility.getMajorVersion()
+            'Main-Class': 'com.conveyal.r5.R5Main',
+            'Build-Jdk-Spec': targetCompatibility.getMajorVersion(),
+            'Implementation-Title': 'Conveyal Analysis Backend',
+            'Implementation-Vendor': 'Conveyal LLC',
+            'Implementation-Version': project.version
     }
 }
 

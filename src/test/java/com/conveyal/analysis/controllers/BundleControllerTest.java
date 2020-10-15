@@ -2,6 +2,7 @@ package com.conveyal.analysis.controllers;
 
 import com.conveyal.analysis.AnalysisServerTest;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.bson.types.ObjectId;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -10,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 
-import static com.conveyal.analysis.TestUtils.createRegion;
 import static com.conveyal.analysis.TestUtils.getResourceFileName;
 import static com.conveyal.analysis.TestUtils.objectIdInResponse;
 import static com.conveyal.analysis.TestUtils.parseJson;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class BundleControllerTest {
     private static final Logger LOG = LoggerFactory.getLogger(BundleControllerTest.class);
     private static boolean setUpIsDone = false;
-    private static String regionId;
+    private static String regionId = new ObjectId().toString();
     private static String simpleGtfsZipFileName;
 
     /**
@@ -40,9 +40,6 @@ public class BundleControllerTest {
 
         // start server if it isn't already running
         AnalysisServerTest.setUp();
-
-        // create a region
-        regionId = createRegion().get("_id").asText();
 
         // zip up the gtfs folder
         simpleGtfsZipFileName = zipFolderFiles("fake-agency");

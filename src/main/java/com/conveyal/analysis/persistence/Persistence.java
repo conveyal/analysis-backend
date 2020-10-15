@@ -1,7 +1,6 @@
 package com.conveyal.analysis.persistence;
 
 import com.conveyal.analysis.models.AggregationArea;
-import com.conveyal.analysis.models.Bookmark;
 import com.conveyal.analysis.models.Bundle;
 import com.conveyal.analysis.models.JsonViews;
 import com.conveyal.analysis.models.Model;
@@ -41,7 +40,6 @@ public class Persistence {
     public static MongoMap<Bundle> bundles;
     public static MongoMap<Region> regions;
     public static MongoMap<RegionalAnalysis> regionalAnalyses;
-    public static MongoMap<Bookmark> bookmarks;
     public static MongoMap<AggregationArea> aggregationAreas;
     public static MongoMap<OpportunityDataset> opportunityDatasets;
 
@@ -61,7 +59,6 @@ public class Persistence {
         bundles = getTable("bundles", Bundle.class);
         regions = getTable("regions", Region.class);
         regionalAnalyses = getTable("regional-analyses", RegionalAnalysis.class);
-        bookmarks = getTable("bookmarks", Bookmark.class);
         aggregationAreas = getTable("aggregationAreas", AggregationArea.class);
         opportunityDatasets = getTable("opportunityDatasets", OpportunityDataset.class);
     }

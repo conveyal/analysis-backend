@@ -33,11 +33,14 @@ import static com.google.common.base.Preconditions.checkState;
 public abstract class AnalysisWorkerTask extends ProfileRequest {
 
     /**
-     * The largest number of cutoffs we'll accept in a task. Too many cutoffs can create very large output files.
-     * Note that when we begin calculating single-point accessibility on the worker instead of in the UI, there will
-     * frequently be 120 cutoffs. Then this limit will only apply to regional analyses, not single-point.
+     * The largest number of cutoffs we'll accept in a regional analysis task. Too many cutoffs can create very large
+     * output files. This limit does not apply when calculating single-point accessibility on the worker, where there
+     * will always be 121 cutoffs (from zero to 120 minutes inclusive).
      */
-    public static final int MAX_CUTOFFS = 120; // WORK IN PROGRESS: worker side accessibility (should be lower)
+
+    public static final int MAX_REGIONAL_CUTOFFS = 12;
+
+    public static final int N_SINGLE_POINT_CUTOFFS = 121;
 
     /** The largest number of percentiles we'll accept in a task. */
     public static final int MAX_PERCENTILES = 5;
@@ -139,6 +142,9 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
      * The storage keys for the pointsets we will compute access to. The format is regionId/datasetId.fileFormat.
      * Ideally we'd just provide the IDs of the grids, but creating the key requires us to know the region
      * ID and file format, which are not otherwise easily available.
+     * This field is required for regional analyses, which always compute accessibility to destinations.
+     * On the other hand, in a single point request this may be null, in which case the worker will report only
+     * travel times to destinations and not accessibility figures.
      */
     public String[] destinationPointSetKeys;
 
@@ -254,9 +260,17 @@ public abstract class AnalysisWorkerTask extends ProfileRequest {
 
     public void validateCutoffsMinutes () {
         checkNotNull(cutoffsMinutes);
-        int nCutoffs = cutoffsMinutes.length;
+        final int nCutoffs = cutoffsMinutes.length;
         checkArgument(nCutoffs >= 1, "At least one cutoff must be supplied.");
-        checkArgument(nCutoffs <= MAX_CUTOFFS, "Maximum number of cutoffs allowed is " + MAX_CUTOFFS);
+        // This should probably be handled with method overrides, but we are already using instanceOf everywhere.
+        // In the longer term we should just merge both subtypes into this AnalysisWorkerTask superclass.
+        if (this instanceof RegionalTask) {
+            checkArgument(nCutoffs <= MAX_REGIONAL_CUTOFFS,
+                "Maximum number of cutoffs allowed in a regional analysis is " + MAX_REGIONAL_CUTOFFS);
+        } else {
+            checkArgument(nCutoffs == N_SINGLE_POINT_CUTOFFS,
+                "Single point accessibility has the wrong number of cutoffs.");
+        }
         for (int c = 0; c < nCutoffs; c++) {
             checkArgument(cutoffsMinutes[c] >= 0, "Cutoffs must be non-negative integers.");
             checkArgument(cutoffsMinutes[c] <= 120, "Cutoffs must be at most 120 minutes.");

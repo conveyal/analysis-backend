@@ -45,16 +45,16 @@ public class TravelTimeReducer {
     /** If we are calculating accessibility, the PointSets containing opportunities. */
     private PointSet[] destinationPointSets;
 
-    /** TODO Explain. */
+    /** The array indexes at which we'll find each percentile in a sorted list of length timesPerDestination. */
     private final int[] percentileIndexes;
 
-    /** TODO Explain. */
+    /** The number of different percentiles that were requested. */
     private final int nPercentiles;
 
-    /** TODO explain. */
+    /** The travel time cutoffs supplied in the request, validated and converted to seconds. */
     private int[] cutoffsSeconds;
 
-    /** TODO Explain. */
+    /** The length of the cutoffs array, just for convenience and code clarity. */
     private int nCutoffs;
 
     /**
@@ -129,7 +129,6 @@ public class TravelTimeReducer {
         this.destinationPointSets = task.destinationPointSets;
         if (task instanceof TravelTimeSurfaceTask) {
             calculateTravelTimes = true;
-            // WORK IN PROGRESS: worker side accessibility
             calculateAccessibility = notNullOrEmpty(task.destinationPointSets);
         } else {
             // Maybe we should define recordAccessibility and recordTimes on the common superclass AnalysisWorkerTask.
@@ -148,13 +147,13 @@ public class TravelTimeReducer {
             pathResult = new PathResult(task);
         }
 
-        // Validate and copy the travel time cutoffs, which only makes sense when calculating accessibility.
-        // Validation should probably happen earlier when making or handling incoming tasks.
+        // Validate and copy the travel time cutoffs, converting them to seconds to avoid repeated multiplication
+        // in tight loops. Also find the points where the decay function reaches zero for these cutoffs.
+        // This is only relevant when calculating accessibility.
         this.decayFunction = task.decayFunction;
         if (calculateAccessibility) {
             task.validateCutoffsMinutes();
             this.nCutoffs = task.cutoffsMinutes.length;
-            // Convert cutoffs to seconds, to avoid repeated multiplication in tight loops.
             this.cutoffsSeconds = new int[nCutoffs];
             this.zeroPointsForCutoffs = new int[nCutoffs];
             for (int c = 0; c < nCutoffs; c++) {
@@ -242,10 +241,7 @@ public class TravelTimeReducer {
         }
         if (calculateAccessibility) {
             // This can handle multiple opportunity grids as long as they have exactly the same extents.
-            // That should cover common use cases but will eventually need to be adapted to handle multiple different
-            // grid extents. This will require transforming indexes between multiple grids possibly of different sizes
-            // (a GridIndexTransform class?). If the transform is only for reading into a single super-grid, they will
-            // only need to add a single number to the width and y.
+            // Grids of different extents are handled by using GridTransformWrapper to give them all the same extents.
             for (int d = 0; d < destinationPointSets.length; d++) {
                 final double opportunityCountAtTarget = destinationPointSets[d].getOpportunityCount(target);
                 if (!(opportunityCountAtTarget > 0)) {

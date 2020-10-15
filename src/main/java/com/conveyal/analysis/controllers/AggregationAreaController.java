@@ -28,7 +28,6 @@ import java.io.OutputStream;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ public class AggregationAreaController implements HttpController {
      * Someone might reasonably request an aggregation area for each of Chicago's 50 wards, so that's a good approximate
      * limit for now.
      */
-    private static int MAX_FEATURES = 60;
+    private static int MAX_FEATURES = 100;
 
     private final FileStorage fileStorage;
     private final Config config;
@@ -131,12 +130,14 @@ public class AggregationAreaController implements HttpController {
 
         Map<String, Geometry> areas = new HashMap<>();
 
-        if (features.size() > MAX_FEATURES) {
+        boolean unionRequested = Boolean.parseBoolean(query.get("union").get(0).getString());
+
+        if (!unionRequested && features.size() > MAX_FEATURES) {
             throw AnalysisServerException.fileUpload(MessageFormat.format("The uploaded shapefile has {0} features, " +
                     "which exceeds the limit of {1}", features.size(), MAX_FEATURES));
         }
 
-        if (Boolean.parseBoolean(query.get("union").get(0).getString())) {
+        if (unionRequested) {
             // Union (single combined aggregation area) requested
             List<Geometry> geometries = features.stream().map(f -> (Geometry) f.getDefaultGeometry()).collect(Collectors.toList());
             UnaryUnionOp union = new UnaryUnionOp(geometries);

@@ -11,6 +11,11 @@ gradle-app.setting
 # Cache of project
 .gradletasknamecache
 
+# Other gradle build objects
+gradle
+gradlew.bat
+gradlew
+
 # IntelliJ IDEA
 .idea/
 

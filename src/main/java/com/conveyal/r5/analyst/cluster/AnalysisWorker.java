@@ -408,8 +408,8 @@ public class AnalysisWorker implements Runnable {
 
     /**
      * Synchronously handle one single-point task.
-     * @return the travel time grid (binary data) which will be passed back to the client UI. This binary response may
-     *         have errors appended as JSON to the end.
+     * @return the travel time grid (binary data) which will be passed back to the client UI, with a JSON block at the
+     *         end containing accessibility figures, scenario application warnings, and informational messages.
      */
     protected byte[] handleOneSinglePointTask (TravelTimeSurfaceTask task)
             throws WorkerNotReadyException, ScenarioApplicationException, IOException {
@@ -433,14 +433,14 @@ public class AnalysisWorker implements Runnable {
         networkId = task.graphId;
         TransportNetwork transportNetwork = networkLoaderState.value;
 
-        // WORK IN PROGRESS: worker side accessibility
-        {
+        // The presence of destination point set keys indicates that we should calculate single-point accessibility.
+        // Every task should include a decay function (set to step function by backend if not supplied by user).
+        // In this case our highest cutoff is always 120, so we need to search all the way out to 120 minutes.
+        if (notNullOrEmpty(task.destinationPointSetKeys)) {
             task.decayFunction.prepare();
+            task.cutoffsMinutes = IntStream.rangeClosed(0, 120).toArray();
             task.maxTripDurationMinutes = 120;
-            if (notNullOrEmpty(task.destinationPointSetKeys)) {
-                task.cutoffsMinutes = IntStream.range(0, 120).toArray();
-                task.loadAndValidateDestinationPointSets(pointSetCache);
-            }
+            task.loadAndValidateDestinationPointSets(pointSetCache);
         }
 
         // After the AsyncLoader has reported all required data are ready for analysis, advance the shutdown clock to
@@ -470,7 +470,6 @@ public class AnalysisWorker implements Runnable {
             addJsonToGrid(
                     byteArrayOutputStream,
                     oneOriginResult.accessibility,
-                    task.decayFunction,
                     transportNetwork.scenarioApplicationWarnings,
                     transportNetwork.scenarioApplicationInfo,
                     oneOriginResult.paths
@@ -654,6 +653,33 @@ public class AnalysisWorker implements Runnable {
     }
 
     /**
+     * This is a model from which we can serialize the block of JSON metadata at the end of a
+     * binary grid of travel times, which we return from the worker to the UI via the backend.
+     */
+    public static class GridJsonBlock {
+
+        /**
+         * For each destination pointset, for each percentile, for each cutoff minute from zero to 120 (inclusive), the
+         * cumulative opportunities accessibility including effects of the distance decay function. We may eventually
+         * want to also include the marginal opportunities at each minute, without the decay function applied.
+         */
+        public int[][][] accessibility;
+
+        public List<TaskError> scenarioApplicationWarnings;
+
+        public List<TaskError> scenarioApplicationInfo;
+
+        @Override
+        public String toString () {
+            return String.format(
+                "[travel time grid metadata block with %d warning and %d informational messages]",
+                scenarioApplicationWarnings.size(),
+                scenarioApplicationInfo.size()
+            );
+        }
+    }
+
+    /**
      * Our binary travel time grid format ends with a block of JSON containing additional structured data.
      * This includes
      * This is somewhat hackish - when we want to return errors to the UI, we just append them as JSON at the end of
@@ -666,7 +692,6 @@ public class AnalysisWorker implements Runnable {
     public static void addJsonToGrid (
             OutputStream outputStream,
             AccessibilityResult accessibilityResult,
-            DecayFunction decayFunction,
             List<TaskError> scenarioApplicationWarnings,
             List<TaskError> scenarioApplicationInfo,
             PathResult pathResult
@@ -680,10 +705,6 @@ public class AnalysisWorker implements Runnable {
             // study area). But we'd need to control the number of decimal places serialized into the JSON.
             jsonBlock.accessibility = accessibilityResult.getIntValues();
         }
-        if (decayFunction != null) {
-            jsonBlock.javascriptDecayFunction = decayFunction.javascriptFunction();
-        }
-
         LOG.info("Travel time surface written, appending {}.", jsonBlock);
         // We could do this when setting up the Spark handler, supplying writeValue as the response transformer
         // But then you also have to handle the case where you are returning raw bytes.
